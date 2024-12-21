@@ -1,0 +1,11 @@
+{
+  "private": false,
+  "name": "react-ai-ui",
+  "version": "0.0.1",
+  "main": "index.js",
+  "author": "Sam Denty <samddenty@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "use-stick-to-bottom": "^1.0.42"
+  }
+}

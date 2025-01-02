@@ -6,6 +6,11 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samdenty/react-ai-flow.git",
+    "directory": "packages/text-stagger"
+  },
   "scripts": {
     "build": "rm -rf dist > /dev/null 2>&1; tsc -b",
     "prepublishOnly": "yarn build"

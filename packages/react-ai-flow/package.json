@@ -11,6 +11,11 @@
     "test": "vitest",
     "prepublishOnly": "yarn build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samdenty/react-ai-flow.git",
+    "directory": "packages/react-ai-flow"
+  },
   "dependencies": {
     "react-text-stagger": "workspace:*"
   },

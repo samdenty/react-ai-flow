@@ -6,34 +6,8 @@ settings:
 
 importers:
 
-  .: {}
-
-  packages/react-ai-flow: {}
-
-  packages/react-text-stagger:
+  .:
     dependencies:
-      '@preact/signals-react':
-        specifier: ^2.3.0
-        version: 2.3.0(react@18.3.1)
-      use-stick-to-bottom:
-        specifier: ^1.0.42
-        version: 1.0.43(react@18.3.1)
-    devDependencies:
-      '@egoist/tailwindcss-icons':
-        specifier: ^1.8.1
-        version: 1.8.2(tailwindcss@3.4.17)
-      '@iconify-json/ph':
-        specifier: ^1.2.0
-        version: 1.2.2
-      '@tailwindcss/typography':
-        specifier: ^0.5.15
-        version: 0.5.15(tailwindcss@3.4.17)
-      '@types/react':
-        specifier: ^18.3.3
-        version: 18.3.18
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.5(@types/react@18.3.18)
       '@vitejs/plugin-react':
         specifier: ^4.3.1
         version: 4.3.4(vite@5.4.11(@types/node@22.10.3))
@@ -46,21 +20,12 @@ importers:
       globals:
         specifier: ^15.9.0
         version: 15.14.0
-      lorem-ipsum:
-        specifier: ^2.0.8
-        version: 2.0.8
       playwright:
         specifier: ^1.49.1
         version: 1.49.1
       postcss:
         specifier: ^8.4.45
         version: 8.4.49
-      react:
-        specifier: ^16.8.0 || ^17.0.0 || ^18.0.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.0.0
-        version: 18.3.1(react@18.3.1)
       tailwindcss:
         specifier: ^3.4.10
         version: 3.4.17
@@ -76,6 +41,58 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.8(@types/node@22.10.3)(@vitest/browser@2.1.8)(msw@2.7.0(@types/node@22.10.3)(typescript@5.7.2))
+
+  packages/react-ai-flow:
+    dependencies:
+      react-text-stagger:
+        specifier: workspace:*
+        version: link:../react-text-stagger
+    devDependencies:
+      '@egoist/tailwindcss-icons':
+        specifier: ^1.8.1
+        version: 1.8.2
+      '@iconify-json/ph':
+        specifier: ^1.2.0
+        version: 1.2.2
+      '@tailwindcss/typography':
+        specifier: ^0.5.15
+        version: 0.5.15
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.18
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.5(@types/react@18.3.18)
+      lorem-ipsum:
+        specifier: ^2.0.8
+        version: 2.0.8
+      react:
+        specifier: ^16.8.0 || ^17.0.0 || ^18.0.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.0.0
+        version: 18.3.1(react@18.3.1)
+      use-stick-to-bottom:
+        specifier: ^1.0.43
+        version: 1.0.43(react@18.3.1)
+
+  packages/react-text-stagger:
+    dependencies:
+      react:
+        specifier: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+        version: 18.3.1
+      text-stagger:
+        specifier: workspace:^
+        version: link:../text-stagger
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.3
+        version: 18.3.18
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.5(@types/react@18.3.18)
+
+  packages/text-stagger: {}
 
 packages:
 
@@ -423,14 +440,6 @@ packages:
 
   '@polka/url@1.0.0-next.28':
     resolution: {integrity: sha512-8LduaNlMZGwdZ6qWrKlfa+2M4gahzFkprZiAt2TF8uS0qQgBizKXpXURqvTJ4WtmupWxaLqjRb2UCTe72mu+Aw==}
-
-  '@preact/signals-core@1.8.0':
-    resolution: {integrity: sha512-OBvUsRZqNmjzCZXWLxkZfhcgT+Fk8DDcT/8vD6a1xhDemodyy87UJRJfASMuSD8FaAIeGgGm85ydXhm7lr4fyA==}
-
-  '@preact/signals-react@2.3.0':
-    resolution: {integrity: sha512-g77rc7gTuPaoS5Lr80wjbN9P0t2U+YqJ6NG2krF5KLWLIoGn4uiByOv4bcZSJ41E4Nj50JLuXvdQEGlpU6cOug==}
-    peerDependencies:
-      react: ^16.14.0 || 17.x || 18.x || 19.x
 
   '@rollup/pluginutils@5.1.4':
     resolution: {integrity: sha512-USm05zrsFxYLPdWWq+K3STlWiT/3ELn3RcV5hJMghpeAIhxfsUIg6mt12CBJBInWMV4VneoV7SfGv8xIwo2qNQ==}
@@ -1594,11 +1603,6 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  use-sync-external-store@1.4.0:
-    resolution: {integrity: sha512-9WXSPC5fMv61vaupRkCKCxsPxBocVnwakBEkMIHHpkTTg6icbJtg6jzgtLDm4bl3cSHAca52rYWih0k4K3PfHw==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
@@ -1880,10 +1884,9 @@ snapshots:
       '@types/tough-cookie': 4.0.5
       tough-cookie: 4.1.4
 
-  '@egoist/tailwindcss-icons@1.8.2(tailwindcss@3.4.17)':
+  '@egoist/tailwindcss-icons@1.8.2':
     dependencies:
       '@iconify/utils': 2.2.1
-      tailwindcss: 3.4.17
     transitivePeerDependencies:
       - supports-color
 
@@ -2097,14 +2100,6 @@ snapshots:
 
   '@polka/url@1.0.0-next.28': {}
 
-  '@preact/signals-core@1.8.0': {}
-
-  '@preact/signals-react@2.3.0(react@18.3.1)':
-    dependencies:
-      '@preact/signals-core': 1.8.0
-      react: 18.3.1
-      use-sync-external-store: 1.4.0(react@18.3.1)
-
   '@rollup/pluginutils@5.1.4(rollup@4.29.1)':
     dependencies:
       '@types/estree': 1.0.6
@@ -2204,13 +2199,12 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@tailwindcss/typography@0.5.15(tailwindcss@3.4.17)':
+  '@tailwindcss/typography@0.5.15':
     dependencies:
       lodash.castarray: 4.4.0
       lodash.isplainobject: 4.0.6
       lodash.merge: 4.6.2
       postcss-selector-parser: 6.0.10
-      tailwindcss: 3.4.17
 
   '@testing-library/dom@10.4.0':
     dependencies:
@@ -3215,10 +3209,6 @@ snapshots:
       requires-port: 1.0.0
 
   use-stick-to-bottom@1.0.43(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-
-  use-sync-external-store@1.4.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 

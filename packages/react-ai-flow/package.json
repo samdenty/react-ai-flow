@@ -2,5 +2,27 @@
   "name": "react-ai-flow",
   "version": "1.0.0",
   "main": "index.js",
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist > /dev/null 2>&1; tsc -b",
+    "dev": "vite",
+    "test": "vitest",
+    "prepublishOnly": "yarn build"
+  },
+  "dependencies": {
+    "react-text-stagger": "workspace:*"
+  },
+  "devDependencies": {
+    "@egoist/tailwindcss-icons": "^1.8.1",
+    "@iconify-json/ph": "^1.2.0",
+    "@tailwindcss/typography": "^0.5.15",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "lorem-ipsum": "^2.0.8",
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
+    "react-dom": "^18.0.0",
+    "use-stick-to-bottom": "^1.0.43"
+  }
 }

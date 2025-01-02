@@ -1,3 +1,5 @@
-export * from "./stagger/index.js";
-export * from "./text/index.js";
-export * from "./element/index.js";
+export * from "text-stagger";
+
+export * from "./StaggeredElement.js";
+export * from "./StaggeredText.js";
+export * from "./StaggerProvider.js";

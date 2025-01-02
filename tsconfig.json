@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./dist/root.tsbuildinfo"
+  },
+  "references": [{ "path": "./packages/react-ai-flow" }]
+}

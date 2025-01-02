@@ -1,0 +1,231 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`getTextSplit > character > options 1`] = `
+{
+  "animation": "fade-in",
+  "delay": undefined,
+  "duration": undefined,
+  "gradientWidth": undefined,
+}
+`;
+
+exports[`getTextSplit > character > splits 1`] = `
+[
+  {
+    "end": 1,
+    "start": 0,
+    "text": "h",
+  },
+  {
+    "end": 2,
+    "start": 1,
+    "text": "e",
+  },
+  {
+    "end": 3,
+    "start": 2,
+    "text": "l",
+  },
+  {
+    "end": 4,
+    "start": 3,
+    "text": "l",
+  },
+  {
+    "end": 5,
+    "start": 4,
+    "text": "o",
+  },
+  {
+    "end": 6,
+    "start": 5,
+    "text": " ",
+  },
+  {
+    "end": 7,
+    "start": 6,
+    "text": "w",
+  },
+  {
+    "end": 8,
+    "start": 7,
+    "text": "o",
+  },
+  {
+    "end": 9,
+    "start": 8,
+    "text": "r",
+  },
+  {
+    "end": 10,
+    "start": 9,
+    "text": "l",
+  },
+  {
+    "end": 11,
+    "start": 10,
+    "text": "d",
+  },
+]
+`;
+
+exports[`getTextSplit > forwards all options > options 1`] = `
+{
+  "additionalProperty": 1,
+  "animation": "fade-in",
+  "delay": 100,
+  "duration": 200,
+  "gradientWidth": 500,
+}
+`;
+
+exports[`getTextSplit > line > options 1`] = `
+{
+  "animation": "gradient-reveal",
+  "delay": undefined,
+  "duration": undefined,
+  "gradientWidth": undefined,
+}
+`;
+
+exports[`getTextSplit > line > splits 1`] = `
+[
+  {
+    "end": 12,
+    "start": 0,
+    "text": "hello world
+",
+  },
+  {
+    "end": 22,
+    "start": 12,
+    "text": "new line
+",
+  },
+  {
+    "end": 32,
+    "start": 22,
+    "text": "new line2
+",
+  },
+  {
+    "end": 33,
+    "start": 32,
+    "text": "
+",
+  },
+  {
+    "end": 46,
+    "start": 33,
+    "text": "new paragraph",
+  },
+]
+`;
+
+exports[`getTextSplit > paragraph > options 1`] = `
+{
+  "animation": "gradient-reveal",
+  "delay": undefined,
+  "duration": undefined,
+  "gradientWidth": undefined,
+}
+`;
+
+exports[`getTextSplit > paragraph > splits 1`] = `
+[
+  {
+    "end": 33,
+    "start": 0,
+    "text": "hello world
+new line
+new line2
+
+",
+  },
+  {
+    "end": 61,
+    "start": 33,
+    "text": "new paragraph. foo bar.. foo",
+  },
+]
+`;
+
+exports[`getTextSplit > sentence > options 1`] = `
+{
+  "animation": "gradient-reveal",
+  "delay": undefined,
+  "duration": undefined,
+  "gradientWidth": undefined,
+}
+`;
+
+exports[`getTextSplit > sentence > splits 1`] = `
+[
+  {
+    "end": 48,
+    "start": 0,
+    "text": "hello world
+new line
+new line2
+
+new paragraph. ",
+  },
+  {
+    "end": 58,
+    "start": 48,
+    "text": "foo bar.. ",
+  },
+  {
+    "end": 61,
+    "start": 58,
+    "text": "foo",
+  },
+]
+`;
+
+exports[`getTextSplit > throws on invalid text split 1`] = `[Error: Invalid text split: alsdkjsdf]`;
+
+exports[`getTextSplit > word > options 1`] = `
+{
+  "animation": "fade-in",
+  "delay": undefined,
+  "duration": undefined,
+  "gradientWidth": undefined,
+}
+`;
+
+exports[`getTextSplit > word > splits 1`] = `
+[
+  {
+    "end": 6,
+    "start": 0,
+    "text": "hello ",
+  },
+  {
+    "end": 12,
+    "start": 6,
+    "text": "world ",
+  },
+  {
+    "end": 17,
+    "start": 12,
+    "text": "foo  ",
+  },
+  {
+    "end": 22,
+    "start": 17,
+    "text": "bar
+ ",
+  },
+  {
+    "end": 26,
+    "start": 22,
+    "text": "new ",
+  },
+  {
+    "end": 30,
+    "start": 26,
+    "text": "line",
+  },
+]
+`;

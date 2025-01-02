@@ -1,5 +1,5 @@
 {
-  "name": "react-ai-glide",
+  "name": "react-ai-flow",
   "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "description": "A lightweight React Hook intended mainly for AI chat applications, for smoothly sticking to bottom of messages",
   "private": true,

@@ -13,10 +13,6 @@ export class StaggerElementBox extends Box<StaggerElement> {
 
   progress = 0;
 
-  constructor(parent: StaggerElement, rect: DOMRect) {
-    super(parent, rect);
-  }
-
   get element() {
     return this.parent;
   }

@@ -50,13 +50,13 @@ importers:
     devDependencies:
       '@egoist/tailwindcss-icons':
         specifier: ^1.8.1
-        version: 1.8.2
+        version: 1.8.2(tailwindcss@3.4.17)
       '@iconify-json/ph':
         specifier: ^1.2.0
         version: 1.2.2
       '@tailwindcss/typography':
         specifier: ^0.5.15
-        version: 0.5.15
+        version: 0.5.15(tailwindcss@3.4.17)
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.18
@@ -92,7 +92,11 @@ importers:
         specifier: ^18.3.0
         version: 18.3.5(@types/react@18.3.18)
 
-  packages/text-stagger: {}
+  packages/text-stagger:
+    dependencies:
+      fast-myers-diff:
+        specifier: ^3.2.0
+        version: 3.2.0
 
 packages:
 
@@ -959,6 +963,9 @@ packages:
   fast-glob@3.3.2:
     resolution: {integrity: sha512-oX2ruAFQwf/Orj8m737Y5adxDQO0LAB7/S5MnxCdTNDd4p6BsyIVsv9JQsATbTSq8KHRpLwIHbVlUNatxd+1Ow==}
     engines: {node: '>=8.6.0'}
+
+  fast-myers-diff@3.2.0:
+    resolution: {integrity: sha512-DxNm4a3gnV35AluvqjeAV3Zx3CAySs0tsaDjnex5JhnJAa2rxEUVCwmaL2gpz42ea1B+IJorlo7XLThXUaTQog==}
 
   fastq@1.18.0:
     resolution: {integrity: sha512-QKHXPW0hD8g4UET03SdOdunzSouc9N4AuHdsX8XNcTsuz+yYFILVNIX4l9yHABMhiEI9Db0JTTIpu0wB+Y1QQw==}
@@ -1884,9 +1891,10 @@ snapshots:
       '@types/tough-cookie': 4.0.5
       tough-cookie: 4.1.4
 
-  '@egoist/tailwindcss-icons@1.8.2':
+  '@egoist/tailwindcss-icons@1.8.2(tailwindcss@3.4.17)':
     dependencies:
       '@iconify/utils': 2.2.1
+      tailwindcss: 3.4.17
     transitivePeerDependencies:
       - supports-color
 
@@ -2199,12 +2207,13 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@tailwindcss/typography@0.5.15':
+  '@tailwindcss/typography@0.5.15(tailwindcss@3.4.17)':
     dependencies:
       lodash.castarray: 4.4.0
       lodash.isplainobject: 4.0.6
       lodash.merge: 4.6.2
       postcss-selector-parser: 6.0.10
+      tailwindcss: 3.4.17
 
   '@testing-library/dom@10.4.0':
     dependencies:
@@ -2626,6 +2635,8 @@ snapshots:
       glob-parent: 5.1.2
       merge2: 1.4.1
       micromatch: 4.0.8
+
+  fast-myers-diff@3.2.0: {}
 
   fastq@1.18.0:
     dependencies:

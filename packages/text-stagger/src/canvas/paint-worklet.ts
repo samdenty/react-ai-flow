@@ -1,4 +1,4 @@
-import { doPaint } from "./canvas.js";
+import { AnimationState, doPaint } from "./canvas.js";
 
 export let paintWorkletRegistered!: Promise<void>;
 
@@ -34,7 +34,13 @@ function paintWorklet() {
         _geometry: PaintSize,
         properties: PaintStylePropertyMapReadOnly
       ) {
-        const state = JSON.parse(properties.get("--state").toString());
+        let state: AnimationState;
+        try {
+          state = JSON.parse(properties.get("--state").toString());
+        } catch {
+          return;
+        }
+
         doPaint(ctx, state);
       }
     }

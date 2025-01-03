@@ -5,10 +5,10 @@ import {
 } from "../stagger/index.js";
 
 export class Box<T extends Ranges<any> = Ranges<any>> {
-  constructor(public parent: T, public rect: DOMRect) {}
+  relativeTo: { element: HTMLElement; rect: DOMRect };
 
-  get relativeTo() {
-    return this.parent.relativeTo;
+  constructor(public parent: T, public rect: DOMRect) {
+    this.relativeTo = parent.relativeTo;
   }
 
   get options(): ElementOptions {
@@ -151,74 +151,120 @@ export abstract class Ranges<T extends Box> {
     }, []);
   }
 
-  trimComputedRanges(start: number, end: number) {
-    return this.computedContentOffsets.flatMap((pos) => {
-      if (pos.end <= start || pos.start >= end) {
-        return [];
-      }
+  createComputedContentTrimmer() {
+    const computedContentOffsets = this.computedContentOffsets;
+    const offsetsCache = new Map<number, { node: Node; offset: number }>();
+    const lastChildCache = new WeakMap<Node, Node>();
 
-      const trimFromStart = Math.max(0, start - pos.start);
-      const trimFromEnd = Math.max(0, pos.end - end);
-
-      if (typeof pos.content === "string" || (!trimFromStart && !trimFromEnd)) {
-        return pos.content;
-      }
-
-      const trimmedRange = pos.content.cloneRange();
-
-      const startContainer =
-        trimmedRange.commonAncestorContainer.parentElement ?? document.body;
-      const walker = document.createTreeWalker(
-        startContainer,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode: (node) =>
-            trimmedRange.intersectsNode(node)
-              ? NodeFilter.FILTER_ACCEPT
-              : NodeFilter.FILTER_REJECT,
-        }
-      );
-
-      if (trimFromStart) {
-        let charCount = -trimmedRange.startOffset;
-
-        while (walker.nextNode()) {
-          const node = walker.currentNode as Text;
-          const totalWithNode = charCount + node.length;
-
-          if (totalWithNode >= trimFromStart) {
-            trimmedRange.setStart(node, trimFromStart - charCount);
-            break;
-          }
-
-          charCount = totalWithNode;
-        }
-      }
-
-      if (trimFromEnd) {
-        walker.currentNode = startContainer;
-        if (!walker.lastChild()) {
-          console.log("lastChild is null");
-          return trimmedRange;
+    return (start: number, end: number) => {
+      return computedContentOffsets.flatMap((pos) => {
+        if (pos.end <= start || pos.start >= end) {
+          return [];
         }
 
-        let totalWithNode = -(
-          trimmedRange.endContainer.textContent!.length - trimmedRange.endOffset
+        const trimFromStart = Math.max(0, start - pos.start);
+        const trimFromEnd = Math.max(0, pos.end - end);
+
+        if (
+          typeof pos.content === "string" ||
+          (!trimFromStart && !trimFromEnd)
+        ) {
+          return pos.content;
+        }
+
+        const trimmedRange = pos.content.cloneRange();
+        const { commonAncestorContainer } = trimmedRange;
+
+        const cachedStart = trimFromStart && offsetsCache.get(start);
+        const cachedEnd = trimFromEnd && offsetsCache.get(end);
+
+        const walker = document.createTreeWalker(
+          commonAncestorContainer,
+          NodeFilter.SHOW_TEXT
         );
 
-        do {
-          const node = walker.currentNode as Text;
-          totalWithNode += node.length;
+        if (cachedStart) {
+          trimmedRange.setStart(cachedStart.node, cachedStart.offset);
+        } else if (trimFromStart) {
+          if (commonAncestorContainer.nodeType === Node.TEXT_NODE) {
+            const node = commonAncestorContainer as Text;
+            const startOffset = trimmedRange.startOffset + trimFromStart;
+            trimmedRange.setStart(node, startOffset);
+            offsetsCache.set(start, { node, offset: startOffset });
+          } else {
+            let charCount = -trimmedRange.startOffset;
 
-          if (totalWithNode >= trimFromEnd) {
-            trimmedRange.setEnd(node, totalWithNode - trimFromEnd);
-            break;
+            while (walker.nextNode()) {
+              const node = walker.currentNode as Text;
+              if (!trimmedRange.intersectsNode(node)) {
+                continue;
+              }
+
+              const totalWithNode = charCount + node.length;
+
+              if (totalWithNode >= trimFromStart) {
+                const offset = trimFromStart - charCount;
+                offsetsCache.set(start, { node, offset });
+                trimmedRange.setStart(node, offset);
+                break;
+              }
+
+              charCount = totalWithNode;
+            }
           }
-        } while (walker.previousNode());
-      }
+        }
 
-      return trimmedRange;
-    });
+        if (cachedEnd) {
+          trimmedRange.setEnd(cachedEnd.node, cachedEnd.offset);
+        } else if (trimFromEnd) {
+          if (commonAncestorContainer.nodeType === Node.TEXT_NODE) {
+            const node = commonAncestorContainer as Text;
+            const endOffset = trimmedRange.endOffset - trimFromEnd;
+            trimmedRange.setEnd(node, endOffset);
+            offsetsCache.set(end, { node, offset: endOffset });
+          } else {
+            let lastChild = lastChildCache.get(commonAncestorContainer) ?? null;
+
+            if (lastChild) {
+              walker.currentNode = lastChild;
+            } else {
+              walker.currentNode = commonAncestorContainer;
+
+              lastChild = walker.lastChild();
+              if (!lastChild) {
+                console.log("lastChild is null");
+                return trimmedRange;
+              }
+
+              lastChildCache.set(commonAncestorContainer, lastChild);
+            }
+
+            let totalWithNode = -(
+              trimmedRange.endContainer.textContent!.length -
+              trimmedRange.endOffset
+            );
+
+            do {
+              const node = walker.currentNode as Text;
+              if (!trimmedRange.intersectsNode(node)) {
+                continue;
+              }
+
+              totalWithNode += node.length;
+
+              if (totalWithNode >= trimFromEnd) {
+                const offset = totalWithNode - trimFromEnd;
+                offsetsCache.set(end, { node, offset });
+                trimmedRange.setEnd(node, offset);
+                break;
+              }
+            } while (walker.previousNode());
+          }
+        }
+
+        return trimmedRange;
+      });
+    };
   }
 
   get computedContentOffsets() {
@@ -283,7 +329,7 @@ export abstract class Ranges<T extends Box> {
       const bottom = Math.max(box.bottom, current.bottom);
 
       return new DOMRect(left, top, right - left, bottom - top);
-    }, new DOMRect()));
+    }));
   }
 
   get boundingBox() {

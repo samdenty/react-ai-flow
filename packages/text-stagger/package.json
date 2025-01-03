@@ -14,5 +14,8 @@
   "scripts": {
     "build": "rm -rf dist > /dev/null 2>&1; tsc -b",
     "prepublishOnly": "yarn build"
+  },
+  "dependencies": {
+    "fast-myers-diff": "^3.2.0"
   }
 }

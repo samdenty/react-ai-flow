@@ -4,17 +4,15 @@ import {
   StaggerElement,
 } from "../stagger/index.js";
 import { Ranges } from "./Ranges.js";
-import { Stagger } from "../stagger/Stagger.js";
+import { ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
-  getTextSplitterWithDefaults,
-  isTextSplitOffset,
   mergeTextSplitter,
+  ParsedTextSplit,
   SplitterImpl,
-  TextSplitElement,
-  TextSplitter,
   TextSplitterOptions,
 } from "./TextSplitter.js";
+import { calcSlices } from "fast-myers-diff";
 
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
   "style",
@@ -38,8 +36,8 @@ export interface TextOptions
     StaggerElementBoxOptions {}
 
 export class Text extends Ranges<StaggerElementBox> {
-  lines: TextLine[];
-  #elements?: StaggerElement[];
+  lines: TextLine[] = [];
+  elements: StaggerElement[] = [];
 
   #mutationCache = new WeakMap<Node, number>();
 
@@ -47,14 +45,10 @@ export class Text extends Ranges<StaggerElementBox> {
     public stagger: Stagger,
     public id: number,
     element: HTMLElement,
-    ranges: Range[],
     public override options: TextOptions
   ) {
     const rect = element.getBoundingClientRect();
-    super(stagger, ranges, { element, rect }, options);
-
-    this.lines = TextLine.scanLines(this);
-    this.computedContent = this.lines.flatMap((line) => line.computedContent);
+    super(stagger, [], { element, rect }, options);
   }
 
   toJSON() {
@@ -63,37 +57,64 @@ export class Text extends Ranges<StaggerElementBox> {
     };
   }
 
-  split(...textSplitters: TextSplitter[]): StaggerElement[] {
-    const { splitter, ...options } =
-      getTextSplitterWithDefaults<StaggerElementBoxOptions>(
-        this.options,
-        ...textSplitters
-      );
+  diffElements(
+    event: ScanEvent = { reason: ScanReason.Force }
+  ): StaggerElement[] {
+    const textSplits = this.options.splitText(this, event);
 
-    const result = splitter(this.computedTextContent, this);
+    const diffs = calcSlices(
+      this.elements as (StaggerElement | ParsedTextSplit)[],
+      textSplits as (StaggerElement | ParsedTextSplit)[],
+      (elementIndex, splitIndex) => {
+        if (elementIndex === -1 || splitIndex === -1) {
+          return false;
+        }
 
-    if (Array.isArray(result)) {
-      const textSplits: TextSplitElement[] = result
-        .map((split) => {
-          return StaggerElement.mergeOptions(
-            options,
-            typeof split === "string" ? { text: split } : split
-          );
-        })
-        .filter((element) => isTextSplitOffset(element) || element.text.trim());
+        const { computedTextContent } = this.elements[elementIndex];
+        const { text } = textSplits[splitIndex];
 
-      return StaggerElement.splitsToElements(this, textSplits);
+        return computedTextContent === text;
+      }
+    );
+
+    const elements: StaggerElement[] = [];
+
+    const trimRanges = this.createComputedContentTrimmer();
+
+    for (const [action, items] of diffs) {
+      if (action === 0) {
+        elements.push(...(items as StaggerElement[]));
+        continue;
+      }
+
+      if (action === -1) {
+        console.log("remove", items);
+        for (const element of items as StaggerElement[]) {
+          if (element.progress) {
+            elements.push(element);
+          }
+        }
+        continue;
+      }
+
+      const splits = items as ParsedTextSplit[];
+
+      for (const textSplit of splits) {
+        const element = new StaggerElement(
+          this,
+          trimRanges(textSplit.start, textSplit.end),
+          textSplit
+        );
+
+        elements.push(element);
+      }
     }
 
-    return this.split(options, result);
+    return elements;
   }
 
   get boxes() {
     return this.elements.flatMap((element) => element.boxes);
-  }
-
-  get elements() {
-    return (this.#elements ??= this.split());
   }
 
   static scanText(
@@ -102,144 +123,114 @@ export class Text extends Ranges<StaggerElementBox> {
     element: HTMLElement,
     splitterOptions: TextSplitterOptions
   ) {
-    const range = document.createRange();
-    range.selectNodeContents(element);
-
-    // Get all text nodes within the element
-    const textNodes: globalThis.Text[] = [];
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-
-    while (walker.nextNode()) {
-      textNodes.push(walker.currentNode as globalThis.Text);
-    }
-
-    const hiddenCache = new WeakMap();
-
-    // Helper function to check if an element is hidden
-    function isElementHidden(element: HTMLElement) {
-      let hidden = hiddenCache.get(element);
-
-      if (hidden == null) {
-        const style = getComputedStyle(element);
-        hidden =
-          style.display === "none" ||
-          style.visibility === "hidden" ||
-          style.opacity === "0" ||
-          (element.offsetParent === null &&
-            element !== document.body &&
-            element !== document.documentElement);
-
-        hiddenCache.set(element, hidden);
-      }
-
-      return hidden;
-    }
-
-    // Helper function to check if any parent is hidden
-    function hasHiddenParent(node: Node) {
-      let parent = node.parentElement;
-      while (parent) {
-        if (isElementHidden(parent)) {
-          return true;
-        }
-        parent = parent.parentElement;
-      }
-      return false;
-    }
-
-    const ranges: (Range | undefined)[] = [];
-
-    for (const node of textNodes) {
-      let range = ranges[ranges.length - 1];
-
-      if (node.textContent && !hasHiddenParent(node)) {
-        if (!range) {
-          range = document.createRange();
-          ranges.splice(ranges.length - 1, 0, range);
-          range.setStart(node, 0);
-        }
-
-        range.setEnd(node, node.textContent.length);
-      } else if (range) {
-        ranges.push(undefined);
-      }
-    }
-
-    return new Text(
+    const text = new Text(
       stagger,
       id,
       element,
-      ranges.filter(Boolean) as Range[],
       mergeTextSplitter<TextOptions>(stagger.options, splitterOptions)
     );
+
+    text.scanElementLines();
+
+    return text;
   }
 
-  rescan(mutations: MutationRecord[]) {
-    // @ts-ignore
-    const impacts = this.analyzeMutationImpact(mutations);
-    // if (impacts.requiresFullRescan) {
-    //   this.lines = Text.scanText(element, this.options);
-    // } else if (impacts.firstAffectedLine !== -1) {
-    //   this.rescanFromLine(element, impacts.firstAffectedLine);
-    // }
+  scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
+    if (event.reason === ScanReason.Mutation) {
+      const impacts = this.analyzeMutationImpact(event.entries);
+
+      if (impacts.requiresFullRescan) {
+        this.lines = [];
+      } else {
+        this.lines = this.lines.slice(0, impacts.firstAffectedLine);
+      }
+    }
+
+    this.relativeTo = {
+      element: this.relativeTo.element,
+      rect: this.relativeTo.element.getBoundingClientRect(),
+    };
+
+    this.lines = TextLine.scanLines(this);
+    this.computedContent = this.lines.flatMap((line) => line.computedContent);
+
+    this.elements = this.diffElements(event);
   }
 
-  private analyzeMutationImpact(mutations: MutationRecord[]) {
-    let requiresFullRescan = false;
-    let firstAffectedLine = -1;
+  private analyzeMutationImpact(
+    mutations: MutationRecord[]
+  ):
+    | { requiresFullRescan: true; firstAffectedLine?: undefined }
+    | { requiresFullRescan: false; firstAffectedLine: number } {
+    let firstAffectedLine = null;
 
     for (const mutation of mutations) {
       switch (mutation.type) {
         // Text content changed
-        case "characterData":
+        case "characterData": {
           if (mutation.target instanceof Text) {
             const lineIndex = this.findLineContainingNode(mutation.target);
-            if (
-              lineIndex !== -1 &&
-              (firstAffectedLine === -1 || lineIndex < firstAffectedLine)
-            ) {
-              firstAffectedLine = lineIndex;
+
+            if (lineIndex === -1) {
+              return { requiresFullRescan: true };
             }
+
+            firstAffectedLine = Math.min(
+              firstAffectedLine ?? lineIndex,
+              lineIndex
+            );
           }
 
           break;
+        }
 
         // Nodes added or removed
-        case "childList":
-          const addedNodes = Array.from(mutation.addedNodes);
-          const removedNodes = Array.from(mutation.removedNodes);
+        case "childList": {
+          for (const node of mutation.addedNodes) {
+            const lineIndex = this.findLineContainingNode(
+              node.previousSibling ?? node.parentElement ?? document.body
+            );
 
-          const affectedNodes = [...addedNodes, ...removedNodes];
-          for (const node of affectedNodes) {
-            const lineIndex = this.findLineContainingNode(node);
-            if (
-              lineIndex !== -1 &&
-              (firstAffectedLine === -1 || lineIndex < firstAffectedLine)
-            ) {
-              firstAffectedLine = lineIndex;
+            if (lineIndex === -1) {
+              return { requiresFullRescan: true };
             }
+
+            firstAffectedLine = Math.min(
+              firstAffectedLine ?? lineIndex,
+              lineIndex
+            );
           }
+
           break;
+        }
 
         // Style changes that might affect layout
-        case "attributes":
+        case "attributes": {
           const element = mutation.target as HTMLElement;
+
           if (this.doesAttributeAffectLayout(mutation.attributeName!)) {
             const lineIndex = this.findLineContainingNode(element);
 
             if (lineIndex === -1) {
-              requiresFullRescan = true;
-            } else {
-              firstAffectedLine = lineIndex;
+              return { requiresFullRescan: true };
             }
-          }
-          break;
-      }
 
-      if (requiresFullRescan) break;
+            firstAffectedLine = Math.min(
+              firstAffectedLine ?? lineIndex,
+              lineIndex
+            );
+          }
+
+          break;
+        }
+      }
     }
 
-    return { requiresFullRescan, firstAffectedLine };
+    if (firstAffectedLine == null) {
+      return { requiresFullRescan: true };
+    }
+
+    return { requiresFullRescan: false, firstAffectedLine };
   }
 
   private findLineContainingNode(node: Node): number {

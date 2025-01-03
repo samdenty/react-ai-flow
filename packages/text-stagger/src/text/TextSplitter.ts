@@ -1,20 +1,17 @@
 import {
   ElementAnimation,
   ElementOptions,
+  ScanEvent,
   StaggerElement,
 } from "../stagger/index.js";
+import { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";
 
-export type SplitterImpl<T extends ElementOptions> = Omit<T, "splitter"> & {
-  splitter: CustomTextSplitter;
-  animation: ElementAnimation;
-};
+export type TextLike = Text | Ranges<any> | string;
 
-export type OptionalSplitterImpl<T extends ElementOptions> = Omit<
-  T,
-  "splitter"
-> & {
-  splitter?: CustomTextSplitter;
+export type SplitterImpl<T extends ElementOptions> = Omit<T, "splitter"> & {
+  splitText(text: Text, event: ScanEvent): ParsedTextSplit[];
+  animation: ElementAnimation;
 };
 
 export interface TextSplitterOptions extends ElementOptions {
@@ -30,20 +27,34 @@ export interface TextSplitElementString extends ElementOptions {
   text: string;
 }
 
-export type TextSplitElement = TextSplitElementOffset | TextSplitElementString;
+export type TextSplitElement =
+  | TextSplitElementOffset
+  | TextSplitElementString
+  | string;
+
+export interface ParsedTextSplit
+  extends TextSplitElementOffset,
+    TextSplitElementString {
+  animation: ElementAnimation;
+}
 
 export type TextSplitter =
   | TextSplit
   | `${TextSplit}`
   | TextSplitterOptions
-  | CustomTextSplitter;
+  | CustomTextSplitter
+  | SplitterImpl<ElementOptions>;
 
-export type CustomTextSplitter = (
-  computedTextContent: string,
-  text: Text
-) =>
-  | TextSplitter
-  | (string | TextSplitElementOffset | TextSplitElementString)[];
+export type CustomTextSplitter = (context: {
+  text: Text;
+  event: ScanEvent;
+  options: SplitterImpl<ElementOptions>;
+
+  splitText(
+    splitter: RegExp | string,
+    splitOptions?: SplitOptions
+  ): ParsedTextSplit[];
+}) => TextSplitter | TextSplitElement[];
 
 export const enum TextSplit {
   Character = "character",
@@ -55,6 +66,32 @@ export const enum TextSplit {
 
 export const DEFAULT_TEXT_SPLIT = TextSplit.Line;
 
+const CHARACTER_REGEX = /(?!\s)(?=.)/g;
+const WORD_REGEX = /\s+/g;
+const LINE_REGEX = /\r\n|\r|\n/g;
+const SENTENCE_REGEX = /\r\n/g;
+const PARAGRAPH_REGEX = /\n\s*\n/g;
+
+function splitCharacters(this: SplitterImpl<ElementOptions>, text: TextLike) {
+  return splitText(text, CHARACTER_REGEX, this);
+}
+
+function splitWords(this: SplitterImpl<ElementOptions>, text: TextLike) {
+  return splitText(text, WORD_REGEX, this);
+}
+
+function splitLines(this: SplitterImpl<ElementOptions>, text: TextLike) {
+  return splitText(text, LINE_REGEX, this);
+}
+
+function splitSentences(this: SplitterImpl<ElementOptions>, text: TextLike) {
+  return splitText(text, SENTENCE_REGEX, this);
+}
+
+function splitParagraphs(this: SplitterImpl<ElementOptions>, text: TextLike) {
+  return splitText(text, PARAGRAPH_REGEX, this);
+}
+
 export function getTextSplit<T extends ElementOptions>(
   textSplit: TextSplit | `${TextSplit}`,
   currentOptions?: T
@@ -65,70 +102,141 @@ export function getTextSplit<T extends ElementOptions>(
     ? ElementAnimation.FadeIn
     : ElementAnimation.GradientReveal;
 
-  const splitter = {
-    [TextSplit.Character]: (text: string) =>
-      splitTextToElements(text, /(?!\s)(?=.)/),
-    [TextSplit.Word]: (text: string) => splitTextToElements(text, /\s+/),
-    [TextSplit.Line]: (text: string) => splitTextToElements(text, /\r\n|\r|\n/),
-    [TextSplit.Sentence]: (text: string) =>
-      splitTextToElements(text, /(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s/),
-    [TextSplit.Paragraph]: (text: string) =>
-      splitTextToElements(text, /\n\s*\n/),
+  const splitText = {
+    [TextSplit.Character]: splitCharacters,
+    [TextSplit.Word]: splitWords,
+    [TextSplit.Line]: splitLines,
+    [TextSplit.Sentence]: splitSentences,
+    [TextSplit.Paragraph]: splitParagraphs,
   }[textSplit];
 
-  if (!splitter) {
+  if (!splitText) {
     throw new Error(`Invalid text split: ${textSplit}`);
   }
 
   return {
-    ...StaggerElement.mergeOptions({ animation }, currentOptions),
-    splitter,
+    ...StaggerElement.mergeOptions(currentOptions, { animation }),
+    splitText,
   };
 }
 
 export function mergeTextSplitter<T extends TextSplitterOptions>(
   currentSplitter: SplitterImpl<T>,
-  splitter: TextSplitter
-): SplitterImpl<T>;
-export function mergeTextSplitter<T extends TextSplitterOptions>(
-  currentSplitter: OptionalSplitterImpl<T>,
-  splitter: TextSplitter
-): OptionalSplitterImpl<T>;
-export function mergeTextSplitter<T extends TextSplitterOptions>(
-  { splitter, ...options }: OptionalSplitterImpl<T>,
   mergeSplitter: TextSplitter
-): OptionalSplitterImpl<T> {
+): SplitterImpl<T> {
   if (typeof mergeSplitter === "function") {
+    const customSplitter = mergeSplitter;
+
+    function customTextSplitter(
+      this: SplitterImpl<T>,
+      text: Text,
+      event: ScanEvent
+    ) {
+      const result = customSplitter({
+        text,
+        event,
+        options: this,
+        splitText: (splitter, splitOptions) => {
+          return splitText(
+            text,
+            splitter,
+            StaggerElement.mergeOptions(this, splitOptions)
+          );
+        },
+      });
+
+      if (!Array.isArray(result)) {
+        const mergedSplitter = mergeTextSplitter(currentSplitter, result);
+
+        return mergedSplitter.splitText(text, event);
+      }
+
+      const textSplitObjects = result
+        .map((split) => {
+          const { splitText: _, ...options } = this;
+
+          return StaggerElement.mergeOptions(
+            options,
+            typeof split === "string" ? { text: split } : split
+          );
+        })
+        .filter((element) => isTextSplitOffset(element) || element.text.trim());
+
+      let end = 0;
+
+      return textSplitObjects.map((textSplit, i): ParsedTextSplit => {
+        const nextSplit = textSplitObjects[i + 1];
+        let start = end;
+
+        if (isTextSplitOffset(textSplit)) {
+          ({ start, end } = textSplit);
+        } else if (isTextSplitOffset(nextSplit)) {
+          end = nextSplit.start;
+        } else if (i === textSplitObjects.length - 1) {
+          end = text.computedTextContent.length;
+        } else {
+          end = start + textSplit.text.length;
+
+          if (typeof nextSplit?.text === "string") {
+            let searchString = "";
+            let searchStringStart: number | undefined;
+
+            for (const offset of text.computedContentOffsets) {
+              if (offset.end <= end) {
+                continue;
+              }
+
+              searchStringStart ??= offset.start;
+              searchString += offset.content.toString();
+
+              const searchStart = Math.max(0, end - searchStringStart);
+              const index = searchString.indexOf(nextSplit.text, searchStart);
+
+              if (index !== -1) {
+                end = searchStringStart + index;
+                break;
+              }
+            }
+          }
+        }
+
+        return {
+          ...textSplit,
+          start,
+          end,
+          text: text.computedTextContent.slice(start, end),
+        };
+      });
+    }
+
     return {
-      ...options,
+      ...currentSplitter,
       animation: ElementAnimation.FadeIn,
-      splitter: mergeSplitter,
-    } as OptionalSplitterImpl<T>;
+      splitText: customTextSplitter,
+    } as SplitterImpl<T>;
   }
 
   if (typeof mergeSplitter === "object") {
-    let { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
-
-    let splitTextOptions: ElementOptions | undefined;
-    if (textSplitter) {
-      ({ splitter, ...splitTextOptions } = mergeTextSplitter(
-        { splitter },
-        textSplitter
-      ));
+    if ("splitText" in mergeSplitter) {
+      return StaggerElement.mergeOptions(currentSplitter, mergeSplitter);
     }
 
-    options = [splitTextOptions, splitterOptions].reduce<typeof options>(
-      StaggerElement.mergeOptions,
-      options
-    );
+    let { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
 
-    return { ...options, splitter } as OptionalSplitterImpl<T>;
+    if (textSplitter) {
+      currentSplitter = mergeTextSplitter(currentSplitter, textSplitter);
+    }
+
+    let { splitText, ...options } = currentSplitter;
+    options = StaggerElement.mergeOptions(options, splitterOptions);
+    return { ...options, splitText } as SplitterImpl<T>;
   }
 
-  return getTextSplit(mergeSplitter, options as T);
+  const { splitText: _, ...options } = currentSplitter;
+  return getTextSplit(mergeSplitter, options) as SplitterImpl<T>;
 }
 
-export function getTextSplitterWithDefaults<T extends ElementOptions>(
+export function resolveTextSplitter<T extends ElementOptions>(
   ...textSplitters: (TextSplitter | undefined | null)[]
 ) {
   return textSplitters
@@ -148,17 +256,26 @@ export interface SplitOptions extends ElementOptions {
   separateDelimiters?: boolean;
 }
 
-export interface SplitTextElementResult extends TextSplitElementOffset {
-  text: string;
-}
-
-export function splitTextToElements(
-  text: string,
+export function splitText(
+  textLike: TextLike,
   splitter: RegExp | string,
-  options: SplitOptions = {}
-): SplitTextElementResult[] {
-  const { separateDelimiters } = options;
-  const result: SplitTextElementResult[] = [];
+  splitOptions: SplitOptions
+): ParsedTextSplit[] {
+  if (!splitOptions || typeof splitOptions !== "object") {
+    throw new Error(
+      "[splitText] Please pass down the options from the context argument"
+    );
+  }
+
+  const text = String(textLike);
+
+  const {
+    separateDelimiters,
+    animation = ElementAnimation.FadeIn,
+    ...options
+  } = splitOptions as SplitOptions & { animation?: ElementAnimation };
+
+  const splits: ParsedTextSplit[] = [];
   let lastIndex = 0;
 
   function getNextMatch() {
@@ -175,10 +292,9 @@ export function splitTextToElements(
       return index === -1 ? null : { index, 0: splitter };
     }
 
-    const regex = new RegExp(
-      splitter.source,
-      splitter.flags.includes("g") ? splitter.flags : splitter.flags + "g"
-    );
+    const regex = splitter.flags.includes("g")
+      ? splitter
+      : new RegExp(splitter.source, splitter.flags + "g");
     regex.lastIndex = lastIndex;
     const match = regex.exec(text);
 
@@ -201,11 +317,19 @@ export function splitTextToElements(
     const end = separateDelimiters ? match.index : matchEndIndex;
 
     if (end > lastIndex) {
-      result.push({ start: lastIndex, end, text: text.slice(lastIndex, end) });
+      splits.push({
+        ...options,
+        animation,
+        start: lastIndex,
+        end,
+        text: text.slice(lastIndex, end),
+      });
     }
 
     if (separateDelimiters) {
-      result.push({
+      splits.push({
+        ...options,
+        animation,
         start: match.index,
         end: matchEndIndex,
         text: match[0],
@@ -216,17 +340,19 @@ export function splitTextToElements(
   }
 
   if (lastIndex < text.length) {
-    result.push({
+    splits.push({
+      ...options,
+      animation,
       start: lastIndex,
       end: text.length,
       text: text.slice(lastIndex),
     });
   }
 
-  return result;
+  return splits;
 }
 
-export function isTextSplitOffset(
+function isTextSplitOffset(
   textSplitOffset: any
 ): textSplitOffset is TextSplitElementOffset {
   return (

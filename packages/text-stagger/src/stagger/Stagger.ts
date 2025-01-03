@@ -1,9 +1,32 @@
 import {
-  getTextSplitterWithDefaults,
+  resolveTextSplitter,
   Text,
   TextOptions,
   TextSplitterOptions,
 } from "../text/index.js";
+
+export enum ScanReason {
+  Resize = "resize",
+  Mutation = "mutation",
+  Force = "force",
+}
+
+export interface ForceScanEvent {
+  reason: ScanReason.Force;
+  data?: any;
+}
+
+export interface MutationScanEvent {
+  reason: ScanReason.Mutation;
+  entries: MutationRecord[];
+}
+
+export interface ResizeScanEvent {
+  reason: ScanReason.Resize;
+  entries: ResizeObserverEntry[];
+}
+
+export type ScanEvent = MutationScanEvent | ResizeScanEvent | ForceScanEvent;
 
 export class Stagger {
   private ignoreMutations = new WeakSet<HTMLElement>();
@@ -12,28 +35,33 @@ export class Stagger {
   options: TextOptions;
 
   constructor(public streaming: boolean | null, options?: TextSplitterOptions) {
-    this.options = getTextSplitterWithDefaults(options);
+    this.options = resolveTextSplitter(options);
   }
 
   observeText(
     element: HTMLDivElement,
     id: number,
     splitterOptions: TextSplitterOptions,
-    cb?: (
-      event:
-        | { type: "resize"; entries: ResizeObserverEntry[] }
-        | { type: "mutation"; entries: MutationRecord[] }
-    ) => void
+    cb?: (event: ScanEvent) => void
   ) {
     let text = Text.scanText(this, id, element, splitterOptions);
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      console.log("resize");
-      console.time("scan");
-      // const text = this.scanText(element, splitterOptions);
-      console.timeEnd("scan");
+    let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
 
-      cb?.({ type: "resize", entries });
+    const scan = (event: ScanEvent) => {
+      scanner ??= requestAnimationFrame(() => {
+        console.time("scan " + event.reason);
+        text.scanElementLines(event);
+        console.timeEnd("scan " + event.reason);
+
+        scanner = undefined;
+
+        cb?.(event);
+      });
+    };
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      scan({ reason: ScanReason.Resize, entries });
     });
 
     resizeObserver.observe(element);
@@ -43,29 +71,7 @@ export class Stagger {
         return;
       }
 
-      const addedNodes: Node[] = [];
-
-      for (const entry of entries) {
-        if (entry.type === "childList") {
-          addedNodes.push(...entry.addedNodes);
-        }
-      }
-
-      const firstLineWithMutation = text.lines.findIndex((line) => {
-        return line.ranges.some((range) => {
-          return addedNodes.some((node) =>
-            range.intersectsNode(node.previousSibling ?? node.parentElement!)
-          );
-        });
-      });
-
-      console.log(text.lines.length, "skip until ", firstLineWithMutation);
-      console.time("scan");
-
-      // const text2 = this.scanText(element, splitterOptions);
-      console.timeEnd("scan");
-
-      cb?.({ type: "mutation", entries });
+      scan({ reason: ScanReason.Mutation, entries });
     });
 
     mutationObserver.observe(element, {
@@ -80,7 +86,13 @@ export class Stagger {
       resizeObserver.disconnect();
     }
 
-    return { text, dispose };
+    return {
+      text,
+      dispose,
+      scan(data: any) {
+        scan({ reason: ScanReason.Force, data });
+      },
+    };
   }
 
   invalidateElementCache(element?: HTMLElement) {

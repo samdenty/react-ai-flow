@@ -5,6 +5,7 @@
     "composite": true,
     "useDefineForClassFields": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext"],
+    "types": ["vite/client"],
     "module": "NodeNext",
     "skipLibCheck": true,
 

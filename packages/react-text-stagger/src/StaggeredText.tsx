@@ -45,42 +45,37 @@ export function StaggeredText(props: StaggeredTextProps) {
     []
   );
 
-  const updateSize = useCallback((width: number, height: number) => {
-    state.width = width;
-    state.height = height;
-    state.fullRender = true;
+  const updateSize = useCallback(
+    (width: number, height: number) => {
+      state.width = width;
+      state.height = height;
+      state.fullRender = true;
 
-    if (canvasRef.current) {
-      stagger.skipMutation(ref.current!);
-      canvasRef.current.width = width;
-      canvasRef.current.height = height;
-    }
+      if (canvasRef.current) {
+        stagger.skipMutation(ref.current!);
+        canvasRef.current.width = width;
+        canvasRef.current.height = height;
+      }
 
-    if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
-      contextRef.current = document.getCSSCanvasContext?.(
-        "2d",
-        className,
-        width,
-        height
-      );
-    }
-  }, []);
-
-  const requestPaint = useCallback(() => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-
-    animationRef.current = requestAnimationFrame(() => {
-      paint();
-    });
-  }, []);
+      if (
+        !visualDebug &&
+        maskRenderMode === CanvasMaskRenderMode.WebkitCanvas
+      ) {
+        contextRef.current = document.getCSSCanvasContext?.(
+          "2d",
+          className,
+          width,
+          height
+        );
+      }
+    },
+    [visualDebug]
+  );
 
   const paint = useCallback(() => {
     if (state.currentElement < state.elements.length) {
       const element = state.elements[state.currentElement];
-      const newProgress = Math.min(1, Math.max(0, element.progress + 0.01));
+      const newProgress = Math.min(1, Math.max(0, element.progress + 0.025));
       element.progress = newProgress;
 
       if (newProgress === 1) {
@@ -94,8 +89,6 @@ export function StaggeredText(props: StaggeredTextProps) {
     }
 
     const canvas = canvasRef.current;
-
-    // console.time(`render ${mode} ` + stateRef.current.elements.length);
 
     if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
       updateProperty(className, "--state", JSON.stringify(state));
@@ -123,17 +116,28 @@ export function StaggeredText(props: StaggeredTextProps) {
       );
     }
 
-    // console.timeEnd(`render ${mode} ` + stateRef.current.elements.length);
-
     requestPaint();
-  }, []);
+  }, [visualDebug]);
+
+  const requestPaint = useCallback(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+
+    animationRef.current = requestAnimationFrame(() => {
+      paint();
+    });
+  }, [paint]);
 
   useEffect(() => {
     if (visualDebug) {
+      updateProperty(className, "mask-image", null);
       updateProperty(className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       updateProperty(className, "will-change", "mask-image");
     } else {
+      updateProperty(className, "position", null);
       updateProperty(
         className,
         "mask-image",
@@ -150,7 +154,7 @@ export function StaggeredText(props: StaggeredTextProps) {
       id,
       textSplitter,
       (event) => {
-        if (event.type === "resize") {
+        if (event.reason === "resize") {
           const [{ contentRect }] = event.entries;
           updateSize(contentRect.width, contentRect.height);
         }
@@ -167,7 +171,7 @@ export function StaggeredText(props: StaggeredTextProps) {
     );
 
     return dispose;
-  }, []);
+  }, [visualDebug]);
 
   return (
     <div ref={ref} className={className}>

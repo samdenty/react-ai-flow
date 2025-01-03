@@ -1,9 +1,4 @@
-import {
-  Ranges,
-  isTextSplitOffset,
-  Text,
-  TextSplitElement,
-} from "../text/index.js";
+import { Ranges, Text } from "../text/index.js";
 import { StaggerElementBox } from "./StaggerElementBox.js";
 
 export const enum ElementAnimation {
@@ -27,7 +22,7 @@ export type CustomAnimationDuration = (element: StaggerElement) => number;
 export class StaggerElement extends Ranges<StaggerElementBox> {
   #boxes?: StaggerElementBox[];
 
-  private constructor(
+  constructor(
     public text: Text,
     computedContent: (string | Range)[],
     options?: ElementOptions
@@ -89,53 +84,6 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
   get animation() {
     return this.options.animation;
-  }
-
-  static splitsToElements(text: Text, textSplits: TextSplitElement[]) {
-    let end = 0;
-
-    return textSplits.map((textSplit, i) => {
-      const nextSplit = textSplits[i + 1];
-      let start = end;
-
-      if (isTextSplitOffset(textSplit)) {
-        ({ start, end } = textSplit);
-      } else if (isTextSplitOffset(nextSplit)) {
-        end = nextSplit.start;
-      } else if (i === textSplits.length - 1) {
-        end = text.computedTextContent.length;
-      } else {
-        end = start + textSplit.text.length;
-
-        if (typeof nextSplit?.text === "string") {
-          let searchString = "";
-          let searchStringStart: number | undefined;
-
-          for (const offset of text.computedContentOffsets) {
-            if (offset.end <= end) {
-              continue;
-            }
-
-            searchStringStart ??= offset.start;
-            searchString += offset.content.toString();
-
-            const searchStart = Math.max(0, end - searchStringStart);
-            const index = searchString.indexOf(nextSplit.text, searchStart);
-
-            if (index !== -1) {
-              end = searchStringStart + index;
-              break;
-            }
-          }
-        }
-      }
-
-      return new StaggerElement(
-        text,
-        text.trimComputedRanges(start, end),
-        textSplit
-      );
-    });
   }
 
   get boxes() {

@@ -9,7 +9,7 @@ import { Text } from "./Text.js";
 
 export type TextLike = Text | Ranges<any> | string;
 
-export type SplitterImpl<T extends ElementOptions> = Omit<T, "splitter"> & {
+export type SplitterImpl<T extends ElementOptions> = T & {
   splitText(text: Text, event: ScanEvent): ParsedTextSplit[];
   animation: ElementAnimation;
 };
@@ -213,7 +213,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
       ...currentSplitter,
       animation: ElementAnimation.FadeIn,
       splitText: customTextSplitter,
-    } as SplitterImpl<T>;
+    };
   }
 
   if (typeof mergeSplitter === "object") {

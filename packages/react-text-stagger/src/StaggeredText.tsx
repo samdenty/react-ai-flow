@@ -88,7 +88,7 @@ export function StaggeredText(props: StaggeredTextProps) {
 
     const canvas = canvasRef.current;
 
-    if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
+    if (!visualDebug && maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
       updateProperty(
         className,
         "mask-image",

@@ -28,7 +28,7 @@ export function StaggeredText(props: StaggeredTextProps) {
     props;
 
   const id = useMemo(() => ID++, []);
-  const className = `staggered-text-${id}`;
+  const className = `react-text-stagger-${id}`;
   const ref = useRef<HTMLDivElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,7 +36,6 @@ export function StaggeredText(props: StaggeredTextProps) {
   const animationRef = useRef<number | null>(null);
   const state = useMemo<AnimationState>(
     () => ({
-      fullRender: true,
       elements: [],
       currentElement: 0,
       width: 0,
@@ -49,7 +48,6 @@ export function StaggeredText(props: StaggeredTextProps) {
     (width: number, height: number) => {
       state.width = width;
       state.height = height;
-      state.fullRender = true;
 
       if (canvasRef.current) {
         stagger.skipMutation(ref.current!);
@@ -91,7 +89,11 @@ export function StaggeredText(props: StaggeredTextProps) {
     const canvas = canvasRef.current;
 
     if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
-      updateProperty(className, "--state", JSON.stringify(state));
+      updateProperty(
+        className,
+        "mask-image",
+        `paint(text-stagger, ${JSON.stringify(JSON.stringify(state))})`
+      );
     }
 
     contextRef.current ??= canvas?.getContext("2d", {
@@ -101,7 +103,6 @@ export function StaggeredText(props: StaggeredTextProps) {
 
     if (contextRef.current) {
       doPaint(contextRef.current, state);
-      state.fullRender = false;
     }
 
     if (
@@ -136,13 +137,11 @@ export function StaggeredText(props: StaggeredTextProps) {
       updateProperty(className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       updateProperty(className, "will-change", "mask-image");
-    } else {
-      updateProperty(className, "position", null);
+    } else if (maskRenderMode !== CanvasMaskRenderMode.PaintWorklet) {
       updateProperty(
         className,
         "mask-image",
         {
-          [CanvasMaskRenderMode.PaintWorklet]: `paint(staggered-text)`,
           [CanvasMaskRenderMode.MozElement]: `-moz-element(#${className})`,
           [CanvasMaskRenderMode.WebkitCanvas]: `-webkit-canvas(${className})`,
         }[maskRenderMode]
@@ -159,10 +158,11 @@ export function StaggeredText(props: StaggeredTextProps) {
           updateSize(contentRect.width, contentRect.height);
         }
 
-        console.log(
-          "elements",
-          text.elements.map((a) => a.innerText)
-        );
+        // console.log(
+        //   "elements",
+        //   text.elements.map((a) => a.innerText),
+        //   text
+        // );
 
         state.elements = text.elements;
 

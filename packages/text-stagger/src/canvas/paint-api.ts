@@ -30,12 +30,14 @@ declare global {
     paint(
       context: PaintRenderingContext2D,
       geometry: PaintSize,
-      properties: PaintStylePropertyMapReadOnly<T>
+      properties: PaintStylePropertyMapReadOnly<T>,
+      arguments: CSSStyleValue[]
     ): void;
   }
 
   interface PaintWorkletConstructor<T extends string> {
     inputProperties: readonly T[];
+    inputArguments?: string[];
     contextOptions?: { alpha: boolean };
     new (): PaintWorklet<T>;
   }

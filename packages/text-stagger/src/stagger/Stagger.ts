@@ -49,14 +49,18 @@ export class Stagger {
     let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
 
     const scan = (event: ScanEvent) => {
-      scanner ??= requestAnimationFrame(() => {
-        console.time("scan " + event.reason);
-        text.scanElementLines(event);
-        console.timeEnd("scan " + event.reason);
+      if (scanner && event.reason !== ScanReason.Mutation) {
+        return;
+      }
 
+      console.time("scan " + event.reason);
+      text.scanElementLines(event);
+      console.timeEnd("scan " + event.reason);
+
+      cb?.(event);
+
+      scanner = requestAnimationFrame(() => {
         scanner = undefined;
-
-        cb?.(event);
       });
     };
 

@@ -11,7 +11,6 @@ export enum CanvasMaskRenderMode {
 export const maskRenderMode = getCanvasRenderingMode();
 
 export interface AnimationState {
-  fullRender: boolean;
   currentElement: number;
   elements: StaggerElement[];
   width: number;
@@ -25,13 +24,11 @@ export function doPaint(
   ctx.fillStyle = "#000000";
   ctx.globalAlpha = 1;
 
-  if (state.fullRender) {
-    ctx.clearRect(0, 0, state.width, state.height);
+  ctx.clearRect(0, 0, state.width, state.height);
 
-    for (let i = 0; i < state.currentElement; i++) {
-      for (const box of state.elements[i].boxes) {
-        ctx.fillRect(box.left, box.top, box.width, box.height);
-      }
+  for (let i = 0; i < state.currentElement; i++) {
+    for (const box of state.elements[i].boxes) {
+      ctx.fillRect(box.left, box.top, box.width, box.height);
     }
   }
 
@@ -94,7 +91,7 @@ export function doPaint(
   }
 }
 
-function getCanvasRenderingMode() {
+function getCanvasRenderingMode(): CanvasMaskRenderMode {
   if (!!paintWorkletRegistered) {
     return CanvasMaskRenderMode.PaintWorklet;
   }

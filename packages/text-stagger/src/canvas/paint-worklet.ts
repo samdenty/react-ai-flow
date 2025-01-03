@@ -20,20 +20,25 @@ if (CSS.paintWorklet) {
 
 function paintWorklet(paint: typeof doPaint) {
   globalThis.registerPaint(
-    "staggered-text",
+    "text-stagger",
     class PaintWorklet {
       static get inputProperties() {
-        return ["--state"];
+        return [];
+      }
+
+      static get inputArguments() {
+        return ["<string>"];
       }
 
       paint(
         ctx: PaintRenderingContext2D,
         _geometry: PaintSize,
-        properties: PaintStylePropertyMapReadOnly
+        _properties: PaintStylePropertyMapReadOnly,
+        [stateStyleValue]: CSSStyleValue[]
       ) {
         let state: AnimationState;
         try {
-          state = JSON.parse(properties.get("--state").toString());
+          state = JSON.parse(JSON.parse(stateStyleValue.toString()));
         } catch {
           return;
         }

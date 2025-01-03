@@ -4,12 +4,9 @@ export let paintWorkletRegistered!: Promise<void>;
 
 if (CSS.paintWorklet) {
   try {
-    const workletBlob = new Blob(
-      [`const doPaint = (${doPaint});\n(${paintWorklet})();`],
-      {
-        type: "text/javascript",
-      }
-    );
+    const workletBlob = new Blob([`(${paintWorklet})(${doPaint});`], {
+      type: "text/javascript",
+    });
 
     const workletUrl = URL.createObjectURL(workletBlob);
 
@@ -21,7 +18,7 @@ if (CSS.paintWorklet) {
   }
 }
 
-function paintWorklet() {
+function paintWorklet(paint: typeof doPaint) {
   globalThis.registerPaint(
     "staggered-text",
     class PaintWorklet {
@@ -41,7 +38,7 @@ function paintWorklet() {
           return;
         }
 
-        doPaint(ctx, state);
+        paint(ctx, state);
       }
     }
   );

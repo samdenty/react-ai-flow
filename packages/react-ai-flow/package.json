@@ -11,7 +11,7 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "rm -rf dist > /dev/null 2>&1; tsc -b tsconfig.lib.json",
+    "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
     "dev": "vite",
     "test": "vitest",
     "prepublishOnly": "pnpm build"

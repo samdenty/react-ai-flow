@@ -159,10 +159,10 @@ export function StaggeredText(props: StaggeredTextProps) {
           updateSize(contentRect.width, contentRect.height);
         }
 
-        // console.log(
-        //   "elements",
-        //   text.elements.map((a) => a.computedTextContent)
-        // );
+        console.log(
+          "elements",
+          text.elements.map((a) => a.innerText)
+        );
 
         state.elements = text.elements;
 

@@ -1,4 +1,4 @@
-import { Ranges, Text } from "../text/index.js";
+import { Ranges, RangesChildNode, Text } from "../text/index.js";
 import { StaggerElementBox } from "./StaggerElementBox.js";
 
 export const enum ElementAnimation {
@@ -24,12 +24,12 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
   constructor(
     public text: Text,
-    computedContent: (string | Range)[],
+    childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
     super(
       text.stagger,
-      computedContent,
+      childNodes,
       text.relativeTo,
       StaggerElement.mergeOptions(text.options, options)
     );

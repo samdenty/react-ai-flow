@@ -53,25 +53,54 @@ export class Box<T extends Ranges<any> = Ranges<any>> {
   }
 }
 
-export type ComputedContent = Range | string;
+export type RangesChildNode = Range | string;
 
 export abstract class Ranges<T extends Box> {
   #boundingRect?: DOMRect;
   #boundingBox?: Box<this>;
 
-  rects: DOMRect[];
+  #childNodes!: readonly RangesChildNode[];
+  rects!: DOMRect[];
+  /**
+   * The text of *just* the childNodes that are ranges,
+   * **excludes rendered line-breaks
+   */
+  textContent!: string;
+
+  /**
+   * The text of *all* the childNodes,
+   * **including rendered line-breaks
+   */
+  innerText!: string;
 
   constructor(
     public stagger: Stagger,
-    public computedContent: ComputedContent[],
+    childNodes: RangesChildNode[],
     public relativeTo: { element: HTMLElement; rect: DOMRect },
     public options: StaggerElementBoxOptions
   ) {
-    this.rects = this.scanRects();
+    this.childNodes = childNodes;
+  }
+
+  set childNodes(childNodes: RangesChildNode[]) {
+    this.#childNodes = Object.freeze([...childNodes]);
+
+    const strings = this.#childNodes.map((childNode) => childNode.toString());
+
+    this.innerText = strings.join("");
+
+    this.textContent = strings
+      .filter((_, i) => typeof this.#childNodes[i] !== "string")
+      .join("");
+
+    this.scanRects();
+  }
+
+  get childNodes(): readonly RangesChildNode[] {
+    return this.#childNodes;
   }
 
   scanRects() {
-    // Get all individual rects
     const allRects = this.ranges.flatMap((range) => [
       ...range.getClientRects(),
     ]);
@@ -151,13 +180,13 @@ export abstract class Ranges<T extends Box> {
     }, []);
   }
 
-  createComputedContentTrimmer() {
-    const computedContentOffsets = this.computedContentOffsets;
+  createChildNodeTrimmer() {
+    const childNodeOffsets = this.childNodesOffsets;
     const offsetsCache = new Map<number, { node: Node; offset: number }>();
     const lastChildCache = new WeakMap<Node, Node>();
 
     return (start: number, end: number) => {
-      return computedContentOffsets.flatMap((pos) => {
+      return childNodeOffsets.flatMap((pos) => {
         if (pos.end <= start || pos.start >= end) {
           return [];
         }
@@ -166,13 +195,13 @@ export abstract class Ranges<T extends Box> {
         const trimFromEnd = Math.max(0, pos.end - end);
 
         if (
-          typeof pos.content === "string" ||
+          typeof pos.childNode === "string" ||
           (!trimFromStart && !trimFromEnd)
         ) {
-          return pos.content;
+          return pos.childNode;
         }
 
-        const trimmedRange = pos.content.cloneRange();
+        const trimmedRange = pos.childNode.cloneRange();
         const { commonAncestorContainer } = trimmedRange;
 
         const cachedStart = trimFromStart && offsetsCache.get(start);
@@ -267,58 +296,33 @@ export abstract class Ranges<T extends Box> {
     };
   }
 
-  get computedContentOffsets() {
-    let computedOffset = 0;
+  /**
+   * The childNodes with the computed offsets
+   */
+  get childNodesOffsets() {
+    let childNodeOffset = 0;
 
-    return this.computedContent.map((content) => {
-      const length = content.toString().length;
+    return this.childNodes.map((childNode) => {
+      const length = childNode.toString().length;
       const offset = {
-        content,
-        start: computedOffset,
-        end: computedOffset + length,
+        childNode,
+        start: childNodeOffset,
+        end: childNodeOffset + length,
       };
-      computedOffset += length;
+      childNodeOffset += length;
       return offset;
     });
   }
 
+  /**
+   * The filtered childNodes that are ranges
+   */
   get ranges(): readonly Range[] {
-    return this.computedContent.filter(
-      (content) => typeof content !== "string"
-    );
-  }
-
-  get commonAncestorContainer() {
-    const [firstRange, ...restRanges] = this.ranges;
-    if (!firstRange) return null;
-
-    let ancestor: Node | null = firstRange.commonAncestorContainer;
-
-    for (const range of restRanges) {
-      while (
-        ancestor &&
-        !(
-          ancestor.contains(range.commonAncestorContainer) ||
-          ancestor === range.commonAncestorContainer
-        )
-      ) {
-        ancestor = ancestor.parentNode;
-      }
-    }
-
-    return ancestor ?? document.body;
-  }
-
-  get textContent() {
-    return this.ranges.join("");
-  }
-
-  get computedTextContent() {
-    return this.computedContent.join("");
+    return this.childNodes.filter((content) => typeof content !== "string");
   }
 
   toString() {
-    return this.computedTextContent;
+    return this.innerText;
   }
 
   get boundingRect(): DOMRect {

@@ -126,7 +126,7 @@ describe("Ranges", () => {
 
   it("should compute content offsets correctly", () => {
     const ranges = createTestRanges(["Hello", " ", "World"]);
-    const offsets = ranges.computedContentOffsets;
+    const offsets = ranges.childNodesOffsets;
 
     expect(offsets).toHaveLength(3);
     expect(offsets[0].start).toBe(0);

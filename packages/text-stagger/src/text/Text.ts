@@ -70,16 +70,16 @@ export class Text extends Ranges<StaggerElementBox> {
           return false;
         }
 
-        const { computedTextContent } = this.elements[elementIndex];
+        const { innerText } = this.elements[elementIndex];
         const { text } = textSplits[splitIndex];
 
-        return computedTextContent === text;
+        return innerText === text;
       }
     );
 
     const elements: StaggerElement[] = [];
 
-    const trimRanges = this.createComputedContentTrimmer();
+    const trimRanges = this.createChildNodeTrimmer();
 
     for (const [action, items] of diffs) {
       if (action === 0) {
@@ -152,7 +152,7 @@ export class Text extends Ranges<StaggerElementBox> {
     };
 
     this.lines = TextLine.scanLines(this);
-    this.computedContent = this.lines.flatMap((line) => line.computedContent);
+    this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
     this.elements = this.diffElements(event);
   }

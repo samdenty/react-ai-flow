@@ -173,7 +173,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
         } else if (isTextSplitOffset(nextSplit)) {
           end = nextSplit.start;
         } else if (i === textSplitObjects.length - 1) {
-          end = text.computedTextContent.length;
+          end = text.innerText.length;
         } else {
           end = start + textSplit.text.length;
 
@@ -181,13 +181,13 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
             let searchString = "";
             let searchStringStart: number | undefined;
 
-            for (const offset of text.computedContentOffsets) {
+            for (const offset of text.childNodesOffsets) {
               if (offset.end <= end) {
                 continue;
               }
 
               searchStringStart ??= offset.start;
-              searchString += offset.content.toString();
+              searchString += offset.childNode.toString();
 
               const searchStart = Math.max(0, end - searchStringStart);
               const index = searchString.indexOf(nextSplit.text, searchStart);
@@ -204,7 +204,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
           ...textSplit,
           start,
           end,
-          text: text.computedTextContent.slice(start, end),
+          text: text.innerText.slice(start, end),
         };
       });
     }

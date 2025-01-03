@@ -152,28 +152,26 @@ export class TextLine extends Ranges<StaggerElementBox> {
           );
 
           if (existingLine) {
-            const extendedRangeIndex =
-              existingLine.computedContent.findLastIndex(
-                (content) => typeof content !== "string"
-              );
-            const extendedRange = (
-              existingLine.computedContent[extendedRangeIndex] as
-                | Range
-                | undefined
+            const childNodes = [...existingLine.childNodes];
+            const rangeToExtendIndex = childNodes.findLastIndex(
+              (content) => typeof content !== "string"
+            );
+            const rangeToExtend = (
+              childNodes[rangeToExtendIndex] as Range | undefined
             )?.cloneRange();
 
-            extendedRange?.setEnd(range.endContainer, range.endOffset);
+            rangeToExtend?.setEnd(range.endContainer, range.endOffset);
 
             if (
-              extendedRange?.toString() ===
+              rangeToExtend?.toString() ===
               existingLine.textContent + range.toString()
             ) {
-              existingLine.computedContent[extendedRangeIndex] = extendedRange;
+              childNodes[rangeToExtendIndex] = rangeToExtend;
             } else {
-              existingLine.computedContent.push(range);
+              childNodes.push(range);
             }
 
-            existingLine.scanRects();
+            existingLine.childNodes = childNodes;
           } else {
             lines.push(newLine);
           }

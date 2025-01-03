@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 const lorem = new LoremIpsum();
 
 export function useFakeMessages(speed = 1) {
-  const [messages, setMessages] = useState<React.ReactNode[][]>([]);
+  const [messages, setMessages] = useState<React.ReactNode[][]>([[]]);
 
   const getRandomInt = useCallback((min: number, max: number) => {
     min = Math.ceil(min);
@@ -25,10 +25,10 @@ export function useFakeMessages(speed = 1) {
     let timer: NodeJS.Timeout;
 
     const update = () => {
-      if (wordCount <= 0) {
-        wordCount = getWordCount();
-        setMessages((prevMessages) => [...prevMessages, []]);
-      }
+      // if (wordCount <= 0) {
+      //   wordCount = getWordCount();
+      //   setMessages((prevMessages) => [...prevMessages, []]);
+      // }
 
       const Tag = Math.random() < 0.1 ? "h1" : null;
 

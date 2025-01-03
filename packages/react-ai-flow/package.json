@@ -1,15 +1,20 @@
 {
   "name": "react-ai-flow",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.0.2",
+  "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "sideEffects": false,
   "scripts": {
     "build": "rm -rf dist > /dev/null 2>&1; tsc -b",
     "dev": "vite",
     "test": "vitest",
-    "prepublishOnly": "yarn build"
+    "prepublishOnly": "pnpm build"
   },
   "repository": {
     "type": "git",

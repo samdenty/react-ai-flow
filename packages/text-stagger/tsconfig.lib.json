@@ -5,6 +5,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["demo", "**/*.test.ts"],
-  "references": [{ "path": "../react-text-stagger/tsconfig.lib.json" }]
+  "exclude": ["**/*.test.ts"]
 }

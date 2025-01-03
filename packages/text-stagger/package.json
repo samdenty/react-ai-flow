@@ -1,9 +1,13 @@
 {
   "name": "text-stagger",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "sideEffects": false,
   "repository": {
@@ -13,7 +17,7 @@
   },
   "scripts": {
     "build": "rm -rf dist > /dev/null 2>&1; tsc -b",
-    "prepublishOnly": "yarn build"
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "fast-myers-diff": "^3.2.0"

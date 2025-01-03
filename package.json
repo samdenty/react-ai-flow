@@ -1,4 +1,5 @@
 {
+  "name": "react-ai-flow",
   "private": true,
   "workspaces": [
     "packages/*"

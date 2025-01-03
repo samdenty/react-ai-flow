@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "rm -rf packages/*/{*.tsbuildinfo,dist} > /dev/null 2>&1; tsc --build tsconfig.lib.json",
-    "release": "pnpm build && pnpm -r publish -i",
+    "release": "pnpm build && pnpm -r publish --ignore-scripts",
     "typecheck": "tsc --build",
     "dev": "pnpm --filter react-ai-flow run dev",
     "prepublishOnly": "pnpm build"

@@ -50,6 +50,10 @@ export class StaggerElementBox extends Box<StaggerElement> {
 
     if (typeof cssLiteral === "function") {
       cssLiteral = cssLiteral(this);
+
+      if (cssLiteral == null) {
+        return undefined;
+      }
     }
 
     return this.parent.stagger.convertToPx(

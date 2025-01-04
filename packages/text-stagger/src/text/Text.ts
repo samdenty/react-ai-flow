@@ -31,10 +31,26 @@ const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
   "writing-mode",
 ]);
 
-export interface TextOptions
+export interface ParsedTextOptions
   extends SplitterImpl<TextSplitterOptions>,
-    StaggerElementBoxOptions {}
+    StaggerElementBoxOptions {
+  visualDebug: boolean;
+  disabled: boolean;
+}
 
+export interface TextOptions extends TextSplitterOptions {
+  /**
+   * Display the canvas direclty instead of using mask-image,
+   * useful for debugging
+   * @default false
+   */
+  visualDebug?: boolean;
+
+  /**
+   * Disable the text from being animated
+   */
+  disabled?: boolean;
+}
 export class Text extends Ranges<StaggerElementBox> {
   lines: TextLine[] = [];
   elements: StaggerElement[] = [];
@@ -45,7 +61,7 @@ export class Text extends Ranges<StaggerElementBox> {
     public stagger: Stagger,
     public id: number,
     element: HTMLElement,
-    public override options: TextOptions
+    public override options: ParsedTextOptions
   ) {
     const rect = element.getBoundingClientRect();
     super(stagger, [], { element, rect }, options);
@@ -73,7 +89,7 @@ export class Text extends Ranges<StaggerElementBox> {
         const { innerText } = this.elements[elementIndex];
         const { text } = textSplits[splitIndex];
 
-        return innerText === text;
+        return innerText.trim() === text.trim();
       }
     );
 
@@ -81,15 +97,29 @@ export class Text extends Ranges<StaggerElementBox> {
 
     const trimRanges = this.createChildNodeTrimmer();
 
+    console.group("diff");
+    console.log(
+      this.relativeTo.element,
+      textSplits.map((a) => a.text).join(""),
+      event
+    );
+
     for (const [action, items] of diffs) {
       if (action === 0) {
-        elements.push(...(items as StaggerElement[]));
+        const existingElements = items as StaggerElement[];
+
+        console.log(
+          "equal",
+          existingElements.map((item) => item.toString())
+        );
+
+        elements.push(...existingElements);
         continue;
       }
 
       if (action === -1) {
-        console.log("remove", items);
         for (const element of items as StaggerElement[]) {
+          console.log("remove", [element.innerText]);
           if (element.progress) {
             elements.push(element);
           }
@@ -98,6 +128,11 @@ export class Text extends Ranges<StaggerElementBox> {
       }
 
       const splits = items as ParsedTextSplit[];
+
+      console.log(
+        "add",
+        splits.map((split) => split.text)
+      );
 
       for (const textSplit of splits) {
         const element = new StaggerElement(
@@ -110,6 +145,8 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
+    console.groupEnd();
+
     return elements;
   }
 
@@ -121,16 +158,18 @@ export class Text extends Ranges<StaggerElementBox> {
     stagger: Stagger,
     id: number,
     element: HTMLElement,
-    splitterOptions: TextSplitterOptions
+    textOptions: TextOptions
   ) {
     const text = new Text(
       stagger,
       id,
       element,
-      mergeTextSplitter<TextOptions>(stagger.options, splitterOptions)
+      mergeTextSplitter<ParsedTextOptions>(stagger.options, textOptions)
     );
 
-    text.scanElementLines();
+    text.scanElementLines({
+      reason: ScanReason.Mounted,
+    });
 
     return text;
   }

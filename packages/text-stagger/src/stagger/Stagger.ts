@@ -1,4 +1,5 @@
 import {
+  ParsedTextOptions,
   resolveTextSplitter,
   Text,
   TextOptions,
@@ -7,6 +8,7 @@ import {
 
 export enum ScanReason {
   Resize = "resize",
+  Mounted = "mounted",
   Mutation = "mutation",
   Force = "force",
 }
@@ -21,30 +23,78 @@ export interface MutationScanEvent {
   entries: MutationRecord[];
 }
 
+export interface MountedScanEvent {
+  reason: ScanReason.Mounted;
+}
+
 export interface ResizeScanEvent {
   reason: ScanReason.Resize;
   entries: ResizeObserverEntry[];
 }
 
-export type ScanEvent = MutationScanEvent | ResizeScanEvent | ForceScanEvent;
+export type ScanEvent =
+  | MountedScanEvent
+  | MutationScanEvent
+  | ResizeScanEvent
+  | ForceScanEvent;
 
 export class Stagger {
-  private ignoreMutations = new WeakSet<HTMLElement>();
-  private pixelCache = new WeakMap<HTMLElement, Map<string, number>>();
+  #ignoreMutations = new WeakSet<HTMLElement>();
+  #pixelCache = new WeakMap<HTMLElement, Map<string, number>>();
 
-  options: TextOptions;
+  #options!: ParsedTextOptions;
+  #optionsListeners = new Set<(options: ParsedTextOptions) => void>();
 
-  constructor(public streaming: boolean | null, options?: TextSplitterOptions) {
-    this.options = resolveTextSplitter(options);
+  #textsListeners = new Set<() => void>();
+  texts = new Map<number, Text>();
+
+  constructor(options?: TextOptions) {
+    this.options = options;
+  }
+
+  get options(): ParsedTextOptions {
+    return this.#options;
+  }
+
+  set options(options: TextOptions | undefined) {
+    this.#options = resolveTextSplitter<ParsedTextOptions>(
+      { visualDebug: false, disabled: false },
+      options
+    );
+
+    this.#optionsListeners.forEach((listener) => listener(this.options));
+  }
+
+  onDidChangeOptions(listener: (options: ParsedTextOptions) => void) {
+    this.#optionsListeners.add(listener);
+
+    return () => {
+      this.#optionsListeners.delete(listener);
+    };
+  }
+
+  onDidChangeTexts(listener: () => void) {
+    this.#textsListeners.add(listener);
+
+    return () => {
+      this.#textsListeners.delete(listener);
+    };
+  }
+
+  getText(id: number) {
+    return this.texts.get(id) ?? null;
   }
 
   observeText(
-    element: HTMLDivElement,
+    element: HTMLElement,
     id: number,
     splitterOptions: TextSplitterOptions,
     cb?: (event: ScanEvent) => void
   ) {
     let text = Text.scanText(this, id, element, splitterOptions);
+
+    this.texts.set(id, text);
+    this.#textsListeners.forEach((listener) => listener());
 
     let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
 
@@ -71,7 +121,7 @@ export class Stagger {
     resizeObserver.observe(element);
 
     const mutationObserver = new MutationObserver((entries) => {
-      if (this.ignoreMutations.delete(element)) {
+      if (this.#ignoreMutations.delete(element)) {
         return;
       }
 
@@ -85,10 +135,12 @@ export class Stagger {
       characterData: true,
     });
 
-    function dispose() {
+    const dispose = () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
-    }
+      this.texts.delete(id);
+      this.#textsListeners.forEach((listener) => listener());
+    };
 
     return {
       text,
@@ -101,14 +153,14 @@ export class Stagger {
 
   invalidateElementCache(element?: HTMLElement) {
     if (element) {
-      this.pixelCache.delete(element);
+      this.#pixelCache.delete(element);
     } else {
-      this.pixelCache = new WeakMap();
+      this.#pixelCache = new WeakMap();
     }
   }
 
   skipMutation(element: HTMLElement) {
-    this.ignoreMutations.add(element);
+    this.#ignoreMutations.add(element);
   }
 
   convertToPx(
@@ -122,10 +174,10 @@ export class Stagger {
 
     const key = `${height}:${width}:${cssLiteral}`;
 
-    let elementPixelCache = this.pixelCache.get(element);
+    let elementPixelCache = this.#pixelCache.get(element);
     if (!elementPixelCache) {
       elementPixelCache = new Map();
-      this.pixelCache.set(element, elementPixelCache);
+      this.#pixelCache.set(element, elementPixelCache);
     }
 
     if (!elementPixelCache.has(key)) {

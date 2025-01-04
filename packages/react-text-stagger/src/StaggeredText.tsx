@@ -1,37 +1,49 @@
-import { useRef, useEffect, useMemo, useCallback } from "react";
+import {
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  createContext,
+  useContext,
+  useState,
+  useImperativeHandle,
+} from "react";
 import { useStagger } from "./StaggerProvider.js";
 import { updateProperty } from "./utils/styles.js";
 import {
-  TextSplitterOptions,
   maskRenderMode,
   CanvasMaskRenderMode,
   doPaint,
   AnimationState,
+  Text,
+  TextOptions,
 } from "text-stagger";
+import { useResolvedOptions } from "./utils/useCachedOptions.js";
 
-export interface StaggeredTextProps extends TextSplitterOptions {
+export interface StaggeredTextProps extends TextOptions {
   children: React.ReactNode;
-  onStreamStart?: () => void;
-  onStreamEnd?: () => void;
-
-  /**
-   * Use a background-image instead of mask-image,
-   * to debug rectangles
-   */
-  visualDebug?: boolean;
 }
+
+const StaggeredTextContext = createContext<number | null>(null);
 
 let ID = 0;
 
 export function StaggeredText(props: StaggeredTextProps) {
-  const { children, onStreamStart, onStreamEnd, visualDebug, ...textSplitter } =
-    props;
-
+  const { children, ...restProps } = props;
   const id = useMemo(() => ID++, []);
   const className = `react-text-stagger-${id}`;
-  const ref = useRef<HTMLDivElement>(null);
+  const options = useResolvedOptions(restProps);
+
+  let parentText: number | null = null;
+  try {
+    parentText = useContext(StaggeredTextContext);
+  } catch (e) {
+    // ignore
+  }
+
+  const ref = useRef<HTMLSpanElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stagger = useStagger();
   const animationRef = useRef<number | null>(null);
   const state = useMemo<AnimationState>(
@@ -44,31 +56,34 @@ export function StaggeredText(props: StaggeredTextProps) {
     []
   );
 
-  const updateSize = useCallback(
-    (width: number, height: number) => {
-      state.width = width;
-      state.height = height;
+  const updateSize = useCallback(() => {
+    if (!ref.current) {
+      return;
+    }
 
-      if (canvasRef.current) {
-        stagger.skipMutation(ref.current!);
-        canvasRef.current.width = width;
-        canvasRef.current.height = height;
-      }
+    const { width, height } = ref.current.getBoundingClientRect();
 
-      if (
-        !visualDebug &&
-        maskRenderMode === CanvasMaskRenderMode.WebkitCanvas
-      ) {
-        contextRef.current = document.getCSSCanvasContext?.(
-          "2d",
-          className,
-          width,
-          height
-        );
-      }
-    },
-    [visualDebug]
-  );
+    state.width = width;
+    state.height = height;
+
+    if (canvasRef.current) {
+      stagger.skipMutation(ref.current!);
+      canvasRef.current.width = width;
+      canvasRef.current.height = height;
+    }
+
+    if (
+      !options.visualDebug &&
+      maskRenderMode === CanvasMaskRenderMode.WebkitCanvas
+    ) {
+      contextRef.current = document.getCSSCanvasContext?.(
+        "2d",
+        className,
+        width,
+        height
+      );
+    }
+  }, [options]);
 
   const paint = useCallback(() => {
     if (state.currentElement < state.elements.length) {
@@ -88,7 +103,18 @@ export function StaggeredText(props: StaggeredTextProps) {
 
     const canvas = canvasRef.current;
 
-    if (!visualDebug && maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
+    if (
+      !canvas &&
+      !options.visualDebug &&
+      maskRenderMode === CanvasMaskRenderMode.DataUri
+    ) {
+      canvasRef.current = document.createElement("canvas");
+    }
+
+    if (
+      !options.visualDebug &&
+      maskRenderMode === CanvasMaskRenderMode.PaintWorklet
+    ) {
       updateProperty(
         className,
         "mask-image",
@@ -107,7 +133,7 @@ export function StaggeredText(props: StaggeredTextProps) {
 
     if (
       canvas &&
-      !visualDebug &&
+      !options.visualDebug &&
       maskRenderMode === CanvasMaskRenderMode.DataUri
     ) {
       updateProperty(
@@ -118,7 +144,7 @@ export function StaggeredText(props: StaggeredTextProps) {
     }
 
     requestPaint();
-  }, [visualDebug]);
+  }, [options]);
 
   const requestPaint = useCallback(() => {
     if (animationRef.current) {
@@ -132,12 +158,22 @@ export function StaggeredText(props: StaggeredTextProps) {
   }, [paint]);
 
   useEffect(() => {
-    if (visualDebug) {
+    const element = ref.current;
+    if (parentText || !element || options.disabled) {
+      return;
+    }
+
+    if (options.visualDebug) {
       updateProperty(className, "mask-image", null);
       updateProperty(className, "position", "relative");
-    } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
+      updateProperty(className, "will-1change", null);
+    } else if (
+      maskRenderMode === CanvasMaskRenderMode.DataUri ||
+      maskRenderMode === CanvasMaskRenderMode.PaintWorklet
+    ) {
       updateProperty(className, "will-change", "mask-image");
-    } else if (maskRenderMode !== CanvasMaskRenderMode.PaintWorklet) {
+    } else {
+      updateProperty(className, "will-change", null);
       updateProperty(
         className,
         "mask-image",
@@ -149,13 +185,12 @@ export function StaggeredText(props: StaggeredTextProps) {
     }
 
     const { text, dispose } = stagger.observeText(
-      ref.current!,
+      element,
       id,
-      textSplitter,
+      options,
       (event) => {
         if (event.reason === "resize") {
-          const [{ contentRect }] = event.entries;
-          updateSize(contentRect.width, contentRect.height);
+          updateSize();
         }
 
         // console.log(
@@ -171,17 +206,25 @@ export function StaggeredText(props: StaggeredTextProps) {
     );
 
     return dispose;
-  }, [visualDebug]);
+  }, [options]);
+
+  if (parentText || options.disabled) {
+    return children;
+  }
 
   return (
-    <div ref={ref} className={className}>
-      {visualDebug ||
-      maskRenderMode === CanvasMaskRenderMode.DataUri ||
+    <span
+      ref={ref}
+      className={className}
+      // @ts-ignore
+      href="https://github.com/samdenty/react-ai-flow"
+    >
+      {options.visualDebug ||
       maskRenderMode === CanvasMaskRenderMode.MozElement ? (
         <canvas
           ref={canvasRef}
           style={
-            visualDebug
+            options.visualDebug
               ? { opacity: 0.5, position: "absolute", pointerEvents: "none" }
               : { display: "none" }
           }
@@ -193,7 +236,35 @@ export function StaggeredText(props: StaggeredTextProps) {
         ></canvas>
       ) : null}
 
-      {children}
-    </div>
+      <StaggeredTextContext.Provider value={id}>
+        {children}
+      </StaggeredTextContext.Provider>
+    </span>
   );
+}
+
+export function useText(ref?: React.Ref<Text | null>) {
+  const stagger = useStagger();
+  const id = useContext(StaggeredTextContext);
+  const [text, setText] = useState(
+    id == null ? null : () => stagger.getText(id)
+  );
+
+  useEffect(() => {
+    if (id == null) {
+      return;
+    }
+
+    return stagger.onDidChangeTexts(() => {
+      setText(stagger.getText(id));
+    });
+  }, [id]);
+
+  useImperativeHandle(ref, () => text, [text]);
+
+  if (id == null) {
+    throw new Error("useText must be used within a StaggeredText");
+  }
+
+  return text;
 }

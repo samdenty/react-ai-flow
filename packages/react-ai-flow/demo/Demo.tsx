@@ -68,7 +68,7 @@ function Messages({ speed }: { speed: number }) {
   const [paused, setPaused] = useState<React.ReactNode[][] | false>(false);
 
   return (
-    <StaggerProvider streaming>
+    <StaggerProvider>
       <div className="prose flex flex-col gap-2 w-full overflow-hidden">
         <StickToBottom className="h-[50vh] flex flex-col" initial="instant">
           <MessagesContent

@@ -1,12 +1,12 @@
-import {
-  ElementOptions,
-  StaggerElement,
-  StaggerElementBox,
-} from "../stagger/index.js";
+import { ElementOptions, StaggerElementBox } from "../stagger/index.js";
 import { Text } from "./Text.js";
 import { Ranges } from "./Ranges.js";
+import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<StaggerElementBox> {
+  startOfText = false;
+  #endOfText = false;
+
   private constructor(
     public text: Text,
     public index: number,
@@ -20,8 +20,21 @@ export class TextLine extends Ranges<StaggerElementBox> {
       text.stagger,
       [...ranges, endOfBlock ? "\r\n" : "\n"],
       text.relativeTo,
-      StaggerElement.mergeOptions(text.options, options)
+      mergeObject(text.options, options)
     );
+  }
+
+  get endOfText() {
+    return this.#endOfText;
+  }
+
+  set endOfText(endOfText: boolean) {
+    this.#endOfText = endOfText;
+
+    this.childNodes = [
+      ...this.childNodes.slice(0, -1),
+      endOfText ? "" : this.endOfBlock ? "\r\n" : "\n",
+    ];
   }
 
   get boxes(): StaggerElementBox[] {
@@ -94,6 +107,8 @@ export class TextLine extends Ranges<StaggerElementBox> {
 
     textNodes.forEach(
       ({ textNode, startOfBlock, endOfBlock, textContent, blockParent }) => {
+        textNodes;
+
         let start = textNode === lastNode ? lastOffset : 0;
 
         while (start < textContent.length) {
@@ -113,9 +128,16 @@ export class TextLine extends Ranges<StaggerElementBox> {
             text.options
           );
 
-          const { top } = newLine.rects[0];
+          const [firstRect, secondRect] = newLine.rects;
 
-          if (newLine.rects.length > 1) {
+          // Handle the case where the node has no content
+          if (!firstRect) {
+            return;
+          }
+
+          const { top } = firstRect;
+
+          if (secondRect) {
             let wrapStart = start;
             let wrapEnd = textContent.length;
             let isWrapped = false;
@@ -183,7 +205,14 @@ export class TextLine extends Ranges<StaggerElementBox> {
     );
 
     // Sort lines by vertical position
-    return lines.sort((a, b) => a.boundingBox.top - b.boundingBox.top);
+    lines.sort((a, b) => a.boundingBox.top - b.boundingBox.top);
+
+    lines.forEach((line, i) => {
+      line.startOfText = i === 0;
+      line.endOfText = i === lines.length - 1;
+    });
+
+    return lines;
   }
 }
 

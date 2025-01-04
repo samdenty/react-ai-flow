@@ -1,23 +1,22 @@
 import { createContext, useContext, useMemo } from "react";
-import { Stagger } from "text-stagger";
+import { Stagger, TextOptions } from "text-stagger";
+import { useCachedOptions } from "./utils/useCachedOptions.js";
 import { useIsomorphicLayoutEffect } from "./utils/useIsomorphicLayoutEffect.js";
 
 const StaggerProviderContext = createContext<Stagger | null>(null);
 
-export interface StaggerProviderProps {
+export interface StaggerProviderProps extends TextOptions {
   children: React.ReactNode;
-  streaming: boolean | null;
 }
 
-export function StaggerProvider({
-  streaming = null,
-  children,
-}: StaggerProviderProps) {
-  const animation = useMemo(() => new Stagger(streaming), []);
+export function StaggerProvider({ children, ...props }: StaggerProviderProps) {
+  const options = useCachedOptions(props);
+
+  const animation = useMemo(() => new Stagger(options), []);
 
   useIsomorphicLayoutEffect(() => {
-    animation.streaming = streaming;
-  }, [streaming]);
+    animation.options = options;
+  }, [animation, options]);
 
   return (
     <StaggerProviderContext.Provider value={animation}>

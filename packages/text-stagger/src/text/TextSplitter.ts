@@ -2,8 +2,8 @@ import {
   ElementAnimation,
   ElementOptions,
   ScanEvent,
-  StaggerElement,
 } from "../stagger/index.js";
+import { mergeObject } from "../utils/mergeObject.js";
 import { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";
 
@@ -15,7 +15,7 @@ export type SplitterImpl<T extends ElementOptions> = T & {
 };
 
 export interface TextSplitterOptions extends ElementOptions {
-  splitter?: Exclude<TextSplitter, TextSplitterOptions>;
+  splitter?: Exclude<TextSplitter<ElementOptions>, TextSplitterOptions>;
 }
 
 export interface TextSplitElementOffset extends ElementOptions {
@@ -38,14 +38,14 @@ export interface ParsedTextSplit
   animation: ElementAnimation;
 }
 
-export type TextSplitter =
+export type TextSplitter<T extends ElementOptions> =
   | TextSplit
   | `${TextSplit}`
-  | TextSplitterOptions
-  | CustomTextSplitter
+  | (Omit<T, "animation" | "splitText"> & TextSplitterOptions)
+  | CustomTextSplitter<T>
   | SplitterImpl<ElementOptions>;
 
-export type CustomTextSplitter = (context: {
+export type CustomTextSplitter<T extends ElementOptions> = (context: {
   text: Text;
   event: ScanEvent;
   options: SplitterImpl<ElementOptions>;
@@ -54,7 +54,7 @@ export type CustomTextSplitter = (context: {
     splitter: RegExp | string,
     splitOptions?: SplitOptions
   ): ParsedTextSplit[];
-}) => TextSplitter | TextSplitElement[];
+}) => TextSplitter<T> | TextSplitElement[];
 
 export const enum TextSplit {
   Character = "character",
@@ -115,14 +115,14 @@ export function getTextSplit<T extends ElementOptions>(
   }
 
   return {
-    ...StaggerElement.mergeOptions(currentOptions, { animation }),
+    ...mergeObject(currentOptions, { animation }),
     splitText,
   };
 }
 
 export function mergeTextSplitter<T extends TextSplitterOptions>(
   currentSplitter: SplitterImpl<T>,
-  mergeSplitter: TextSplitter
+  mergeSplitter: TextSplitter<T | ElementOptions>
 ): SplitterImpl<T> {
   if (typeof mergeSplitter === "function") {
     const customSplitter = mergeSplitter;
@@ -137,11 +137,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
         event,
         options: this,
         splitText: (splitter, splitOptions) => {
-          return splitText(
-            text,
-            splitter,
-            StaggerElement.mergeOptions(this, splitOptions)
-          );
+          return splitText(text, splitter, mergeObject(this, splitOptions));
         },
       });
 
@@ -155,7 +151,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
         .map((split) => {
           const { splitText: _, ...options } = this;
 
-          return StaggerElement.mergeOptions(
+          return mergeObject(
             options,
             typeof split === "string" ? { text: split } : split
           );
@@ -218,17 +214,20 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
 
   if (typeof mergeSplitter === "object") {
     if ("splitText" in mergeSplitter) {
-      return StaggerElement.mergeOptions(currentSplitter, mergeSplitter);
+      return mergeObject(currentSplitter, mergeSplitter);
     }
 
     let { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
 
     if (textSplitter) {
-      currentSplitter = mergeTextSplitter(currentSplitter, textSplitter);
+      currentSplitter = mergeTextSplitter(
+        currentSplitter,
+        textSplitter
+      ) as SplitterImpl<T>;
     }
 
     let { splitText, ...options } = currentSplitter;
-    options = StaggerElement.mergeOptions(options, splitterOptions);
+    options = mergeObject(options, splitterOptions);
     return { ...options, splitText } as SplitterImpl<T>;
   }
 
@@ -237,9 +236,10 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
 }
 
 export function resolveTextSplitter<T extends ElementOptions>(
-  ...textSplitters: (TextSplitter | undefined | null)[]
+  textSplitter: TextSplitter<T> | undefined | null,
+  ...textSplitters: (TextSplitter<T | ElementOptions> | undefined | null)[]
 ) {
-  return textSplitters
+  return [textSplitter, ...textSplitters]
     .filter((splitter) => !!splitter)
     .reduce<SplitterImpl<T>>(
       (currentSplitter, newSplitter) =>

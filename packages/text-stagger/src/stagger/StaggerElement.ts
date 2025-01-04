@@ -1,4 +1,5 @@
 import { Ranges, RangesChildNode, Text } from "../text/index.js";
+import { mergeObject } from "../utils/mergeObject.js";
 import { StaggerElementBox } from "./StaggerElementBox.js";
 
 export const enum ElementAnimation {
@@ -11,7 +12,7 @@ export interface ElementOptions {
   gradientWidth?:
     | string
     | number
-    | ((box: StaggerElementBox) => string | number);
+    | ((box: StaggerElementBox) => string | number | undefined);
   duration?: number;
   delay?: number;
 }
@@ -31,7 +32,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
       text.stagger,
       childNodes,
       text.relativeTo,
-      StaggerElement.mergeOptions(text.options, options)
+      mergeObject(text.options, options)
     );
   }
 
@@ -59,27 +60,6 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
       box.progress = boxProgress;
     });
-  }
-
-  static mergeOptions<A extends ElementOptions, B extends ElementOptions>(
-    options: A | undefined,
-    newOptions: B | undefined
-  ): A & B {
-    let {
-      animation = options?.animation,
-      duration = options?.duration,
-      delay = options?.delay,
-      gradientWidth = options?.gradientWidth,
-    } = newOptions || {};
-
-    return {
-      ...options,
-      ...newOptions,
-      ...(animation && { animation }),
-      ...(duration && { duration }),
-      ...(delay && { delay }),
-      ...(gradientWidth && { gradientWidth }),
-    } as A & B;
   }
 
   get animation() {

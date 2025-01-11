@@ -8,7 +8,7 @@ import {
   useState,
   useImperativeHandle,
 } from "react";
-import { useStagger } from "./StaggerProvider.js";
+import { useStaggerContext } from "./StaggerProvider.js";
 import { updateProperty } from "./utils/styles.js";
 import {
   maskRenderMode,
@@ -44,7 +44,7 @@ export function StaggeredText(props: StaggeredTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const stagger = useStagger();
+  const stagger = useStaggerContext();
   const animationRef = useRef<number | null>(null);
   const state = useMemo<AnimationState>(
     () => ({
@@ -52,6 +52,7 @@ export function StaggeredText(props: StaggeredTextProps) {
       currentElement: 0,
       width: 0,
       height: 0,
+      visualDebug: options.visualDebug,
     }),
     []
   );
@@ -88,7 +89,7 @@ export function StaggeredText(props: StaggeredTextProps) {
   const paint = useCallback(() => {
     if (state.currentElement < state.elements.length) {
       const element = state.elements[state.currentElement];
-      const newProgress = Math.min(1, Math.max(0, element.progress + 0.025));
+      const newProgress = Math.min(1, Math.max(0, element.progress + 0.1));
       element.progress = newProgress;
 
       if (newProgress === 1) {
@@ -163,6 +164,8 @@ export function StaggeredText(props: StaggeredTextProps) {
       return;
     }
 
+    updateProperty(className, "display", "inline-block");
+
     if (options.visualDebug) {
       updateProperty(className, "mask-image", null);
       updateProperty(className, "position", "relative");
@@ -184,6 +187,8 @@ export function StaggeredText(props: StaggeredTextProps) {
       );
     }
 
+    state.visualDebug = options.visualDebug;
+
     const { text, dispose } = stagger.observeText(
       element,
       id,
@@ -193,11 +198,11 @@ export function StaggeredText(props: StaggeredTextProps) {
           updateSize();
         }
 
-        // console.log(
-        //   "elements",
-        //   text.elements.map((a) => a.innerText),
-        //   text
-        // );
+        console.log(
+          "elements",
+          text.elements.map((a) => a.innerText),
+          text
+        );
 
         state.elements = text.elements;
 
@@ -225,7 +230,7 @@ export function StaggeredText(props: StaggeredTextProps) {
           ref={canvasRef}
           style={
             options.visualDebug
-              ? { opacity: 0.5, position: "absolute", pointerEvents: "none" }
+              ? { position: "absolute", pointerEvents: "none" }
               : { display: "none" }
           }
           id={
@@ -243,8 +248,8 @@ export function StaggeredText(props: StaggeredTextProps) {
   );
 }
 
-export function useText(ref?: React.Ref<Text | null>) {
-  const stagger = useStagger();
+export function useTextContext(ref?: React.Ref<Text | null>) {
+  const stagger = useStaggerContext();
   const id = useContext(StaggeredTextContext);
   const [text, setText] = useState(
     id == null ? null : () => stagger.getText(id)

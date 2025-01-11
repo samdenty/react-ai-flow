@@ -140,27 +140,28 @@ export class TextLine extends Ranges<StaggerElementBox> {
           if (secondRect) {
             let wrapStart = start;
             let wrapEnd = textContent.length;
-            let isWrapped = false;
 
             // Binary search for the break point
-            while (wrapStart + 1 < wrapEnd) {
+            while (wrapStart <= wrapEnd) {
               const mid = Math.floor((wrapStart + wrapEnd) / 2);
 
-              range.setStart(textNode, wrapStart);
+              range.setStart(textNode, start);
               range.setEnd(textNode, mid);
               newLine.scanRects();
 
-              isWrapped = newLine.rects[0].top > top;
+              const isWrapped =
+                newLine.rects[0].top > top || newLine.rects.length > 1;
 
-              if (newLine.rects.length > 1 || isWrapped) {
-                wrapEnd = mid;
+              if (isWrapped) {
+                wrapEnd = mid - 1;
               } else {
-                wrapStart = mid;
+                wrapStart = mid + 1;
               }
             }
 
+            // After the loop, wrapEnd will be at the last position that doesn't cause wrapping
             range.setStart(textNode, start);
-            range.setEnd(textNode, isWrapped ? wrapStart : wrapEnd);
+            range.setEnd(textNode, wrapEnd);
 
             newLine.scanRects();
           }
@@ -212,6 +213,7 @@ export class TextLine extends Ranges<StaggerElementBox> {
       line.endOfText = i === lines.length - 1;
     });
 
+    console.log(lines.map((line) => line.innerText));
     return lines;
   }
 }

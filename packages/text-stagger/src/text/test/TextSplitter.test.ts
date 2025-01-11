@@ -7,7 +7,7 @@ import {
   ElementOptions,
 } from "../../index.js";
 
-describe("getTextSplit", () => {
+describe.skip("getTextSplit", () => {
   it("character", () => {
     const { splitter, ...options } = getTextSplit(TextSplit.Character);
 

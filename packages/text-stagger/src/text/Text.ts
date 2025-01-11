@@ -86,10 +86,19 @@ export class Text extends Ranges<StaggerElementBox> {
           return false;
         }
 
-        const { innerText } = this.elements[elementIndex];
-        const { text } = textSplits[splitIndex];
+        const element = this.elements[elementIndex];
+        const textSplit = textSplits[splitIndex];
 
-        return innerText.trim() === text.trim();
+        if (element.innerText !== textSplit.text) {
+          return false;
+        }
+
+        if (element.childNodes.join("") !== element.innerText) {
+          const ranges = trimRanges(textSplit.start, textSplit.end);
+          element.childNodes = ranges;
+        }
+
+        return true;
       }
     );
 
@@ -99,7 +108,8 @@ export class Text extends Ranges<StaggerElementBox> {
 
     console.group("diff");
     console.log(
-      this.relativeTo.element,
+      this.relativeTo.element.innerHTML,
+      this,
       textSplits.map((a) => a.text).join(""),
       event
     );
@@ -107,12 +117,6 @@ export class Text extends Ranges<StaggerElementBox> {
     for (const [action, items] of diffs) {
       if (action === 0) {
         const existingElements = items as StaggerElement[];
-
-        console.log(
-          "equal",
-          existingElements.map((item) => item.toString())
-        );
-
         elements.push(...existingElements);
         continue;
       }
@@ -120,9 +124,6 @@ export class Text extends Ranges<StaggerElementBox> {
       if (action === -1) {
         for (const element of items as StaggerElement[]) {
           console.log("remove", [element.innerText]);
-          if (element.progress) {
-            elements.push(element);
-          }
         }
         continue;
       }

@@ -25,7 +25,7 @@ export function StaggerProvider({ children, ...props }: StaggerProviderProps) {
   );
 }
 
-export function useStagger() {
+export function useStaggerContext() {
   const context = useContext(StaggerProviderContext);
 
   if (!context) {

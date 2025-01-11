@@ -118,8 +118,6 @@ export class Stagger {
       scan({ reason: ScanReason.Resize, entries });
     });
 
-    resizeObserver.observe(element);
-
     const mutationObserver = new MutationObserver((entries) => {
       if (this.#ignoreMutations.delete(element)) {
         return;
@@ -127,6 +125,8 @@ export class Stagger {
 
       scan({ reason: ScanReason.Mutation, entries });
     });
+
+    resizeObserver.observe(element);
 
     mutationObserver.observe(element, {
       childList: true,

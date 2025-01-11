@@ -12,6 +12,7 @@ export const maskRenderMode = getCanvasRenderingMode();
 
 export interface AnimationState {
   currentElement: number;
+  visualDebug: boolean;
   elements: StaggerElement[];
   width: number;
   height: number;
@@ -21,14 +22,22 @@ export function doPaint(
   ctx: CanvasRenderingContext2D | PaintRenderingContext2D,
   state: AnimationState
 ) {
-  ctx.fillStyle = "#000000";
+  const fill = `rgba(0, 0, 0, ${state.visualDebug ? 0.5 : 1})`;
+
+  ctx.fillStyle = fill;
   ctx.globalAlpha = 1;
 
   ctx.clearRect(0, 0, state.width, state.height);
 
   for (let i = 0; i < state.currentElement; i++) {
     for (const box of state.elements[i].boxes) {
+      ctx.fillStyle = fill;
       ctx.fillRect(box.left, box.top, box.width, box.height);
+
+      if (state.visualDebug) {
+        ctx.strokeStyle = "red";
+        ctx.strokeRect(box.left, box.top, box.width, box.height);
+      }
     }
   }
 
@@ -80,7 +89,7 @@ export function doPaint(
           0
         );
 
-        gradient.addColorStop(startGradientPercent, "#000000");
+        gradient.addColorStop(startGradientPercent, fill);
         gradient.addColorStop(endGradientPercent, "rgba(0, 0, 0, 0)");
         gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
 

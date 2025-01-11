@@ -71,3 +71,7 @@ export class StaggerElementBox extends Box<StaggerElement> {
     };
   }
 }
+
+export type SerializedStaggerElementBox = ReturnType<
+  StaggerElementBox["toJSON"]
+>;

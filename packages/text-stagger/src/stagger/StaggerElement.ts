@@ -1,6 +1,9 @@
 import { Ranges, RangesChildNode, Text } from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
-import { StaggerElementBox } from "./StaggerElementBox.js";
+import {
+  SerializedStaggerElementBox,
+  StaggerElementBox,
+} from "./StaggerElementBox.js";
 
 export const enum ElementAnimation {
   FadeIn = "fade-in",
@@ -28,7 +31,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
     childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
-    super(text.stagger, text.relativeTo, mergeObject(text.options, options));
+    super(text.stagger, mergeObject(text.options, options), text.relativeTo);
 
     this.childNodes = childNodes;
   }
@@ -78,11 +81,13 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
     ));
   }
 
-  toJSON(): Partial<StaggerElement> {
+  toJSON() {
     return {
       textContent: this.textContent,
       animation: this.animation,
-      boxes: this.boxes,
+      boxes: this.boxes as SerializedStaggerElementBox[],
     };
   }
 }
+
+export type SerializedStaggerElement = ReturnType<StaggerElement["toJSON"]>;

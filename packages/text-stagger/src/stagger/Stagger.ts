@@ -46,11 +46,57 @@ export class Stagger {
   #optionsListeners = new Set<(options: ParsedTextOptions) => void>();
 
   #textsListeners = new Set<() => void>();
-  texts = new Map<number, Text>();
+  #painter?: ReturnType<typeof requestAnimationFrame>;
+  #texts = new Map<number, { text: Text; dispose: VoidFunction }>();
 
   constructor(options?: TextOptions) {
     this.options = options;
   }
+
+  get texts() {
+    return [...this.#texts.values()]
+      .map(({ text }) => text)
+      .sort((a, b) => a.top - b.top + (a.left - b.left));
+  }
+
+  get elements() {
+    return this.texts.flatMap((text) => text.elements);
+  }
+
+  cancelPaint() {
+    if (this.#painter) {
+      cancelAnimationFrame(this.#painter);
+      this.#painter = undefined;
+    }
+  }
+
+  paint() {
+    const element = this.elements.find((element) => element.progress !== 1);
+
+    if (!element) {
+      return false;
+    }
+
+    element.progress = Math.min(1, element.progress + 0.1);
+
+    for (const text of this.texts) {
+      text.paint();
+    }
+
+    return this.elements.some((element) => element.progress !== 1);
+  }
+
+  requestPaint() {
+    this.cancelPaint();
+
+    requestAnimationFrame(() => {
+      if (this.paint()) {
+        this.requestPaint();
+      }
+    });
+  }
+
+  static classNamePrefix = "text-stagger";
 
   get options(): ParsedTextOptions {
     return this.#options;
@@ -58,7 +104,11 @@ export class Stagger {
 
   set options(options: TextOptions | undefined) {
     this.#options = resolveTextSplitter<ParsedTextOptions>(
-      { visualDebug: false, disabled: false },
+      {
+        visualDebug: false,
+        disabled: false,
+        classNamePrefix: Stagger.classNamePrefix,
+      },
       options
     );
 
@@ -81,39 +131,21 @@ export class Stagger {
     };
   }
 
-  getText(id: number) {
-    return this.texts.get(id) ?? null;
+  getText(id: number): Text | null {
+    return this.#texts.get(id)?.text ?? null;
+  }
+
+  disposeText(id: number) {
+    const { dispose } = this.#texts.get(id) || {};
+
+    dispose?.();
   }
 
   observeText(
     element: HTMLElement,
     id: number,
-    splitterOptions: TextSplitterOptions,
-    cb?: (event: ScanEvent) => void
+    textOptions: TextSplitterOptions
   ) {
-    let text = Text.scanText(this, id, element, splitterOptions);
-
-    this.texts.set(id, text);
-    this.#textsListeners.forEach((listener) => listener());
-
-    let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
-
-    const scan = (event: ScanEvent) => {
-      if (scanner && event.reason !== ScanReason.Mutation) {
-        return;
-      }
-
-      console.time("scan " + event.reason);
-      text.scanElementLines(event);
-      console.timeEnd("scan " + event.reason);
-
-      cb?.(event);
-
-      scanner = requestAnimationFrame(() => {
-        scanner = undefined;
-      });
-    };
-
     const resizeObserver = new ResizeObserver((entries) => {
       scan({ reason: ScanReason.Resize, entries });
     });
@@ -123,8 +155,34 @@ export class Stagger {
         return;
       }
 
+      entries = entries.filter((entry) => entry.target !== text.canvas);
+
+      if (!entries.length) {
+        return;
+      }
+
       scan({ reason: ScanReason.Mutation, entries });
     });
+
+    const text = Text.scanText(this, id, element, textOptions);
+
+    let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
+
+    const scan = (event: ScanEvent) => {
+      if (scanner && event.reason !== ScanReason.Mutation) {
+        return;
+      }
+
+      console.time("scan " + event.reason);
+      text.scanElementLines(element, event);
+      console.timeEnd("scan " + event.reason);
+
+      this.requestPaint();
+
+      scanner = requestAnimationFrame(() => {
+        scanner = undefined;
+      });
+    };
 
     resizeObserver.observe(element);
 
@@ -138,17 +196,14 @@ export class Stagger {
     const dispose = () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
-      this.texts.delete(id);
+      this.#texts.delete(id);
       this.#textsListeners.forEach((listener) => listener());
     };
 
-    return {
-      text,
-      dispose,
-      scan(data: any) {
-        scan({ reason: ScanReason.Force, data });
-      },
-    };
+    this.#texts.set(id, { text, dispose });
+    this.#textsListeners.forEach((listener) => listener());
+
+    return dispose;
   }
 
   invalidateElementCache(element?: HTMLElement) {

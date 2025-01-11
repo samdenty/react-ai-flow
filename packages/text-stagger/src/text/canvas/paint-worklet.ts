@@ -1,4 +1,5 @@
-import { AnimationState, doPaint } from "./canvas.js";
+import { SerializedText } from "../Text.js";
+import { doPaint } from "./canvas.js";
 
 export let paintWorkletRegistered!: Promise<void>;
 
@@ -36,14 +37,14 @@ function paintWorklet(paint: typeof doPaint) {
         _properties: PaintStylePropertyMapReadOnly,
         [stateStyleValue]: CSSStyleValue[]
       ) {
-        let state: AnimationState;
+        let text: SerializedText;
         try {
-          state = JSON.parse(JSON.parse(stateStyleValue.toString()));
+          text = JSON.parse(JSON.parse(stateStyleValue.toString()));
         } catch {
           return;
         }
 
-        paint(ctx, state);
+        paint(ctx, text);
       }
     }
   );

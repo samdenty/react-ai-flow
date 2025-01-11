@@ -5,7 +5,7 @@ import {
 } from "../stagger/index.js";
 
 export class Box<T extends Ranges<any> = Ranges<any>> {
-  relativeTo: { element: HTMLElement; rect: DOMRect };
+  relativeTo?: { element: HTMLElement; rect: DOMRect };
 
   constructor(public parent: T, public rect: DOMRect) {
     this.relativeTo = parent.relativeTo;
@@ -20,11 +20,11 @@ export class Box<T extends Ranges<any> = Ranges<any>> {
   }
 
   get top() {
-    return this.rect.top - this.relativeTo.rect.top;
+    return this.rect.top - (this.relativeTo?.rect.top ?? 0);
   }
 
   get left() {
-    return this.rect.left - this.relativeTo.rect.left;
+    return this.rect.left - (this.relativeTo?.rect.left ?? 0);
   }
 
   get width() {
@@ -53,6 +53,8 @@ export class Box<T extends Ranges<any> = Ranges<any>> {
   }
 }
 
+export type SerializedBox = ReturnType<Box["toJSON"]>;
+
 export type RangesChildNode = Range | string;
 
 export abstract class Ranges<T extends Box> {
@@ -76,8 +78,8 @@ export abstract class Ranges<T extends Box> {
 
   constructor(
     public stagger: Stagger,
-    public relativeTo: { element: HTMLElement; rect: DOMRect },
     public options: StaggerElementBoxOptions,
+    public relativeTo?: { element: HTMLElement; rect: DOMRect },
     childNodes?: RangesChildNode[]
   ) {
     if (childNodes) {
@@ -261,10 +263,9 @@ export abstract class Ranges<T extends Box> {
               walker.currentNode = lastChild;
             } else {
               walker.currentNode = commonAncestorContainer;
-
               lastChild = walker.lastChild();
+
               if (!lastChild) {
-                console.log("lastChild is null");
                 return trimmedRange;
               }
 

@@ -2,6 +2,7 @@ import {
   StaggerElementBox,
   StaggerElementBoxOptions,
   StaggerElement,
+  SerializedStaggerElement,
 } from "../stagger/index.js";
 import { Ranges } from "./Ranges.js";
 import { ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
@@ -13,6 +14,12 @@ import {
   TextSplitterOptions,
 } from "./TextSplitter.js";
 import { calcSlices } from "fast-myers-diff";
+import {
+  CanvasMaskRenderMode,
+  doPaint,
+  maskRenderMode,
+  updateProperty,
+} from "./canvas/index.js";
 
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
   "style",
@@ -36,6 +43,7 @@ export interface ParsedTextOptions
     StaggerElementBoxOptions {
   visualDebug: boolean;
   disabled: boolean;
+  classNamePrefix: string;
 }
 
 export interface TextOptions extends TextSplitterOptions {
@@ -50,12 +58,24 @@ export interface TextOptions extends TextSplitterOptions {
    * Disable the text from being animated
    */
   disabled?: boolean;
+
+  /**
+   * The class name prefix for the text
+   * @default "text-stagger"
+   */
+  classNamePrefix?: string;
 }
+
 export class Text extends Ranges<StaggerElementBox> {
+  #mutationCache = new WeakMap<Node, number>();
+
   lines: TextLine[] = [];
   elements: StaggerElement[] = [];
 
-  #mutationCache = new WeakMap<Node, number>();
+  canvas?: HTMLCanvasElement;
+  canvasContext?: PaintRenderingContext2D | null;
+
+  readonly className: string;
 
   private constructor(
     public stagger: Stagger,
@@ -63,13 +83,98 @@ export class Text extends Ranges<StaggerElementBox> {
     element: HTMLElement,
     public override options: ParsedTextOptions
   ) {
-    const rect = element.getBoundingClientRect();
-    super(stagger, { element, rect }, options);
+    super(stagger, options);
+
+    const className = this.options.classNamePrefix + "-" + id;
+
+    element.className = this.className = className;
+    element.setAttribute("href", "https://github.com/samdenty/react-ai-flow");
+
+    if (this.visualDebug) {
+      this.canvas = document.createElement("canvas");
+      this.canvas.style.position = "absolute";
+      this.canvas.style.width = "100%";
+      this.canvas.style.height = "100%";
+      this.canvas.style.pointerEvents = "none";
+      element.prepend(this.canvas);
+
+      updateProperty(className, "mask-image", null);
+      updateProperty(className, "position", "relative");
+    } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
+      this.canvas = document.createElement("canvas");
+      updateProperty(className, "will-change", "mask-image");
+    } else if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
+      this.canvas = document.createElement("canvas");
+      this.canvas.style.display = "none";
+      this.canvas.id = this.className;
+      document.head.prepend(this.canvas);
+
+      updateProperty(className, "mask-image", `-moz-element(#${className})`);
+    } else if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
+      updateProperty(className, "mask-image", `-webkit-canvas(${className})`);
+    }
+  }
+
+  get visualDebug() {
+    return this.options.visualDebug;
+  }
+
+  get top() {
+    return this.relativeTo?.rect.top ?? 0;
+  }
+
+  get left() {
+    return this.relativeTo?.rect.left ?? 0;
+  }
+
+  get width() {
+    return this.relativeTo?.rect.width ?? 0;
+  }
+
+  get height() {
+    return this.relativeTo?.rect.height ?? 0;
+  }
+
+  paint() {
+    if (
+      !this.visualDebug &&
+      maskRenderMode === CanvasMaskRenderMode.PaintWorklet
+    ) {
+      updateProperty(
+        this.className,
+        "mask-image",
+        `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
+      );
+    }
+
+    this.canvasContext ??= this.canvas?.getContext("2d", {
+      willReadFrequently: true,
+      alpha: true,
+    });
+
+    if (this.canvasContext) {
+      doPaint(this.canvasContext, this);
+    }
+
+    if (
+      this.canvas &&
+      !this.visualDebug &&
+      maskRenderMode === CanvasMaskRenderMode.DataUri
+    ) {
+      updateProperty(
+        this.className,
+        "mask-image",
+        `url(${this.canvas.toDataURL("image/png", 0)})`
+      );
+    }
   }
 
   toJSON() {
     return {
-      elements: this.elements,
+      width: this.width,
+      height: this.height,
+      elements: this.elements as SerializedStaggerElement[],
+      visualDebug: this.visualDebug,
     };
   }
 
@@ -95,6 +200,7 @@ export class Text extends Ranges<StaggerElementBox> {
 
         if (element.childNodes.join("") !== element.innerText) {
           const ranges = trimRanges(textSplit.start, textSplit.end);
+          element.progress = 0;
           element.childNodes = ranges;
         }
 
@@ -108,7 +214,7 @@ export class Text extends Ranges<StaggerElementBox> {
 
     console.group("diff");
     console.log(
-      this.relativeTo.element.innerHTML,
+      this.relativeTo?.element.innerHTML,
       this,
       textSplits.map((a) => a.text).join(""),
       event
@@ -168,14 +274,17 @@ export class Text extends Ranges<StaggerElementBox> {
       mergeTextSplitter<ParsedTextOptions>(stagger.options, textOptions)
     );
 
-    text.scanElementLines({
+    text.scanElementLines(element, {
       reason: ScanReason.Mounted,
     });
 
     return text;
   }
 
-  scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
+  scanElementLines(
+    element: HTMLElement,
+    event: ScanEvent = { reason: ScanReason.Force }
+  ) {
     if (event.reason === ScanReason.Mutation) {
       const impacts = this.analyzeMutationImpact(event.entries);
 
@@ -186,12 +295,35 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    this.relativeTo = {
-      element: this.relativeTo.element,
-      rect: this.relativeTo.element.getBoundingClientRect(),
-    };
+    const rect = element.getBoundingClientRect();
+    const oldRect = this.relativeTo?.rect;
 
-    this.lines = TextLine.scanLines(this);
+    this.relativeTo = { element, rect };
+
+    if (
+      !oldRect ||
+      oldRect.width !== this.width ||
+      oldRect.height !== this.height
+    ) {
+      if (this.canvas) {
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+      }
+
+      if (
+        !this.visualDebug &&
+        maskRenderMode === CanvasMaskRenderMode.WebkitCanvas
+      ) {
+        this.canvasContext = document.getCSSCanvasContext?.(
+          "2d",
+          this.className,
+          this.width,
+          this.height
+        );
+      }
+    }
+
+    this.lines = TextLine.scanLines(element, this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
     this.elements = this.diffElements(event);
@@ -293,3 +425,5 @@ export class Text extends Ranges<StaggerElementBox> {
     return LAYOUT_AFFECTING_ATTRIBUTES.has(attributeName.toLowerCase());
   }
 }
+
+export type SerializedText = ReturnType<Text["toJSON"]>;

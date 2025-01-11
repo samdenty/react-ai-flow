@@ -16,7 +16,7 @@ export class TextLine extends Ranges<StaggerElementBox> {
     ranges: Range[],
     options?: ElementOptions
   ) {
-    super(text.stagger, text.relativeTo, mergeObject(text.options, options));
+    super(text.stagger, mergeObject(text.options, options), text.relativeTo);
     this.childNodes = ranges;
   }
 
@@ -40,30 +40,26 @@ export class TextLine extends Ranges<StaggerElementBox> {
     return this.text.boxes.filter(({ line }) => line === this);
   }
 
-  static scanLines(text: Text): TextLine[] {
+  static scanLines(element: HTMLElement, text: Text): TextLine[] {
     const lines: TextLine[] = [...text.lines];
     const lastRange = lines.at(-1)?.ranges.at(-1);
     const lastNode = lastRange?.endContainer;
     const lastOffset = lastRange?.endOffset ?? 0;
 
-    const walker = document.createTreeWalker(
-      text.relativeTo.element,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode: (node) => {
-          if (!lastNode || lastNode === node) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        if (!lastNode || lastNode === node) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
 
-          const position = lastNode.compareDocumentPosition(node);
-          if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
+        const position = lastNode.compareDocumentPosition(node);
+        if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
 
-          return NodeFilter.FILTER_REJECT;
-        },
-      }
-    );
+        return NodeFilter.FILTER_REJECT;
+      },
+    });
 
     const textNodes: {
       textNode: globalThis.Text;
@@ -212,7 +208,6 @@ export class TextLine extends Ranges<StaggerElementBox> {
       line.endOfText = i === lines.length - 1;
     });
 
-    console.log(lines.map((line) => line.innerText));
     return lines;
   }
 }

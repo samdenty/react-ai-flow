@@ -64,7 +64,7 @@ export class Text extends Ranges<StaggerElementBox> {
     public override options: ParsedTextOptions
   ) {
     const rect = element.getBoundingClientRect();
-    super(stagger, [], { element, rect }, options);
+    super(stagger, { element, rect }, options);
   }
 
   toJSON() {

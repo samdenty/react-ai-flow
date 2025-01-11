@@ -28,18 +28,24 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
     childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
-    super(
-      text.stagger,
-      childNodes,
-      text.relativeTo,
-      mergeObject(text.options, options)
-    );
+    super(text.stagger, text.relativeTo, mergeObject(text.options, options));
+
+    this.childNodes = childNodes;
   }
 
   get progress(): number {
     return (
       this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
     );
+  }
+
+  override get childNodes(): readonly RangesChildNode[] {
+    return super.childNodes;
+  }
+
+  override set childNodes(childNodes: RangesChildNode[]) {
+    super.childNodes = childNodes;
+    this.#boxes = undefined;
   }
 
   set progress(progress: number) {

@@ -58,9 +58,10 @@ export type RangesChildNode = Range | string;
 export abstract class Ranges<T extends Box> {
   #boundingRect?: DOMRect;
   #boundingBox?: Box<this>;
+  #childNodes: readonly RangesChildNode[] = [];
 
-  #childNodes!: readonly RangesChildNode[];
-  rects!: DOMRect[];
+  rects: DOMRect[] = [];
+
   /**
    * The text of *just* the childNodes that are ranges,
    * **excludes rendered line-breaks
@@ -75,11 +76,13 @@ export abstract class Ranges<T extends Box> {
 
   constructor(
     public stagger: Stagger,
-    childNodes: RangesChildNode[],
     public relativeTo: { element: HTMLElement; rect: DOMRect },
-    public options: StaggerElementBoxOptions
+    public options: StaggerElementBoxOptions,
+    childNodes?: RangesChildNode[]
   ) {
-    this.childNodes = childNodes;
+    if (childNodes) {
+      this.childNodes = childNodes;
+    }
   }
 
   set childNodes(childNodes: RangesChildNode[]) {
@@ -108,7 +111,7 @@ export abstract class Ranges<T extends Box> {
     this.rects = Ranges.optimizeRects(allRects);
 
     this.#boundingRect = undefined;
-    this.#boundingRect = undefined;
+    this.#boundingBox = undefined;
 
     return this.rects;
   }

@@ -1,11 +1,11 @@
 import { ElementOptions, StaggerElementBox } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import { Ranges } from "./Ranges.js";
+import { Ranges, RangesChildNode } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<StaggerElementBox> {
   startOfText = false;
-  #endOfText = false;
+  endOfText = false;
 
   private constructor(
     public text: Text,
@@ -16,25 +16,24 @@ export class TextLine extends Ranges<StaggerElementBox> {
     ranges: Range[],
     options?: ElementOptions
   ) {
-    super(
-      text.stagger,
-      [...ranges, endOfBlock ? "\r\n" : "\n"],
-      text.relativeTo,
-      mergeObject(text.options, options)
-    );
+    super(text.stagger, text.relativeTo, mergeObject(text.options, options));
+    this.childNodes = ranges;
   }
 
-  get endOfText() {
-    return this.#endOfText;
+  override set childNodes(ranges: RangesChildNode[]) {
+    super.childNodes = ranges;
   }
 
-  set endOfText(endOfText: boolean) {
-    this.#endOfText = endOfText;
+  override get childNodes(): readonly RangesChildNode[] {
+    if (this.endOfText) {
+      return super.childNodes;
+    }
 
-    this.childNodes = [
-      ...this.childNodes.slice(0, -1),
-      endOfText ? "" : this.endOfBlock ? "\r\n" : "\n",
-    ];
+    if (this.endOfBlock) {
+      return [...super.childNodes, "\r\n"];
+    }
+
+    return [...super.childNodes, "\n"];
   }
 
   get boxes(): StaggerElementBox[] {

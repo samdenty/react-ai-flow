@@ -4,7 +4,7 @@ import {
   StaggerElement,
   SerializedStaggerElement,
 } from "../stagger/index.js";
-import { Ranges } from "./Ranges.js";
+import { Ranges, RangesChildNode } from "./Ranges.js";
 import { ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
@@ -179,7 +179,10 @@ export class Text extends Ranges<StaggerElementBox> {
   diffElements(
     event: ScanEvent = { reason: ScanReason.Force }
   ): StaggerElement[] {
+    const trimChildNodes = this.createChildNodeTrimmer();
+
     const textSplits = this.options.splitText(this, event);
+    const elements: StaggerElement[] = [];
 
     const diffs = calcSlices(
       this.elements as (StaggerElement | ParsedTextSplit)[],
@@ -192,25 +195,35 @@ export class Text extends Ranges<StaggerElementBox> {
         const element = this.elements[elementIndex];
         const textSplit = textSplits[splitIndex];
 
-        if (element.innerText !== textSplit.text) {
-          return false;
+        let childNodes: RangesChildNode[];
+
+        if (!textSplit.text.startsWith(element.innerText)) {
+          childNodes = trimChildNodes(textSplit.start, textSplit.end);
+
+          const textContent = childNodes
+            .filter((range) => typeof range !== "string")
+            .join("");
+
+          // try checking the text content (without the newlines included)
+          if (!textContent.startsWith(element.textContent)) {
+            return false;
+          }
         }
 
+        const onlyEqualByPrefix = textSplit.text !== element.innerText;
+
         if (
+          onlyEqualByPrefix ||
           (event.reason === ScanReason.Force && event.reset) ||
           element.childNodes.join("") !== element.innerText
         ) {
-          const ranges = trimRanges(textSplit.start, textSplit.end);
-          element.childNodes = ranges;
+          childNodes ??= trimChildNodes(textSplit.start, textSplit.end);
+          element.childNodes = childNodes;
         }
 
         return true;
       }
     );
-
-    const elements: StaggerElement[] = [];
-
-    const trimRanges = this.createChildNodeTrimmer();
 
     console.group("diff");
     console.log(
@@ -244,7 +257,7 @@ export class Text extends Ranges<StaggerElementBox> {
       for (const textSplit of splits) {
         const element = new StaggerElement(
           this,
-          trimRanges(textSplit.start, textSplit.end),
+          trimChildNodes(textSplit.start, textSplit.end),
           textSplit
         );
 

@@ -60,9 +60,7 @@ export class Stagger {
   }
 
   get texts() {
-    return [...this.#texts.values()]
-      .map(({ text }) => text)
-      .sort((a, b) => a.top - b.top + (a.left - b.left));
+    return [...this.#texts.values()].map(({ text }) => text);
   }
 
   get elements() {
@@ -77,7 +75,8 @@ export class Stagger {
   }
 
   paint() {
-    const element = this.elements.find((element) => element.progress !== 1);
+    const elements = [...this.elements];
+    const element = elements.find((element) => element.progress !== 1);
 
     if (!element) {
       return false;
@@ -89,13 +88,13 @@ export class Stagger {
 
     this.#paintQueue.clear();
 
-    element.progress = Math.min(1, element.progress + 0.005);
+    element.progress = Math.min(1, element.progress + 0.025);
 
     for (const text of paintQueue) {
       text.paint();
     }
 
-    return this.elements.some((element) => element.progress !== 1);
+    return elements.some((element) => element.progress !== 1);
   }
 
   requestPaint(texts = this.texts) {
@@ -105,7 +104,7 @@ export class Stagger {
       this.#paintQueue.add(text);
     }
 
-    requestAnimationFrame(() => {
+    this.#painter = requestAnimationFrame(() => {
       if (this.paint()) {
         this.requestPaint([]);
       }
@@ -231,7 +230,22 @@ export class Stagger {
       this.#textsListeners.forEach((listener) => listener());
     };
 
-    this.#texts.set(id, { text, dispose });
+    const texts = [...this.#texts, [id, { text, dispose }] as const];
+
+    for (const [, { text }] of texts) {
+      if (!text.relativeTo) {
+        continue;
+      }
+
+      text.relativeTo.rect = text.relativeTo.element.getBoundingClientRect();
+    }
+
+    texts.sort(
+      ([, { text: a }], [, { text: b }]) => a.top - b.top + (a.left - b.left)
+    );
+
+    this.#texts = new Map(texts);
+
     this.#textsListeners.forEach((listener) => listener());
 
     return dispose;

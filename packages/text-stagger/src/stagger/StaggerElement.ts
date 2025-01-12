@@ -37,6 +37,10 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
   }
 
   get progress(): number {
+    if (!this.boxes.length) {
+      return 0;
+    }
+
     return (
       this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
     );
@@ -47,10 +51,17 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
   }
 
   override set childNodes(childNodes: RangesChildNode[]) {
-    const progress = this.boxes.length ? this.progress : 0;
+    const originalProgress = this.progress;
+    const originalWidth =
+      originalProgress * this.boxes.reduce((acc, box) => acc + box.width, 0);
+
     super.childNodes = childNodes;
+
     this.boxes = this.rects.map((rect) => new StaggerElementBox(this, rect));
-    this.progress = progress;
+
+    const newWidth = this.boxes.reduce((acc, box) => acc + box.width, 0);
+
+    this.progress = originalWidth / newWidth;
   }
 
   set progress(progress: number) {

@@ -4,7 +4,7 @@ import { useStaggerContext } from "../StaggerProvider.js";
 
 export function useResolvedOptions(options: TextOptions) {
   const stagger = useStaggerContext();
-  const [staggerOptions, setStaggerOptions] = useState(stagger.options);
+  const [staggerOptions, setStaggerOptions] = useState(() => stagger.options);
 
   useEffect(() => {
     return stagger.onDidChangeOptions(setStaggerOptions);

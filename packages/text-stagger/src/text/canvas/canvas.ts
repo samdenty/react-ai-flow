@@ -36,7 +36,7 @@ export function doPaint(
   } of boxes) {
     ctx.fillStyle = fill;
 
-    if (animation === "fade-in") {
+    if (animation === "fade-in" || progress === 1) {
       ctx.globalAlpha = progress;
       ctx.clearRect(left, top, width, height);
       ctx.fillRect(left, top, width, height);

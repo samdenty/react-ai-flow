@@ -203,9 +203,7 @@ export class Stagger {
         return;
       }
 
-      console.time("scan " + event.reason);
       text.scanElementLines(element, event);
-      console.timeEnd("scan " + event.reason);
 
       this.requestPaint([text]);
 

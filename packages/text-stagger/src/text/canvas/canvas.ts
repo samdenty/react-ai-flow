@@ -21,23 +21,24 @@ export function doPaint(
 
   ctx.clearRect(0, 0, text.width, text.height);
 
-  const boxes = text.elements.flatMap(({ animation, boxes }, i) => {
-    const isLast = i === text.elements.length - 1;
+  const boxes = text.elements.flatMap(({ animation, boxes }, elementIndex) => {
+    return boxes.map((box, boxIndex) => {
+      const { left, top, width, height, progress, gradientWidth = 100 } = box;
+      const isLast =
+        boxIndex === boxes.length - 1 &&
+        elementIndex === text.elements.length - 1;
 
-    return boxes.map(
-      ({ left, top, width, height, progress, gradientWidth = 100 }, i) => {
-        return {
-          animation,
-          left,
-          top,
-          width,
-          height,
-          progress,
-          gradientWidth,
-          isLast,
-        };
-      }
-    );
+      return {
+        animation,
+        left,
+        top,
+        width,
+        height,
+        progress,
+        gradientWidth,
+        isLast,
+      };
+    });
   });
 
   ctx.fillStyle = surroundingFill;
@@ -52,28 +53,24 @@ export function doPaint(
     animation,
   } of boxes) {
     ctx.globalAlpha =
-      animation === "fade-in" ? progress : Math.min(1, progress / 0.1);
+      animation === "fade-in" ? progress : Math.min(1, progress / 0.4);
 
     // Fill everything to the left of the box
-    ctx.clearRect(0, top, left, height);
     ctx.fillRect(0, top, left, height);
 
     // Fill everything above the boxs
-    ctx.clearRect(0, 0, text.width, top);
     ctx.fillRect(0, 0, text.width, top);
 
     if (isLast) {
       ctx.globalAlpha =
         animation === "fade-in"
           ? progress
-          : Math.min(1, (progress - 0.9) / 0.1);
+          : Math.max(0, (progress - 0.6) / 0.4);
 
       // Fill everything to the right of the box
-      ctx.clearRect(left + width, top, text.width - left - width, height);
       ctx.fillRect(left + width, top, text.width - left - width, height);
 
       // Fill everything below the box
-      ctx.clearRect(0, top + height, text.width, text.height - top - height);
       ctx.fillRect(0, top + height, text.width, text.height - top - height);
     }
   }

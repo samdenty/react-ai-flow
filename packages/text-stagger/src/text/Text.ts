@@ -230,13 +230,13 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     );
 
-    console.group("diff");
-    console.log(
-      this.relativeTo?.element.innerHTML,
-      this,
-      textSplits.map((a) => a.text).join(""),
-      event
-    );
+    // console.group("diff");
+    // console.log(
+    //   this.relativeTo?.element.innerHTML,
+    //   this,
+    //   textSplits.map((a) => a.text).join(""),
+    //   event
+    // );
 
     for (const [action, items] of diffs) {
       if (action === 0) {
@@ -247,17 +247,17 @@ export class Text extends Ranges<StaggerElementBox> {
 
       if (action === -1) {
         for (const element of items as StaggerElement[]) {
-          console.log("remove", [element.innerText]);
+          // console.log("remove", [element.innerText]);
         }
         continue;
       }
 
       const splits = items as ParsedTextSplit[];
 
-      console.log(
-        "add",
-        splits.map((split) => split.text)
-      );
+      // console.log(
+      //   "add",
+      //   splits.map((split) => split.text)
+      // );
 
       for (const textSplit of splits) {
         const element = new StaggerElement(
@@ -270,7 +270,7 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    console.groupEnd();
+    // console.groupEnd();
 
     return elements;
   }

@@ -9,20 +9,19 @@ import {
 } from "react";
 import { useStaggerContext } from "./StaggerProvider.js";
 import { Text, TextOptions } from "text-stagger";
-import { useResolvedOptions } from "./utils/useCachedOptions.js";
+import { useTextStagger } from "./useTextStagger.js";
 
 export interface StaggeredTextProps extends TextOptions {
   children: React.ReactNode;
 }
 
-const StaggeredTextContext = createContext<number | null>(null);
+export const StaggeredTextContext = createContext<number | null>(null);
 
 let ID = 0;
 
 export function StaggeredText(props: StaggeredTextProps) {
   const { children, ...restProps } = props;
   const id = useMemo(() => ID++, []);
-  const options = useResolvedOptions(restProps);
 
   let parentText: number | null = null;
   try {
@@ -32,16 +31,7 @@ export function StaggeredText(props: StaggeredTextProps) {
   }
 
   const ref = useRef<HTMLDivElement>(null);
-  const stagger = useStaggerContext();
-
-  useEffect(() => {
-    if (!ref.current) {
-      stagger.disposeText(id);
-      return;
-    }
-
-    return stagger.observeText(ref.current, id, options);
-  }, [options]);
+  const { options } = useTextStagger(ref, restProps);
 
   return (
     <StaggeredTextContext.Provider value={id}>
@@ -54,7 +44,7 @@ export function StaggeredText(props: StaggeredTextProps) {
   );
 }
 
-export function useTextContext(ref?: React.Ref<Text | null>) {
+export function useStaggeredTextContext(ref?: React.Ref<Text | null>) {
   const stagger = useStaggerContext();
   const id = useContext(StaggeredTextContext);
   const [text, setText] = useState(

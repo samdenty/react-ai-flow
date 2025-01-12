@@ -38,7 +38,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
   get progress(): number {
     if (!this.boxes.length) {
-      return 0;
+      return 1;
     }
 
     return (

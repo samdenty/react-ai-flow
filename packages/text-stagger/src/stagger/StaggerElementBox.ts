@@ -13,6 +13,8 @@ export class StaggerElementBox extends Box<StaggerElement> {
 
   progress = 0;
 
+  static DEFAULT_GRADIENT_WIDTH = 100;
+
   get element() {
     return this.parent;
   }
@@ -45,14 +47,14 @@ export class StaggerElementBox extends Box<StaggerElement> {
       this.progress === 0 ||
       this.progress === 1
     ) {
-      return undefined;
+      return StaggerElementBox.DEFAULT_GRADIENT_WIDTH;
     }
 
     if (typeof cssLiteral === "function") {
       cssLiteral = cssLiteral(this);
 
       if (cssLiteral == null) {
-        return undefined;
+        return StaggerElementBox.DEFAULT_GRADIENT_WIDTH;
       }
     }
 

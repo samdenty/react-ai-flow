@@ -21,11 +21,11 @@ export class TextLine extends Ranges<StaggerElementBox> {
   }
 
   override set childNodes(ranges: RangesChildNode[]) {
-    super.childNodes = ranges;
+    super.childNodes = ranges.filter((node) => typeof node !== "string");
   }
 
   override get childNodes(): readonly RangesChildNode[] {
-    if (this.endOfText) {
+    if (this.innerText.endsWith("\n") || this.endOfText) {
       return super.childNodes;
     }
 

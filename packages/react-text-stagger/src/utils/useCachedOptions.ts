@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { mergeTextSplitter, TextOptions } from "text-stagger";
+import { mergeTextSplitter, StaggerOptions, TextOptions } from "text-stagger";
 import { useStaggerContext } from "../StaggerProvider.js";
 
 export function useResolvedOptions(options: TextOptions) {
@@ -27,11 +27,12 @@ export function useCachedOptions({
   splitter: currentSplitter,
   visualDebug,
   disabled,
-}: TextOptions): TextOptions {
+  classNamePrefix,
+}: StaggerOptions): StaggerOptions {
   const splitter = useCachedFunctionLike(currentSplitter);
   const gradientWidth = useCachedFunctionLike(currentGradientWidth);
 
-  return useMemo<TextOptions>(
+  return useMemo<StaggerOptions>(
     () => ({
       animation,
       delay,
@@ -40,8 +41,18 @@ export function useCachedOptions({
       gradientWidth,
       visualDebug,
       disabled,
+      classNamePrefix,
     }),
-    [animation, delay, duration, splitter, gradientWidth, visualDebug, disabled]
+    [
+      animation,
+      delay,
+      duration,
+      splitter,
+      gradientWidth,
+      visualDebug,
+      disabled,
+      classNamePrefix,
+    ]
   );
 }
 

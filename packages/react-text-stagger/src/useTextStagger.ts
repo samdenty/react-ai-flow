@@ -1,47 +1,46 @@
-import { RefObject, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { TextOptions } from "text-stagger";
 import { useResolvedOptions } from "./utils/useCachedOptions.js";
 import { useStaggerContext } from "./StaggerProvider.js";
 
 let ID = 0;
 
-export function useTextStagger(
-  ref:
-    | RefObject<HTMLElement | null | undefined>
-    | null
-    | HTMLElement
-    | undefined,
-  textOptions: TextOptions = {}
-) {
+export function useTextStagger(textOptions: TextOptions = {}) {
   const id = useMemo(() => ID++, []);
 
   const options = useResolvedOptions(textOptions);
   const stagger = useStaggerContext();
+  const elementRef = useRef<HTMLElement | null>();
+  const [elementRefCount, updateElementRefCount] = useReducer((x) => x + 1, 0);
+  const [text, setText] = useState(() => stagger.getText(id));
 
   useEffect(() => {
-    const element = ref instanceof HTMLElement ? ref : ref?.current;
-
-    if (!element) {
-      stagger.disposeText(id);
+    if (!elementRef.current) {
       return;
     }
 
-    return stagger.observeText(element, id, options);
-  }, [ref, options]);
+    const dispose = stagger.observeText(elementRef.current, id, options);
 
-  const [text, setText] = useState(
-    id == null ? null : () => stagger.getText(id)
-  );
+    setText(stagger.getText(id));
 
-  useEffect(() => {
-    if (id == null) {
-      return;
-    }
+    return dispose;
+  }, [elementRefCount, elementRef, options]);
 
-    return stagger.onDidChangeTexts(() => {
-      setText(stagger.getText(id));
-    });
-  }, [id]);
+  const ref = useCallback((element: HTMLElement | null | undefined) => {
+    elementRef.current = element;
+    updateElementRefCount();
+  }, []);
 
-  return { options, text };
+  return {
+    options,
+    text,
+    ref,
+  };
 }

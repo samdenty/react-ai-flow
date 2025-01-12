@@ -1,5 +1,4 @@
 import {
-  useRef,
   useEffect,
   useMemo,
   createContext,
@@ -30,8 +29,7 @@ export function StaggeredText(props: StaggeredTextProps) {
     // ignore
   }
 
-  const ref = useRef<HTMLDivElement>(null);
-  const { options } = useTextStagger(ref, restProps);
+  const { ref, options } = useTextStagger(restProps);
 
   return (
     <StaggeredTextContext.Provider value={id}>

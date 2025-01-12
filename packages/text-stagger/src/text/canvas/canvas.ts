@@ -23,8 +23,8 @@ export function doPaint(
 
   const boxes = text.elements.flatMap(({ animation, boxes }, elementIndex) => {
     return boxes.map((box, boxIndex) => {
-      const { left, top, width, height, progress, gradientWidth = 100 } = box;
-      const isLast =
+      const { left, top, width, height, progress, gradientWidth } = box;
+      const isLastBox =
         boxIndex === boxes.length - 1 &&
         elementIndex === text.elements.length - 1;
 
@@ -36,7 +36,7 @@ export function doPaint(
         height,
         progress,
         gradientWidth,
-        isLast,
+        isLastBox,
       };
     });
   });
@@ -49,7 +49,7 @@ export function doPaint(
     top,
     height,
     progress,
-    isLast,
+    isLastBox,
     animation,
   } of boxes) {
     ctx.globalAlpha =
@@ -61,7 +61,7 @@ export function doPaint(
     // Fill everything above the boxs
     ctx.fillRect(0, 0, text.width, top);
 
-    if (isLast) {
+    if (isLastBox) {
       ctx.globalAlpha =
         animation === "fade-in"
           ? progress
@@ -87,7 +87,7 @@ export function doPaint(
   } of boxes) {
     ctx.fillStyle = fill;
 
-    if (animation === "fade-in" || progress === 1) {
+    if (animation === "fade-in") {
       ctx.globalAlpha = progress;
       ctx.clearRect(left, top, width, height);
       ctx.fillRect(left, top, width, height);

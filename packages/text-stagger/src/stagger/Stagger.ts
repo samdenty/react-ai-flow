@@ -6,53 +6,37 @@ import {
   TextSplitterOptions,
 } from "../text/index.js";
 
-export enum ScanReason {
-  Resize = "resize",
-  Mounted = "mounted",
-  Mutation = "mutation",
-  Force = "force",
-}
-
-export interface ForceScanEvent {
-  reason: ScanReason.Force;
-  reset?: boolean;
-  data?: any;
-}
-
-export interface MutationScanEvent {
-  reason: ScanReason.Mutation;
-  entries: MutationRecord[];
-}
-
-export interface MountedScanEvent {
-  reason: ScanReason.Mounted;
-}
-
-export interface ResizeScanEvent {
-  reason: ScanReason.Resize;
-  entries: ResizeObserverEntry[];
-}
-
-export type ScanEvent =
-  | MountedScanEvent
-  | MutationScanEvent
-  | ResizeScanEvent
-  | ForceScanEvent;
+export interface StaggerOptions extends TextOptions {}
+export interface ParsedStaggerOptions extends ParsedTextOptions {}
 
 export class Stagger {
   #ignoreMutations = new WeakSet<HTMLElement>();
   #pixelCache = new WeakMap<HTMLElement, Map<string, number>>();
 
-  #options!: ParsedTextOptions;
-  #optionsListeners = new Set<(options: ParsedTextOptions) => void>();
+  #options!: ParsedStaggerOptions;
+  #optionsListeners = new Set<(options: ParsedStaggerOptions) => void>();
+  #streaming: boolean | null = null;
 
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
   #texts = new Map<number, { text: Text; dispose: VoidFunction }>();
 
-  constructor(options?: TextOptions) {
+  constructor(options?: StaggerOptions) {
     this.options = options;
+  }
+
+  get streaming() {
+    return this.#streaming;
+  }
+
+  set streaming(streaming: boolean | null) {
+    if (streaming === this.#streaming) {
+      return;
+    }
+
+    this.#streaming = streaming;
+    this.requestPaint();
   }
 
   toString() {
@@ -78,17 +62,22 @@ export class Stagger {
     const elements = [...this.elements];
     const element = elements.find((element) => element.progress !== 1);
 
-    if (!element) {
-      return false;
-    }
+    if (element) {
+      const oldProgress = element.progress;
+      element.progress = Math.min(1, element.progress + 0.035);
 
-    this.#paintQueue.add(element.text);
+      if (oldProgress !== element.progress) {
+        this.#paintQueue.add(element.text);
+      }
+    }
 
     const paintQueue = [...this.#paintQueue];
 
-    this.#paintQueue.clear();
+    if (!paintQueue.length) {
+      return false;
+    }
 
-    element.progress = Math.min(1, element.progress + 0.035);
+    this.#paintQueue.clear();
 
     for (const text of paintQueue) {
       text.paint();
@@ -113,12 +102,12 @@ export class Stagger {
 
   static classNamePrefix = "text-stagger";
 
-  get options(): ParsedTextOptions {
+  get options(): ParsedStaggerOptions {
     return this.#options;
   }
 
-  set options(options: TextOptions | undefined) {
-    this.#options = resolveTextSplitter<ParsedTextOptions>(
+  set options(options: StaggerOptions | undefined) {
+    this.#options = resolveTextSplitter<ParsedStaggerOptions>(
       {
         visualDebug: false,
         disabled: false,
@@ -130,7 +119,7 @@ export class Stagger {
     this.#optionsListeners.forEach((listener) => listener(this.options));
   }
 
-  onDidChangeOptions(listener: (options: ParsedTextOptions) => void) {
+  onDidChangeOptions(listener: (options: ParsedStaggerOptions) => void) {
     this.#optionsListeners.add(listener);
 
     return () => {
@@ -228,7 +217,7 @@ export class Stagger {
       this.#textsListeners.forEach((listener) => listener());
     };
 
-    const texts = [...this.#texts, [id, { text, dispose }] as const];
+    const texts = [...this.#texts];
 
     for (const [, { text }] of texts) {
       if (!text.relativeTo) {
@@ -238,9 +227,17 @@ export class Stagger {
       text.relativeTo.rect = text.relativeTo.element.getBoundingClientRect();
     }
 
-    texts.sort(
-      ([, { text: a }], [, { text: b }]) => a.top - b.top + (a.left - b.left)
-    );
+    texts.push([id, { text, dispose }]);
+
+    texts.sort(([, { text: a }], [, { text: b }]) => {
+      // First sort by top position
+      if (a.top !== b.top) {
+        return a.top - b.top;
+      }
+
+      // If top positions are equal, sort by left position
+      return a.left - b.left;
+    });
 
     this.#texts = new Map(texts);
 
@@ -297,3 +294,36 @@ export class Stagger {
     return elementPixelCache.get(key)!;
   }
 }
+
+export enum ScanReason {
+  Resize = "resize",
+  Mounted = "mounted",
+  Mutation = "mutation",
+  Force = "force",
+}
+
+export interface ForceScanEvent {
+  reason: ScanReason.Force;
+  reset?: boolean;
+  data?: any;
+}
+
+export interface MutationScanEvent {
+  reason: ScanReason.Mutation;
+  entries: MutationRecord[];
+}
+
+export interface MountedScanEvent {
+  reason: ScanReason.Mounted;
+}
+
+export interface ResizeScanEvent {
+  reason: ScanReason.Resize;
+  entries: ResizeObserverEntry[];
+}
+
+export type ScanEvent =
+  | MountedScanEvent
+  | MutationScanEvent
+  | ResizeScanEvent
+  | ForceScanEvent;

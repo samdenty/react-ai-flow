@@ -65,20 +65,38 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
   }
 
   set progress(progress: number) {
+    if (!this.boxes.length) {
+      return;
+    }
+
     const boxCount = this.boxes.length;
     const progressPerBox = 1 / boxCount;
 
-    this.boxes.forEach((box, index) => {
+    // Only check last box when it's relevant
+    const isLastElement = this.text.elements.at(-1) === this;
+
+    this.boxes.forEach((box, i) => {
+      const isLastBox = this.text.isLast && isLastElement && i === boxCount - 1;
+
       if (this.animation === ElementAnimation.FadeIn) {
         box.progress = progress;
         return;
       }
 
-      const boxStartProgress = index * progressPerBox;
-      const boxProgress = Math.min(
+      const boxStartProgress = i * progressPerBox;
+      let boxProgress = Math.min(
         1,
         Math.max(0, (progress - boxStartProgress) / progressPerBox)
       );
+
+      if (isLastBox) {
+        const runwayWidth = Math.max(box.width, box.gradientWidth);
+        const maxProgress = Math.min(
+          1,
+          Math.max(0.5, 1 - box.gradientWidth / runwayWidth)
+        );
+        boxProgress = Math.min(maxProgress, boxProgress);
+      }
 
       box.progress = boxProgress;
     });

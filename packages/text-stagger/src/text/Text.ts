@@ -87,8 +87,9 @@ export class Text extends Ranges<StaggerElementBox> {
 
     const className = this.options.classNamePrefix + "-" + id;
 
-    element.className = this.className = className;
+    element.classList.add("ai-flow", (this.className = className));
 
+    updateProperty(className, "display", "block");
     updateProperty(className, "padding", "0 50%");
     updateProperty(className, "margin", "0 -50%");
 
@@ -122,6 +123,10 @@ export class Text extends Ranges<StaggerElementBox> {
     return this.options.visualDebug;
   }
 
+  get streaming() {
+    return this.stagger.streaming ?? false;
+  }
+
   get top() {
     return this.relativeTo?.rect.top ?? 0;
   }
@@ -136,6 +141,14 @@ export class Text extends Ranges<StaggerElementBox> {
 
   get height() {
     return this.relativeTo?.rect.height ?? 0;
+  }
+
+  get isLast() {
+    const lastTextWithElements = this.stagger.texts.findLast(
+      (text) => text.elements.length
+    );
+
+    return lastTextWithElements === this;
   }
 
   paint() {
@@ -178,6 +191,8 @@ export class Text extends Ranges<StaggerElementBox> {
       height: this.height,
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
+      streaming: this.streaming,
+      isLast: this.isLast,
     };
   }
 
@@ -230,13 +245,13 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     );
 
-    // console.group("diff");
-    // console.log(
-    //   this.relativeTo?.element.innerHTML,
-    //   this,
-    //   textSplits.map((a) => a.text).join(""),
-    //   event
-    // );
+    console.group("diff");
+    console.log(
+      this.relativeTo?.element.innerHTML,
+      this,
+      textSplits.map((a) => a.text).join(""),
+      event
+    );
 
     for (const [action, items] of diffs) {
       if (action === 0) {
@@ -247,17 +262,17 @@ export class Text extends Ranges<StaggerElementBox> {
 
       if (action === -1) {
         for (const element of items as StaggerElement[]) {
-          // console.log("remove", [element.innerText]);
+          console.log("remove", [element.innerText]);
         }
         continue;
       }
 
       const splits = items as ParsedTextSplit[];
 
-      // console.log(
-      //   "add",
-      //   splits.map((split) => split.text)
-      // );
+      console.log(
+        "add",
+        splits.map((split) => split.text)
+      );
 
       for (const textSplit of splits) {
         const element = new StaggerElement(
@@ -270,7 +285,7 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    // console.groupEnd();
+    console.groupEnd();
 
     return elements;
   }

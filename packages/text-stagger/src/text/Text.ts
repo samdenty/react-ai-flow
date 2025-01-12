@@ -89,14 +89,19 @@ export class Text extends Ranges<StaggerElementBox> {
 
     element.className = this.className = className;
 
+    updateProperty(className, "padding", "0 50%");
+    updateProperty(className, "margin", "0 -50%");
+
     if (this.visualDebug) {
       this.canvas = document.createElement("canvas");
       this.canvas.style.position = "absolute";
       this.canvas.style.pointerEvents = "none";
+      this.canvas.style.top = "0";
+      this.canvas.style.left = "0";
+
       element.prepend(this.canvas);
 
       updateProperty(className, "mask-image", null);
-      updateProperty(className, "display", "inline-block");
       updateProperty(className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       this.canvas = document.createElement("canvas");
@@ -309,7 +314,7 @@ export class Text extends Ranges<StaggerElementBox> {
     }
 
     const rect = element.getBoundingClientRect();
-    const oldRect = this.relativeTo?.rect;
+    const oldDimensions = this.canvas || this.relativeTo?.rect;
 
     this.relativeTo = Object.assign(this.relativeTo ?? {}, {
       element,
@@ -317,9 +322,9 @@ export class Text extends Ranges<StaggerElementBox> {
     });
 
     if (
-      !oldRect ||
-      oldRect.width !== this.width ||
-      oldRect.height !== this.height
+      !oldDimensions ||
+      oldDimensions.width !== this.width ||
+      oldDimensions.height !== this.height
     ) {
       if (this.canvas) {
         this.canvas.width = this.width;

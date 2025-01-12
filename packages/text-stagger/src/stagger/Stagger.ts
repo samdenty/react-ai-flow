@@ -88,7 +88,7 @@ export class Stagger {
 
     this.#paintQueue.clear();
 
-    element.progress = Math.min(1, element.progress + 0.025);
+    element.progress = Math.min(1, element.progress + 0.035);
 
     for (const text of paintQueue) {
       text.paint();

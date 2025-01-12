@@ -31,7 +31,7 @@ export function StaggeredText(props: StaggeredTextProps) {
     // ignore
   }
 
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const stagger = useStaggerContext();
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export function StaggeredText(props: StaggeredTextProps) {
       {parentText || options.disabled ? (
         children
       ) : (
-        <span ref={ref}>{children}</span>
+        <div ref={ref}>{children}</div>
       )}
     </StaggeredTextContext.Provider>
   );

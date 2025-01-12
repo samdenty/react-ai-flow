@@ -15,16 +15,70 @@ export function doPaint(
   text: SerializedText
 ) {
   const fill = `rgba(0, 0, 0, ${text.visualDebug ? 0.8 : 1})`;
+  const surroundingFill = text.visualDebug
+    ? `rgba(0, 0, 255, 0.4)`
+    : `rgba(0, 0, 0, 1)`;
+
   ctx.clearRect(0, 0, text.width, text.height);
 
-  const boxes = text.elements.flatMap(({ animation, boxes }) => {
+  const boxes = text.elements.flatMap(({ animation, boxes }, i) => {
+    const isLast = i === text.elements.length - 1;
+
     return boxes.map(
-      ({ left, top, width, height, progress, gradientWidth = 100 }) => {
-        return { animation, left, top, width, height, progress, gradientWidth };
+      ({ left, top, width, height, progress, gradientWidth = 100 }, i) => {
+        return {
+          animation,
+          left,
+          top,
+          width,
+          height,
+          progress,
+          gradientWidth,
+          isLast,
+        };
       }
     );
   });
 
+  ctx.fillStyle = surroundingFill;
+
+  for (const {
+    left,
+    width,
+    top,
+    height,
+    progress,
+    isLast,
+    animation,
+  } of boxes) {
+    ctx.globalAlpha =
+      animation === "fade-in" ? progress : Math.min(1, progress / 0.1);
+
+    // Fill everything to the left of the box
+    ctx.clearRect(0, top, left, height);
+    ctx.fillRect(0, top, left, height);
+
+    // Fill everything above the boxs
+    ctx.clearRect(0, 0, text.width, top);
+    ctx.fillRect(0, 0, text.width, top);
+
+    if (isLast) {
+      ctx.globalAlpha =
+        animation === "fade-in"
+          ? progress
+          : Math.min(1, (progress - 0.9) / 0.1);
+
+      // Fill everything to the right of the box
+      ctx.clearRect(left + width, top, text.width - left - width, height);
+      ctx.fillRect(left + width, top, text.width - left - width, height);
+
+      // Fill everything below the box
+      ctx.clearRect(0, top + height, text.width, text.height - top - height);
+      ctx.fillRect(0, top + height, text.width, text.height - top - height);
+    }
+  }
+
+  // Second pass: Draw the regular boxes
   for (const {
     animation,
     left,
@@ -48,11 +102,7 @@ export function doPaint(
     ) {
       ctx.globalAlpha = 1;
 
-      // The amount at the start of the end of the gradient
-      // to ensure a smooth transition, if this is too big
-      // the gradient will be slow to start/end
       const gradientGutterOverflow = gradientWidth / 2;
-
       const gradientStart = -gradientGutterOverflow;
       const gradientEnd = width + gradientGutterOverflow;
 
@@ -83,8 +133,11 @@ export function doPaint(
       ctx.fillStyle = gradient;
       ctx.fillRect(left, top, width, height);
     }
+  }
 
-    if (text.visualDebug) {
+  // Final pass: Draw debug rectangles on top
+  if (text.visualDebug) {
+    for (const { left, top, width, height, progress } of boxes) {
       ctx.globalAlpha = progress === 1 ? 1 : 0.5;
       ctx.strokeStyle = "red";
       ctx.strokeRect(left, top, width, height);

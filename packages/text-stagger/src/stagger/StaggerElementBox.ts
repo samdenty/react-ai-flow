@@ -59,7 +59,7 @@ export class StaggerElementBox extends Box<StaggerElement> {
     return this.parent.stagger.convertToPx(
       cssLiteral,
       this,
-      this.relativeTo.element
+      this.relativeTo?.element
     );
   }
 

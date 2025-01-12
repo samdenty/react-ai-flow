@@ -1,0 +1,26 @@
+{
+  "name": "optimistic-markdown",
+  "version": "0.0.1",
+  "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
+  "description": "Transform incomplete markdown into stable, parseable output to prevent visual glitches in streaming content.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samdenty/react-ai-flow.git",
+    "directory": "packages/optimistic-markdown"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

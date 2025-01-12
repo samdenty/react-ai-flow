@@ -1,8 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2024"]
+    "lib": ["ES2024"],
+    "tsBuildInfoFile": "./dist/root.tsbuildinfo"
   },
   "include": ["vite.config.ts"],
-  "references": [{ "path": "../react-text-stagger/tsconfig.node.json" }]
+  "references": [
+    { "path": "../react-text-stagger/tsconfig.node.json" },
+    { "path": "../optimistic-markdown/tsconfig.node.json" }
+  ]
 }

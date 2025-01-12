@@ -22,7 +22,8 @@
     "directory": "packages/react-ai-flow"
   },
   "dependencies": {
-    "react-text-stagger": "workspace:*"
+    "react-text-stagger": "workspace:*",
+    "optimistic-markdown": "workspace:*"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",

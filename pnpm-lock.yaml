@@ -51,8 +51,13 @@ importers:
         specifier: ^2.1.8
         version: 2.1.8(@types/node@22.10.3)(@vitest/browser@2.1.8)(msw@2.7.0(@types/node@22.10.3)(typescript@5.7.2))
 
+  packages/optimistic-markdown: {}
+
   packages/react-ai-flow:
     dependencies:
+      optimistic-markdown:
+        specifier: workspace:*
+        version: link:../optimistic-markdown
       react-text-stagger:
         specifier: workspace:*
         version: link:../react-text-stagger

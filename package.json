@@ -6,7 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "rm -rf packages/*/{*.tsbuildinfo,dist} > /dev/null 2>&1; tsc --build tsconfig.lib.json",
+    "clean": "rm -rf packages/*/{*.tsbuildinfo,dist} > /dev/null 2>&1",
+    "build": "pnpm clean && tsc --build tsconfig.lib.json",
     "watch": "pnpm build --watch",
     "test": "vitest",
     "release": "pnpm build && pnpm -r publish --ignore-scripts --no-git-checks",

@@ -58,13 +58,15 @@ export class Stagger {
     }
   }
 
-  paint() {
+  paint(texts = this.texts) {
     const elements = [...this.elements];
     const element = elements.find((element) => element.progress !== 1);
 
+    texts.forEach((text) => this.#paintQueue.add(text));
+
     if (element) {
       const oldProgress = element.progress;
-      element.progress = Math.min(1, element.progress + 0.035);
+      element.progress = Math.min(1, element.progress + 0.04);
 
       if (oldProgress !== element.progress) {
         this.#paintQueue.add(element.text);
@@ -94,7 +96,7 @@ export class Stagger {
     }
 
     this.#painter = requestAnimationFrame(() => {
-      if (this.paint()) {
+      if (this.paint([])) {
         this.requestPaint([]);
       }
     });

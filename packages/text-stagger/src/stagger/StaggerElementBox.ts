@@ -38,6 +38,10 @@ export class StaggerElementBox extends Box<StaggerElement> {
     ));
   }
 
+  get isLast() {
+    return this.element.boxes.at(-1) === this;
+  }
+
   get gradientWidth() {
     let cssLiteral = this.options.gradientWidth;
 
@@ -70,6 +74,7 @@ export class StaggerElementBox extends Box<StaggerElement> {
       ...super.toJSON(),
       progress: this.progress,
       gradientWidth: this.gradientWidth,
+      isLast: this.isLast,
     };
   }
 }

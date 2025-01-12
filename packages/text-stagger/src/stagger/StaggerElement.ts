@@ -50,6 +50,10 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
     return super.childNodes;
   }
 
+  get isLast() {
+    return this.text.elements.at(-1) === this;
+  }
+
   override set childNodes(childNodes: RangesChildNode[]) {
     const originalProgress = this.progress;
     const originalWidth =
@@ -72,12 +76,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
     const boxCount = this.boxes.length;
     const progressPerBox = 1 / boxCount;
 
-    // Only check last box when it's relevant
-    const isLastElement = this.text.elements.at(-1) === this;
-
     this.boxes.forEach((box, i) => {
-      const isLastBox = this.text.isLast && isLastElement && i === boxCount - 1;
-
       if (this.animation === ElementAnimation.FadeIn) {
         box.progress = progress;
         return;
@@ -89,7 +88,12 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
         Math.max(0, (progress - boxStartProgress) / progressPerBox)
       );
 
-      if (isLastBox) {
+      if (
+        this.text.streaming &&
+        box.isLast &&
+        this.isLast &&
+        this.text.isLast
+      ) {
         const runwayWidth = Math.max(box.width, box.gradientWidth);
         const maxProgress = Math.min(
           1,
@@ -111,6 +115,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
       textContent: this.textContent,
       animation: this.animation,
       boxes: this.boxes as SerializedStaggerElementBox[],
+      isLast: this.isLast,
     };
   }
 }

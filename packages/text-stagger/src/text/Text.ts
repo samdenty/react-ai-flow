@@ -93,6 +93,10 @@ export class Text extends Ranges<StaggerElementBox> {
     updateProperty(className, "padding", "0 50%");
     updateProperty(className, "margin", "0 -50%");
 
+    // hide until first render, but don't set to zero otherwise it
+    // won't be scanned by the layout engine
+    updateProperty(className, "opacity", "0.001");
+
     if (this.visualDebug) {
       this.canvas = document.createElement("canvas");
       this.canvas.style.position = "absolute";
@@ -183,6 +187,8 @@ export class Text extends Ranges<StaggerElementBox> {
         `url(${this.canvas.toDataURL("image/png", 0)})`
       );
     }
+
+    updateProperty(this.className, "opacity", null);
   }
 
   toJSON() {
@@ -245,13 +251,13 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     );
 
-    console.group("diff");
-    console.log(
-      this.relativeTo?.element.innerHTML,
-      this,
-      textSplits.map((a) => a.text).join(""),
-      event
-    );
+    // console.group("diff");
+    // console.log(
+    //   this.relativeTo?.element.innerHTML,
+    //   this,
+    //   textSplits.map((a) => a.text).join(""),
+    //   event
+    // );
 
     for (const [action, items] of diffs) {
       if (action === 0) {
@@ -261,18 +267,18 @@ export class Text extends Ranges<StaggerElementBox> {
       }
 
       if (action === -1) {
-        for (const element of items as StaggerElement[]) {
-          console.log("remove", [element.innerText]);
-        }
+        // for (const element of items as StaggerElement[]) {
+        //   console.log("remove", [element.innerText]);
+        // }
         continue;
       }
 
       const splits = items as ParsedTextSplit[];
 
-      console.log(
-        "add",
-        splits.map((split) => split.text)
-      );
+      // console.log(
+      //   "add",
+      //   splits.map((split) => split.text)
+      // );
 
       for (const textSplit of splits) {
         const element = new StaggerElement(
@@ -285,7 +291,7 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    console.groupEnd();
+    // console.groupEnd();
 
     return elements;
   }
@@ -306,10 +312,6 @@ export class Text extends Ranges<StaggerElementBox> {
       element,
       mergeTextSplitter<ParsedTextOptions>(stagger.options, textOptions)
     );
-
-    text.scanElementLines(element, {
-      reason: ScanReason.Mounted,
-    });
 
     return text;
   }

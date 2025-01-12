@@ -8,7 +8,7 @@ export class Box<T extends Ranges<any> = Ranges<any>> {
   relativeTo?: { element: HTMLElement; rect: DOMRect };
 
   constructor(public parent: T, public rect: DOMRect) {
-    this.relativeTo = parent.relativeTo;
+    this.relativeTo = parent.relativeTo && { ...parent.relativeTo };
   }
 
   get options(): ElementOptions {

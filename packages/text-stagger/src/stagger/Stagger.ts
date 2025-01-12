@@ -15,6 +15,7 @@ export enum ScanReason {
 
 export interface ForceScanEvent {
   reason: ScanReason.Force;
+  reset?: boolean;
   data?: any;
 }
 
@@ -47,10 +48,15 @@ export class Stagger {
 
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
+  #paintQueue = new Set<Text>();
   #texts = new Map<number, { text: Text; dispose: VoidFunction }>();
 
   constructor(options?: TextOptions) {
     this.options = options;
+  }
+
+  toString() {
+    return this.texts.join("");
   }
 
   get texts() {
@@ -77,21 +83,31 @@ export class Stagger {
       return false;
     }
 
-    element.progress = Math.min(1, element.progress + 0.1);
+    this.#paintQueue.add(element.text);
 
-    for (const text of this.texts) {
+    const paintQueue = [...this.#paintQueue];
+
+    this.#paintQueue.clear();
+
+    element.progress = Math.min(1, element.progress + 0.005);
+
+    for (const text of paintQueue) {
       text.paint();
     }
 
     return this.elements.some((element) => element.progress !== 1);
   }
 
-  requestPaint() {
+  requestPaint(texts = this.texts) {
     this.cancelPaint();
+
+    for (const text of texts) {
+      this.#paintQueue.add(text);
+    }
 
     requestAnimationFrame(() => {
       if (this.paint()) {
-        this.requestPaint();
+        this.requestPaint([]);
       }
     });
   }
@@ -141,6 +157,21 @@ export class Stagger {
     dispose?.();
   }
 
+  scanText({ id, ...props }: { id?: number } & (ScanEvent | {}) = {}) {
+    const event: ScanEvent =
+      "reason" in props ? props : { reason: ScanReason.Force };
+
+    const texts = id == null ? this.texts : [this.getText(id)];
+
+    texts.forEach((text) => {
+      if (!text?.relativeTo) {
+        return;
+      }
+
+      return text.scanElementLines(text.relativeTo.element, event);
+    });
+  }
+
   observeText(
     element: HTMLElement,
     id: number,
@@ -177,7 +208,7 @@ export class Stagger {
       text.scanElementLines(element, event);
       console.timeEnd("scan " + event.reason);
 
-      this.requestPaint();
+      this.requestPaint([text]);
 
       scanner = requestAnimationFrame(() => {
         scanner = undefined;

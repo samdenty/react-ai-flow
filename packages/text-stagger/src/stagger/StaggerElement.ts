@@ -24,7 +24,7 @@ export type AnimationDuration = number | CustomAnimationDuration;
 export type CustomAnimationDuration = (element: StaggerElement) => number;
 
 export class StaggerElement extends Ranges<StaggerElementBox> {
-  #boxes?: StaggerElementBox[];
+  boxes: StaggerElementBox[] = [];
 
   constructor(
     public text: Text,
@@ -47,8 +47,10 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
   }
 
   override set childNodes(childNodes: RangesChildNode[]) {
+    const progress = this.boxes.length ? this.progress : 0;
     super.childNodes = childNodes;
-    this.#boxes = undefined;
+    this.boxes = this.rects.map((rect) => new StaggerElementBox(this, rect));
+    this.progress = progress;
   }
 
   set progress(progress: number) {
@@ -73,12 +75,6 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
   get animation() {
     return this.options.animation;
-  }
-
-  get boxes() {
-    return (this.#boxes ??= this.rects.map(
-      (rect) => new StaggerElementBox(this, rect)
-    ));
   }
 
   toJSON() {

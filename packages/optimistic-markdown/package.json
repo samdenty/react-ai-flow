@@ -21,6 +21,7 @@
     "url": "https://github.com/samdenty/react-ai-flow.git",
     "directory": "packages/optimistic-markdown"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "micromark": "^4.0.1"
+  }
 }

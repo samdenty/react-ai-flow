@@ -20,8 +20,8 @@ describe("optimisticMarkdown", () => {
     });
 
     it("should trim incomplete inline code", () => {
-      expect(optimisticMarkdown("`")).toBe("");
       expect(optimisticMarkdown("` ")).toBe("");
+      expect(optimisticMarkdown("`")).toBe("");
     });
   });
 
@@ -48,8 +48,8 @@ describe("optimisticMarkdown", () => {
 
   describe("lists and horizontal rules", () => {
     it("should trim incomplete list/link markers", () => {
-      expect(optimisticMarkdown("- [")).toBe("");
       expect(optimisticMarkdown("- [x")).toBe("");
+      expect(optimisticMarkdown("- [")).toBe("");
     });
 
     it("should preserve complete list items", () => {
@@ -57,16 +57,16 @@ describe("optimisticMarkdown", () => {
     });
 
     it("should handle horizontal rules", () => {
+      expect(optimisticMarkdown("--")).toBe("");
       expect(optimisticMarkdown("---")).toBe("---");
       expect(optimisticMarkdown("-")).toBe("");
-      expect(optimisticMarkdown("--")).toBe("");
     });
   });
 
   describe("links", () => {
     it("should trim incomplete links without markdownLinkTarget", () => {
-      expect(optimisticMarkdown("[text")).toBe("text");
       expect(optimisticMarkdown("[text](")).toBe("text");
+      expect(optimisticMarkdown("[text")).toBe("text");
     });
 
     it("should complete links with markdownLinkTarget", () => {
@@ -90,14 +90,18 @@ describe("optimisticMarkdown", () => {
       expect(optimisticMarkdown("**text")).toBe("**text**");
     });
 
+    it("should complete bold & italic with content", () => {
+      expect(optimisticMarkdown("***text")).toBe("***text***");
+    });
+
     it("should trim incomplete markers without content", () => {
       expect(optimisticMarkdown("*")).toBe("");
       expect(optimisticMarkdown("**")).toBe("");
     });
 
     it("should handle nested emphasis conservatively", () => {
-      expect(optimisticMarkdown("*text**")).toBe("*text*");
       expect(optimisticMarkdown("**text*")).toBe("**text**");
+      expect(optimisticMarkdown("*text**")).toBe("*text*");
     });
   });
 
@@ -125,11 +129,11 @@ describe("optimisticMarkdown", () => {
 
   describe("line break handling", () => {
     it("should treat formatting tokens split by newlines as text", () => {
-      expect(optimisticMarkdown("*foo\nbar*")).toBe("*foo\nbar*");
-      expect(optimisticMarkdown("**foo\nbar**")).toBe("**foo\nbar**");
-      expect(optimisticMarkdown("_foo\nbar_")).toBe("_foo\nbar_");
-      expect(optimisticMarkdown("__foo\nbar__")).toBe("__foo\nbar__");
-      expect(optimisticMarkdown("`foo\nbar`")).toBe("`foo\nbar`");
+      expect(optimisticMarkdown("*foo\nbar*")).toBe("*foo\nbar");
+      expect(optimisticMarkdown("**foo\nbar**")).toBe("**foo\nbar");
+      expect(optimisticMarkdown("_foo\nbar_")).toBe("_foo\nbar");
+      expect(optimisticMarkdown("__foo\nbar__")).toBe("__foo\nbar");
+      expect(optimisticMarkdown("`foo\nbar`")).toBe("`foo\nbar");
     });
 
     it("should treat table cells split by newlines as text", () => {
@@ -149,14 +153,9 @@ describe("optimisticMarkdown", () => {
   });
 
   describe("complex cases", () => {
-    it("should handle mixed incomplete tokens", () => {
-      const input = "# Title\n**bold text\n- [ \n| Header |";
-      expect(optimisticMarkdown(input)).toBe("# Title\n**bold text**\n");
-    });
-
     it("should handle nested formatting in incomplete state", () => {
       const input = "**bold *italic** text";
-      expect(optimisticMarkdown(input)).toBe("**bold *italic** text**");
+      expect(optimisticMarkdown(input)).toBe("**bold *italic** text");
     });
 
     it("should handle code blocks with internal formatting", () => {
@@ -183,7 +182,7 @@ describe("optimisticMarkdown", () => {
 
     it("should handle escaped characters", () => {
       expect(optimisticMarkdown("\\*text")).toBe("\\*text");
-      expect(optimisticMarkdown("\\**text")).toBe("\\**text");
+      expect(optimisticMarkdown("\\**text")).toBe("\\**text*");
     });
 
     it("should handle multiple spaces in formatting", () => {

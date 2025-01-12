@@ -12,14 +12,22 @@ export interface StaggerProviderProps extends TextOptions {
 export function StaggerProvider({ children, ...props }: StaggerProviderProps) {
   const options = useCachedOptions(props);
 
-  const animation = useMemo(() => new Stagger(options), []);
+  const stagger = useMemo(() => new Stagger(options), []);
 
   useIsomorphicLayoutEffect(() => {
-    animation.options = options;
-  }, [animation, options]);
+    stagger.options = options;
+
+    if (import.meta.env.DEV) {
+      globalThis.staggers ??= [];
+
+      if (!globalThis.staggers.includes(stagger)) {
+        globalThis.staggers.push(stagger);
+      }
+    }
+  }, [stagger, options]);
 
   return (
-    <StaggerProviderContext.Provider value={animation}>
+    <StaggerProviderContext.Provider value={stagger}>
       {children}
     </StaggerProviderContext.Provider>
   );

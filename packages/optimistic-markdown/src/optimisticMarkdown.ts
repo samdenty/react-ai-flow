@@ -17,12 +17,17 @@ export function optimisticMarkdown(
   let pos = 0;
   let inHtmlBlock = false;
   let htmlTagStack: string[] = [];
-  let inCodeBlock = false;
   let tableColumns = 0;
+  let tagsToClose: ("*" | "_" | "`")[] = [];
+  let insertAutoClose = false;
+  let inCodeBlock = false;
+  let inFencedCodeBlock = false;
 
   while (pos < markdown.length) {
+    const char = markdown[pos];
+
     // Handle HTML blocks
-    if (markdown[pos] === "<" && isLetter(markdown[pos + 1])) {
+    if (char === "<" && isLetter(markdown[pos + 1])) {
       const tagMatch = markdown
         .slice(pos)
         .match(/^<(\/?[a-zA-Z][a-zA-Z0-9]*)[\s>]/);
@@ -50,62 +55,14 @@ export function optimisticMarkdown(
     }
 
     // Handle escaped characters
-    if (markdown[pos] === "\\") {
+    if (char === "\\") {
       output += markdown[pos] + markdown[pos + 1];
       pos += 2;
       continue;
     }
 
-    // Handle code blocks
-    if (markdown.slice(pos).startsWith("```")) {
-      const nextNewline = markdown.indexOf("\n", pos + 3);
-      if (
-        nextNewline === -1 ||
-        markdown.slice(pos + 3, nextNewline).trim() === ""
-      ) {
-        pos = markdown.length;
-        continue;
-      }
-
-      inCodeBlock = !inCodeBlock;
-      if (inCodeBlock) {
-        const content = markdown.slice(pos, nextNewline);
-        output += content + "\n";
-        pos = nextNewline + 1;
-      } else {
-        output += markdown.slice(pos, nextNewline) + "\n```";
-        pos = nextNewline + 1;
-      }
-      continue;
-    } else if (markdown[pos] === "`" && !inCodeBlock) {
-      const nextChar = markdown[pos + 1];
-      if (!nextChar || nextChar === "`" || nextChar === " ") {
-        pos++;
-        continue;
-      }
-      const content = markdown.slice(pos + 1);
-      if (content.trim()) {
-        output += "`" + content + "`";
-        pos = markdown.length;
-      }
-      continue;
-    }
-
-    // Skip processing if in code block
-    if (inCodeBlock) {
-      const nextTripleBacktick = markdown.indexOf("```", pos);
-      if (nextTripleBacktick === -1) {
-        output += markdown.slice(pos) + "\n```";
-        pos = markdown.length;
-      } else {
-        output += markdown.slice(pos, nextTripleBacktick);
-        pos = nextTripleBacktick;
-      }
-      continue;
-    }
-
     // Handle tables
-    if (markdown[pos] === "|" && (pos === 0 || markdown[pos - 1] === "\n")) {
+    if (char === "|" && (pos === 0 || markdown[pos - 1] === "\n")) {
       const lineEnd = markdown.indexOf("\n", pos);
       const line =
         lineEnd === -1 ? markdown.slice(pos) : markdown.slice(pos, lineEnd);
@@ -141,7 +98,7 @@ export function optimisticMarkdown(
     }
 
     // Handle lists and horizontal rules
-    if (markdown[pos] === "-") {
+    if (char === "-") {
       const line = markdown.slice(pos);
       const isHr = /^-{3,}$/.test(line.trim());
       const isList = line.startsWith("- ");
@@ -153,36 +110,38 @@ export function optimisticMarkdown(
       }
 
       if (isList) {
-        const afterHyphen = line.slice(2);
-        // Check for incomplete checkbox or link
-        if (afterHyphen.startsWith("[")) {
-          // Could be [x], [x] , [x]text, [xyz], [xyz](url), etc.
-          const nextCloseBracket = afterHyphen.indexOf("]");
-          const isCheckbox = /^\[[x ]\]/.test(afterHyphen);
+        const afterHypen = line.slice(1);
+        const trimmedAfterHypen = afterHypen.trimStart();
 
-          // If we can't confirm it's a checkbox, trim it
-          if (nextCloseBracket === -1 || !isCheckbox) {
-            pos += 2; // Skip the "- "
-            continue;
-          }
+        // Check for incomplete checkbox or link
+        if (
+          trimmedAfterHypen === "[" ||
+          trimmedAfterHypen === "[x" ||
+          trimmedAfterHypen === "[ "
+        ) {
+          pos += line.length;
+          continue;
         }
-        const lineEnd = markdown.indexOf("\n", pos);
-        if (lineEnd === -1) {
-          output += markdown.slice(pos);
-          pos = markdown.length;
-        } else {
-          output += markdown.slice(pos, lineEnd + 1);
-          pos = lineEnd + 1;
+
+        if (trimmedAfterHypen.trimEnd()) {
+          output += markdown[pos];
+          pos++;
+          continue;
         }
-        continue;
       }
 
-      pos++;
-      continue;
+      const textBeforePos = markdown.slice(0, pos);
+      const lastNewLine = textBeforePos.lastIndexOf("\n");
+      const lastLine = textBeforePos.slice(lastNewLine + 1);
+
+      if (!lastLine.split("-").join("").trim()) {
+        pos++;
+        continue;
+      }
     }
 
     // Handle links
-    if (markdown[pos] === "[") {
+    if (char === "[") {
       const nextNewline = markdown.indexOf("\n", pos);
       const textEnd = markdown.indexOf("]", pos);
 
@@ -210,10 +169,13 @@ export function optimisticMarkdown(
 
         // If we hit a newline before closing paren, or no closing paren found
         if (linkEnd === -1 || (linkNewline !== -1 && linkNewline < linkEnd)) {
-          output += markdown.slice(
-            pos,
-            linkNewline !== -1 ? linkNewline : markdown.length
-          );
+          const text = markdown.slice(pos + 1, textEnd);
+          if (markdownLinkTarget) {
+            output += `[${text}](${markdownLinkTarget})`;
+          } else {
+            output += text;
+          }
+
           pos = linkNewline !== -1 ? linkNewline : markdown.length;
           continue;
         }
@@ -224,54 +186,49 @@ export function optimisticMarkdown(
       continue;
     }
 
-    // Handle emphasis/bold
-    if ((markdown[pos] === "*" || markdown[pos] === "_") && !inCodeBlock) {
-      const char = markdown[pos];
-      const isDouble = markdown[pos + 1] === char;
-      const startPos = pos;
-
-      if (isDouble && !markdown[pos + 2]) {
-        pos += 2;
-        continue;
-      }
-      if (!isDouble && !markdown[pos + 1]) {
-        pos++;
-        continue;
-      }
-
-      pos += isDouble ? 2 : 1;
-      const nextNewline = markdown.indexOf("\n", startPos);
-      const content =
-        nextNewline === -1
-          ? markdown.slice(pos)
-          : markdown.slice(pos, nextNewline);
-
-      if (!content.trim()) {
-        continue;
-      }
-
-      const endChar = content.indexOf(char);
-      if (endChar === -1 || nextNewline !== -1) {
-        // If we hit a newline or no closing marker, preserve as text
-        output += markdown.slice(startPos, pos) + content;
-        pos = nextNewline === -1 ? markdown.length : nextNewline;
+    if (char === "\n") {
+      if (inFencedCodeBlock) {
+        insertAutoClose = true;
       } else {
-        const hasDoubleEnd = isDouble && content[endChar + 1] === char;
-        if (isDouble === hasDoubleEnd) {
-          // Found matching markers on same line
-          output += markdown.slice(
-            startPos,
-            pos + endChar + (isDouble ? 2 : 1)
-          );
-          pos += endChar + (isDouble ? 2 : 1);
-        } else {
-          // Mismatched markers, complete it
-          output +=
-            markdown.slice(startPos, pos) + content + (isDouble ? "**" : "*");
-          pos = markdown.length;
-        }
+        tagsToClose = [];
+        inFencedCodeBlock = false;
+        inCodeBlock = false;
       }
-      continue;
+    }
+
+    if ((!inCodeBlock && (char === "*" || char === "_")) || char === "`") {
+      if (!insertAutoClose) {
+        const hasNonCodeTick = markdown
+          .slice(pos + 1)
+          .trim()
+          .split("")
+          .some((nextChar) => nextChar !== char);
+
+        if (hasNonCodeTick) {
+          tagsToClose.unshift(char);
+        } else {
+          pos++;
+          continue;
+        }
+      } else if (tagsToClose[0] === char) {
+        tagsToClose.shift();
+        insertAutoClose = !!tagsToClose.length;
+      }
+
+      inCodeBlock = tagsToClose.includes("`");
+      inFencedCodeBlock = tagsToClose.slice(0, 3).join("") === "```";
+    }
+
+    if (
+      char === " " &&
+      (tagsToClose[0] === "*" || tagsToClose[0] === "_") &&
+      tagsToClose[0] === markdown[pos - 1]
+    ) {
+      tagsToClose = tagsToClose.filter((tag) => tag === "`");
+    }
+
+    if ((!inFencedCodeBlock && isLetter(char)) || pos === markdown.length - 1) {
+      insertAutoClose = tagsToClose.length > 0;
     }
 
     // Handle footnotes
@@ -288,6 +245,16 @@ export function optimisticMarkdown(
 
     output += markdown[pos];
     pos++;
+  }
+
+  const autoClosedTags = tagsToClose.join("");
+
+  if (insertAutoClose && autoClosedTags) {
+    if (inFencedCodeBlock && !output.endsWith("\n")) {
+      output += "\n";
+    }
+
+    output += autoClosedTags;
   }
 
   return output.trim();

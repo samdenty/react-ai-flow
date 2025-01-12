@@ -88,17 +88,15 @@ export class Text extends Ranges<StaggerElementBox> {
     const className = this.options.classNamePrefix + "-" + id;
 
     element.className = this.className = className;
-    element.setAttribute("href", "https://github.com/samdenty/react-ai-flow");
 
     if (this.visualDebug) {
       this.canvas = document.createElement("canvas");
       this.canvas.style.position = "absolute";
-      this.canvas.style.width = "100%";
-      this.canvas.style.height = "100%";
       this.canvas.style.pointerEvents = "none";
       element.prepend(this.canvas);
 
       updateProperty(className, "mask-image", null);
+      updateProperty(className, "display", "inline-block");
       updateProperty(className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       this.canvas = document.createElement("canvas");
@@ -198,9 +196,11 @@ export class Text extends Ranges<StaggerElementBox> {
           return false;
         }
 
-        if (element.childNodes.join("") !== element.innerText) {
+        if (
+          (event.reason === ScanReason.Force && event.reset) ||
+          element.childNodes.join("") !== element.innerText
+        ) {
           const ranges = trimRanges(textSplit.start, textSplit.end);
-          element.progress = 0;
           element.childNodes = ranges;
         }
 
@@ -298,7 +298,10 @@ export class Text extends Ranges<StaggerElementBox> {
     const rect = element.getBoundingClientRect();
     const oldRect = this.relativeTo?.rect;
 
-    this.relativeTo = { element, rect };
+    this.relativeTo = Object.assign(this.relativeTo ?? {}, {
+      element,
+      rect,
+    });
 
     if (
       !oldRect ||

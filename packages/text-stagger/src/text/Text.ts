@@ -77,7 +77,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   readonly className: string;
 
   scanBoxes() {
-    return this.elements.flatMap((element) => element.boxes);
+    return (this.boxes = this.elements.flatMap((element) => element.boxes));
   }
 
   constructor(

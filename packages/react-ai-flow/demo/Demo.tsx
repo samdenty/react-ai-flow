@@ -43,9 +43,9 @@ function MessagesContent({
             </Message>
           ))}
 
-          {messages.map((message, i) => (
+          {/* {messages.map((message, i) => (
             <Message key={i}>{message}</Message>
-          ))}
+          ))} */}
         </StickToBottom.Content>
         <ScrollToBottom />
       </div>

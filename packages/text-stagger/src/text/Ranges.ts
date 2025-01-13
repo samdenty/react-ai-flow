@@ -25,8 +25,16 @@ export class Box<
     }
   }
 
+  set bottom(bottom: number) {
+    this.height = bottom - this.top;
+  }
+
   get bottom() {
     return this.top + this.height;
+  }
+
+  set right(right: number) {
+    this.width = right - this.left;
   }
 
   get right() {
@@ -243,19 +251,4 @@ export abstract class Ranges<
   toString() {
     return this.innerText;
   }
-
-  // get boundingRect(): DOMRect {
-  //   return (this.#boundingRect ??= this.rects.reduce((box, current) => {
-  //     const left = Math.min(box.left, current.left);
-  //     const top = Math.min(box.top, current.top);
-  //     const right = Math.max(box.right, current.right);
-  //     const bottom = Math.max(box.bottom, current.bottom);
-
-  //     return new DOMRect(left, top, right - left, bottom - top);
-  //   }));
-  // }
-
-  // get boundingBox() {
-  //   return (this.#boundingBox ??= new Box(this, this.boundingRect));
-  // }
 }

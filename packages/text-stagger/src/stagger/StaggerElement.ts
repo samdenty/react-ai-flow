@@ -33,7 +33,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       ...range.getClientRects(),
     ]);
 
-    return allRects.map((rect) => {
+    this.boxes = allRects.map((rect) => {
       return new StaggerElementBox(
         this,
         this.options,
@@ -44,6 +44,15 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
         rect.height
       );
     });
+
+    for (const box of this.boxes) {
+      this.left = Math.min(box.left, this.left);
+      this.top = Math.min(box.top, this.top);
+      this.right = Math.max(box.right, this.right);
+      this.bottom = Math.max(box.bottom, this.bottom);
+    }
+
+    return this.boxes;
   }
 
   constructor(

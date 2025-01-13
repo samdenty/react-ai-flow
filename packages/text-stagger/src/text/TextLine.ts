@@ -27,7 +27,7 @@ export class TextLine extends Ranges<Box, Text> {
 
     const rects = optimizeRects(allRects);
 
-    return rects.map((rect) => {
+    this.boxes = rects.map((rect) => {
       return new Box(
         this,
         this.options,
@@ -38,6 +38,15 @@ export class TextLine extends Ranges<Box, Text> {
         rect.height
       );
     });
+
+    for (const box of this.boxes) {
+      this.left = Math.min(box.left, this.left);
+      this.top = Math.min(box.top, this.top);
+      this.right = Math.max(box.right, this.right);
+      this.bottom = Math.max(box.bottom, this.bottom);
+    }
+
+    return this.boxes;
   }
 
   override set childNodes(ranges: RangesChildNode[]) {
@@ -162,7 +171,7 @@ export class TextLine extends Ranges<Box, Text> {
 
               range.setStart(textNode, start);
               range.setEnd(textNode, mid);
-              newLine.boxes = newLine.scanBoxes();
+              newLine.scanBoxes();
 
               const isWrapped =
                 newLine.boxes[0].top > top || newLine.boxes.length > 1;
@@ -178,7 +187,7 @@ export class TextLine extends Ranges<Box, Text> {
             range.setStart(textNode, start);
             range.setEnd(textNode, wrapEnd);
 
-            newLine.boxes = newLine.scanBoxes();
+            newLine.scanBoxes();
           }
 
           // Find existing line with same vertical position
@@ -187,6 +196,8 @@ export class TextLine extends Ranges<Box, Text> {
               Math.abs(line.top - newLine.top) <= 1 &&
               Math.abs(line.bottom - newLine.bottom) <= 1
           );
+
+          console.log([newLine.innerText], !!existingLine);
 
           if (existingLine) {
             const childNodes = [...existingLine.childNodes];

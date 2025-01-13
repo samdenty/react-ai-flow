@@ -54,7 +54,7 @@ export class Stagger {
         return [];
       }
 
-      text.scanPosition();
+      text.updateBounds();
 
       return text.elements.map((element) => ({
         element,
@@ -245,6 +245,8 @@ export class Stagger {
     const dispose = () => {
       mutationObserver.disconnect();
       resizeObserver.disconnect();
+      text.dispose();
+
       this.#texts.delete(id);
       this.#textsListeners.forEach((listener) => listener());
     };

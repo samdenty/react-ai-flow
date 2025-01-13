@@ -59,6 +59,7 @@ export abstract class Ranges<
   T extends Box<any>,
   U extends Ranges<any, any> | Stagger
 > extends Box<U> {
+  #boxes: T[] = [];
   #childNodes: readonly RangesChildNode[] = [];
 
   /**
@@ -73,7 +74,9 @@ export abstract class Ranges<
    */
   innerText!: string;
 
-  boxes: T[] = [];
+  get boxes() {
+    return this.#boxes;
+  }
 
   constructor(
     parent: U,
@@ -99,14 +102,62 @@ export abstract class Ranges<
       .filter((_, i) => typeof this.#childNodes[i] !== "string")
       .join("");
 
-    this.boxes = this.scanBoxes();
+    this.rescan();
+  }
+
+  rescan() {
+    const rects = optimizeRects(this.scanRects());
+
+    this.updateBounds(rects);
+
+    this.#boxes = this.scanBoxes(rects);
   }
 
   get childNodes(): readonly RangesChildNode[] {
     return this.#childNodes;
   }
 
-  abstract scanBoxes(): T[];
+  updateBounds(rects = this.scanRects()) {
+    const bounds = rects.reduce(
+      (bounds, rect, i) => {
+        if (this.parent instanceof Ranges) {
+          rect = new DOMRect(
+            rect.left - this.parent.left,
+            rect.top - this.parent.top,
+            rect.width,
+            rect.height
+          );
+        }
+
+        if (i === 0) {
+          return {
+            top: rect.top,
+            left: rect.left,
+            bottom: rect.bottom,
+            right: rect.right,
+          };
+        }
+
+        return {
+          top: Math.min(rect.top, bounds.top),
+          left: Math.min(rect.left, bounds.left),
+          bottom: Math.max(rect.bottom, bounds.bottom),
+          right: Math.max(rect.right, bounds.right),
+        };
+      },
+      { top: 0, left: 0, bottom: 0, right: 0 }
+    );
+
+    Object.assign(this, bounds);
+  }
+
+  scanRects() {
+    return this.ranges.flatMap((range) => {
+      return [...range.getClientRects()];
+    });
+  }
+
+  abstract scanBoxes(rects: DOMRect[]): T[];
 
   createChildNodeTrimmer() {
     const childNodeOffsets = this.childNodesOffsets;
@@ -251,4 +302,70 @@ export abstract class Ranges<
   toString() {
     return this.innerText;
   }
+}
+
+function optimizeRects(rects: DOMRect[]) {
+  const TOLERANCE = 1; // 1px tolerance for position matching
+
+  return rects.reduce<DOMRect[]>((merged, currentRect) => {
+    // If merged is empty, start with current rect
+    if (merged.length === 0) {
+      return [currentRect];
+    }
+
+    // Try to find a rectangle to merge with
+    const mergeIndex = merged.findIndex((existingRect) => {
+      // Check if same height and vertical alignment
+      const sameHeight =
+        Math.abs(existingRect.height - currentRect.height) <= TOLERANCE;
+      const sameTop = Math.abs(existingRect.top - currentRect.top) <= TOLERANCE;
+
+      // Check horizontal relationships
+      const isAdjacent =
+        Math.abs(existingRect.left - currentRect.right) <= TOLERANCE ||
+        Math.abs(existingRect.right - currentRect.left) <= TOLERANCE;
+
+      const isOverlapping =
+        existingRect.left <= currentRect.right + TOLERANCE &&
+        currentRect.left <= existingRect.right + TOLERANCE;
+
+      // Check containment
+      const rect1ContainsRect2 =
+        existingRect.left <= currentRect.left + TOLERANCE &&
+        existingRect.right >= currentRect.right - TOLERANCE &&
+        existingRect.top <= currentRect.top + TOLERANCE &&
+        existingRect.bottom >= currentRect.bottom - TOLERANCE;
+
+      const rect2ContainsRect1 =
+        currentRect.left <= existingRect.left + TOLERANCE &&
+        currentRect.right >= existingRect.right - TOLERANCE &&
+        currentRect.top <= existingRect.top + TOLERANCE &&
+        currentRect.bottom >= existingRect.bottom - TOLERANCE;
+
+      return (
+        (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
+        rect1ContainsRect2 ||
+        rect2ContainsRect1
+      );
+    });
+
+    if (mergeIndex === -1) {
+      // No merge possible, add as new rectangle
+      return [...merged, currentRect];
+    }
+
+    // Create merged rectangle
+    const existingRect = merged[mergeIndex];
+    const newRect = new DOMRect(
+      Math.min(existingRect.left, currentRect.left),
+      Math.min(existingRect.top, currentRect.top),
+      Math.max(existingRect.right, currentRect.right) -
+        Math.min(existingRect.left, currentRect.left),
+      Math.max(existingRect.bottom, currentRect.bottom) -
+        Math.min(existingRect.top, currentRect.top)
+    );
+
+    // Update merged array with new rectangle
+    return merged.map((rect, i) => (i === mergeIndex ? newRect : rect));
+  }, []);
 }

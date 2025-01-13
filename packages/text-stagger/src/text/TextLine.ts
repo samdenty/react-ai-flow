@@ -20,14 +20,8 @@ export class TextLine extends Ranges<Box, Text> {
     this.childNodes = ranges;
   }
 
-  scanBoxes() {
-    const allRects = this.ranges.flatMap((range) => [
-      ...range.getClientRects(),
-    ]);
-
-    const rects = optimizeRects(allRects);
-
-    this.boxes = rects.map((rect) => {
+  scanBoxes(rects: DOMRect[]) {
+    return rects.map((rect) => {
       return new Box(
         this,
         this.options,
@@ -38,15 +32,6 @@ export class TextLine extends Ranges<Box, Text> {
         rect.height
       );
     });
-
-    for (const box of this.boxes) {
-      this.left = Math.min(box.left, this.left);
-      this.top = Math.min(box.top, this.top);
-      this.right = Math.max(box.right, this.right);
-      this.bottom = Math.max(box.bottom, this.bottom);
-    }
-
-    return this.boxes;
   }
 
   override set childNodes(ranges: RangesChildNode[]) {
@@ -131,8 +116,6 @@ export class TextLine extends Ranges<Box, Text> {
 
     textNodes.forEach(
       ({ textNode, startOfBlock, endOfBlock, textContent, blockParent }) => {
-        textNodes;
-
         let start = textNode === lastNode ? lastOffset : 0;
 
         while (start < textContent.length) {
@@ -167,11 +150,11 @@ export class TextLine extends Ranges<Box, Text> {
 
             // Binary search for the break point
             while (wrapStart <= wrapEnd) {
-              const mid = Math.floor((wrapStart + wrapEnd) / 2);
+              const mid = Math.ceil((wrapStart + wrapEnd) / 2);
 
               range.setStart(textNode, start);
               range.setEnd(textNode, mid);
-              newLine.scanBoxes();
+              newLine.childNodes = [range];
 
               const isWrapped =
                 newLine.boxes[0].top > top || newLine.boxes.length > 1;
@@ -187,7 +170,7 @@ export class TextLine extends Ranges<Box, Text> {
             range.setStart(textNode, start);
             range.setEnd(textNode, wrapEnd);
 
-            newLine.scanBoxes();
+            newLine.childNodes = [range];
           }
 
           // Find existing line with same vertical position
@@ -196,8 +179,6 @@ export class TextLine extends Ranges<Box, Text> {
               Math.abs(line.top - newLine.top) <= 1 &&
               Math.abs(line.bottom - newLine.bottom) <= 1
           );
-
-          console.log([newLine.innerText], !!existingLine);
 
           if (existingLine) {
             const childNodes = [...existingLine.childNodes];
@@ -288,70 +269,4 @@ function createParentChecker() {
 
     return { isHidden: false, blockParent } as const;
   };
-}
-
-function optimizeRects(rects: DOMRect[]) {
-  const TOLERANCE = 1; // 1px tolerance for position matching
-
-  return rects.reduce<DOMRect[]>((merged, currentRect) => {
-    // If merged is empty, start with current rect
-    if (merged.length === 0) {
-      return [currentRect];
-    }
-
-    // Try to find a rectangle to merge with
-    const mergeIndex = merged.findIndex((existingRect) => {
-      // Check if same height and vertical alignment
-      const sameHeight =
-        Math.abs(existingRect.height - currentRect.height) <= TOLERANCE;
-      const sameTop = Math.abs(existingRect.top - currentRect.top) <= TOLERANCE;
-
-      // Check horizontal relationships
-      const isAdjacent =
-        Math.abs(existingRect.left - currentRect.right) <= TOLERANCE ||
-        Math.abs(existingRect.right - currentRect.left) <= TOLERANCE;
-
-      const isOverlapping =
-        existingRect.left <= currentRect.right + TOLERANCE &&
-        currentRect.left <= existingRect.right + TOLERANCE;
-
-      // Check containment
-      const rect1ContainsRect2 =
-        existingRect.left <= currentRect.left + TOLERANCE &&
-        existingRect.right >= currentRect.right - TOLERANCE &&
-        existingRect.top <= currentRect.top + TOLERANCE &&
-        existingRect.bottom >= currentRect.bottom - TOLERANCE;
-
-      const rect2ContainsRect1 =
-        currentRect.left <= existingRect.left + TOLERANCE &&
-        currentRect.right >= existingRect.right - TOLERANCE &&
-        currentRect.top <= existingRect.top + TOLERANCE &&
-        currentRect.bottom >= existingRect.bottom - TOLERANCE;
-
-      return (
-        (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
-        rect1ContainsRect2 ||
-        rect2ContainsRect1
-      );
-    });
-
-    if (mergeIndex === -1) {
-      // No merge possible, add as new rectangle
-      return [...merged, currentRect];
-    }
-
-    // Create merged rectangle
-    const existingRect = merged[mergeIndex];
-    const newRect = new DOMRect(
-      Math.min(existingRect.left, currentRect.left),
-      Math.min(existingRect.top, currentRect.top),
-      Math.max(existingRect.right, currentRect.right) -
-        Math.min(existingRect.left, currentRect.left),
-      Math.max(existingRect.bottom, currentRect.bottom) -
-        Math.min(existingRect.top, currentRect.top)
-    );
-
-    // Update merged array with new rectangle
-    return merged.map((rect, i) => (i === mergeIndex ? newRect : rect));
-  }, []);
 }

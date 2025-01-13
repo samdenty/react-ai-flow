@@ -317,13 +317,23 @@ export function splitText(
     const end = separateDelimiters ? match.index : matchEndIndex;
 
     if (end > lastIndex) {
-      splits.push({
-        ...options,
-        animation,
-        start: lastIndex,
-        end,
-        text: text.slice(lastIndex, end),
-      });
+      const segment = text.slice(lastIndex, end);
+
+      if (!segment.trim()) {
+        if (splits.length > 0) {
+          const previousSplit = splits[splits.length - 1];
+          previousSplit.end = end;
+          previousSplit.text = text.slice(previousSplit.start, end);
+        }
+      } else {
+        splits.push({
+          ...options,
+          animation,
+          start: lastIndex,
+          end,
+          text: segment,
+        });
+      }
     }
 
     if (separateDelimiters) {

@@ -76,20 +76,39 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
   readonly className: string;
 
+  scanRects() {
+    return [this.relativeTo.getBoundingClientRect()];
+  }
+
   scanBoxes() {
-    return (this.boxes = this.elements.flatMap((element) => element.boxes));
+    return this.boxes;
+  }
+
+  override get boxes() {
+    return this.elements.flatMap((element) => element.boxes);
+  }
+
+  get progress(): number {
+    if (!this.boxes.length) {
+      return 1;
+    }
+
+    return (
+      this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
+    );
   }
 
   constructor(
     stagger: Stagger,
     public id: number,
-    element: HTMLElement,
+    element: HTMLElement & { text?: Text },
     public options: ParsedTextOptions
   ) {
     super(stagger, options, element);
 
     const className = this.options.classNamePrefix + "-" + id;
 
+    element.text = this;
     element.classList.add("ai-flow", (this.className = className));
 
     updateProperty(className, "display", "block");
@@ -140,6 +159,15 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     );
 
     return lastTextWithElements === this;
+  }
+
+  dispose() {
+    this.relativeTo.classList.remove("ai-flow", this.className);
+    this.relativeTo.removeAttribute("data-progress");
+    this.relativeTo.removeAttribute("data-lines");
+    this.relativeTo.removeAttribute("data-elements");
+
+    this.canvas?.remove();
   }
 
   paint() {
@@ -282,15 +310,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     return elements;
   }
 
-  scanPosition() {
-    const rect = this.relativeTo.getBoundingClientRect();
-
-    this.top = rect.top;
-    this.left = rect.left;
-    this.width = rect.width;
-    this.height = rect.height;
-  }
-
   scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
     if (event.reason === ScanReason.Mutation) {
       const impacts = this.analyzeMutationImpact(event.entries);
@@ -304,7 +323,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     const oldDimensions = this.canvas || { ...this };
 
-    this.scanPosition();
+    this.updateBounds();
 
     if (
       !oldDimensions ||
@@ -314,6 +333,12 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       if (this.canvas) {
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+
+        this.lines = [];
+
+        this.elements.forEach((element) => {
+          element.rescan();
+        });
       }
 
       if (
@@ -333,6 +358,20 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
     this.elements = this.diffElements(event);
+
+    this.setAttribute("data-lines", this.lines.length);
+    this.setAttribute("data-elements", this.elements.length);
+  }
+
+  setAttribute(name: string, value: string | number) {
+    value = String(value);
+
+    if (value === this.relativeTo.getAttribute(name)) {
+      return;
+    }
+
+    this.stagger.skipMutation(this.relativeTo);
+    this.relativeTo.setAttribute(name, value);
   }
 
   private analyzeMutationImpact(

@@ -22,7 +22,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   const [text, setText] = useState(() => stagger.getText(id));
 
   useEffect(() => {
-    if (!elementRef.current) {
+    if (!elementRef.current || options.disabled) {
       return;
     }
 
@@ -34,8 +34,11 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   }, [elementRefCount, elementRef, options]);
 
   const ref = useCallback((element: HTMLElement | null | undefined) => {
+    if (!elementRef.current) {
+      updateElementRefCount();
+    }
+
     elementRef.current = element;
-    updateElementRefCount();
   }, []);
 
   return {

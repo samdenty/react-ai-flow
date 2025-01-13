@@ -9,14 +9,32 @@ export interface StaggerElementBoxOptions
   extends SplitterImpl<ElementOptions> {}
 
 export class StaggerElementBox extends Box<StaggerElement> {
-  #line?: TextLine;
-
-  progress = 0;
-
   static DEFAULT_GRADIENT_WIDTH = 100;
+
+  #line?: TextLine;
+  #progress = 0;
 
   get element() {
     return this.parent;
+  }
+
+  get progress() {
+    return this.#progress;
+  }
+
+  set progress(progress: number) {
+    // if someone accidentally passes NaN
+    progress ||= 0;
+
+    const changed = progress !== this.progress;
+    this.#progress = progress;
+
+    if (changed) {
+      this.text.setAttribute(
+        "data-progress",
+        `${Math.round(this.text.progress * 100)}`
+      );
+    }
   }
 
   get text() {

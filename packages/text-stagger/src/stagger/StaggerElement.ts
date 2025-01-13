@@ -28,12 +28,8 @@ export type CustomAnimationDuration = (element: StaggerElement) => number;
 export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   id = ++ID;
 
-  scanBoxes() {
-    const allRects = this.ranges.flatMap((range) => [
-      ...range.getClientRects(),
-    ]);
-
-    this.boxes = allRects.map((rect) => {
+  scanBoxes(rects: DOMRect[]) {
+    return rects.map((rect) => {
       return new StaggerElementBox(
         this,
         this.options,
@@ -44,15 +40,11 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
         rect.height
       );
     });
+  }
 
-    for (const box of this.boxes) {
-      this.left = Math.min(box.left, this.left);
-      this.top = Math.min(box.top, this.top);
-      this.right = Math.max(box.right, this.right);
-      this.bottom = Math.max(box.bottom, this.bottom);
-    }
-
-    return this.boxes;
+  get lines() {
+    const lines = new Set(this.boxes.map((box) => box.line));
+    return [...lines];
   }
 
   constructor(
@@ -75,24 +67,14 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     );
   }
 
-  override get childNodes(): readonly RangesChildNode[] {
-    return super.childNodes;
-  }
-
   get isLast() {
     return this.text.elements.at(-1) === this;
   }
 
-  override set childNodes(childNodes: RangesChildNode[]) {
-    const originalProgress = this.progress;
-    const originalWidth =
-      originalProgress * this.boxes.reduce((acc, box) => acc + box.width, 0);
-
-    super.childNodes = childNodes;
-
-    const newWidth = this.boxes.reduce((acc, box) => acc + box.width, 0);
-
-    this.progress = originalWidth / newWidth;
+  override rescan() {
+    const widthProgress = this.progress * this.width;
+    super.rescan();
+    this.progress = widthProgress / this.width || 0;
   }
 
   set progress(progress: number) {

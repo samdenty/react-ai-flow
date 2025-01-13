@@ -1,17 +1,16 @@
 import {
   StaggerElementBox,
-  StaggerElementBoxOptions,
+  type StaggerElementBoxOptions,
   StaggerElement,
-  SerializedStaggerElement,
+  type SerializedStaggerElement,
 } from "../stagger/index.js";
-import { Ranges, RangesChildNode } from "./Ranges.js";
-import { ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
+import { Ranges, type RangesChildNode } from "./Ranges.js";
+import { type ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
-  mergeTextSplitter,
-  ParsedTextSplit,
-  SplitterImpl,
-  TextSplitterOptions,
+  type ParsedTextSplit,
+  type SplitterImpl,
+  type TextSplitterOptions,
 } from "./TextSplitter.js";
 import { calcSlices } from "fast-myers-diff";
 import {
@@ -66,7 +65,7 @@ export interface TextOptions extends TextSplitterOptions {
   classNamePrefix?: string;
 }
 
-export class Text extends Ranges<StaggerElementBox> {
+export class Text extends Ranges<StaggerElementBox, Stagger> {
   #mutationCache = new WeakMap<Node, number>();
 
   lines: TextLine[] = [];
@@ -77,13 +76,17 @@ export class Text extends Ranges<StaggerElementBox> {
 
   readonly className: string;
 
-  private constructor(
-    public stagger: Stagger,
+  scanBoxes() {
+    return this.elements.flatMap((element) => element.boxes);
+  }
+
+  constructor(
+    stagger: Stagger,
     public id: number,
     element: HTMLElement,
-    public override options: ParsedTextOptions
+    public options: ParsedTextOptions
   ) {
-    super(stagger, options);
+    super(stagger, options, element);
 
     const className = this.options.classNamePrefix + "-" + id;
 
@@ -129,22 +132,6 @@ export class Text extends Ranges<StaggerElementBox> {
 
   get streaming() {
     return this.stagger.streaming ?? false;
-  }
-
-  get top() {
-    return this.relativeTo?.rect.top ?? 0;
-  }
-
-  get left() {
-    return this.relativeTo?.rect.left ?? 0;
-  }
-
-  get width() {
-    return this.relativeTo?.rect.width ?? 0;
-  }
-
-  get height() {
-    return this.relativeTo?.rect.height ?? 0;
   }
 
   get isLast() {
@@ -193,8 +180,7 @@ export class Text extends Ranges<StaggerElementBox> {
 
   toJSON() {
     return {
-      width: this.width,
-      height: this.height,
+      ...super.toJSON(),
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
@@ -296,30 +282,16 @@ export class Text extends Ranges<StaggerElementBox> {
     return elements;
   }
 
-  get boxes() {
-    return this.elements.flatMap((element) => element.boxes);
+  scanPosition() {
+    const rect = this.relativeTo.getBoundingClientRect();
+
+    this.top = rect.top;
+    this.left = rect.left;
+    this.width = rect.width;
+    this.height = rect.height;
   }
 
-  static scanText(
-    stagger: Stagger,
-    id: number,
-    element: HTMLElement,
-    textOptions: TextOptions
-  ) {
-    const text = new Text(
-      stagger,
-      id,
-      element,
-      mergeTextSplitter<ParsedTextOptions>(stagger.options, textOptions)
-    );
-
-    return text;
-  }
-
-  scanElementLines(
-    element: HTMLElement,
-    event: ScanEvent = { reason: ScanReason.Force }
-  ) {
+  scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
     if (event.reason === ScanReason.Mutation) {
       const impacts = this.analyzeMutationImpact(event.entries);
 
@@ -330,13 +302,9 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    const rect = element.getBoundingClientRect();
-    const oldDimensions = this.canvas || this.relativeTo?.rect;
+    const oldDimensions = this.canvas || { ...this };
 
-    this.relativeTo = Object.assign(this.relativeTo ?? {}, {
-      element,
-      rect,
-    });
+    this.scanPosition();
 
     if (
       !oldDimensions ||
@@ -361,7 +329,7 @@ export class Text extends Ranges<StaggerElementBox> {
       }
     }
 
-    this.lines = TextLine.scanLines(element, this);
+    this.lines = TextLine.scanLines(this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
     this.elements = this.diffElements(event);

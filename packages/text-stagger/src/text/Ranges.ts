@@ -1,38 +1,28 @@
-import {
+import type {
   Stagger,
   StaggerElementBoxOptions,
   ElementOptions,
 } from "../stagger/index.js";
 
-export class Box<T extends Ranges<any> = Ranges<any>> {
-  relativeTo?: { element: HTMLElement; rect: DOMRect };
+export class Box<
+  T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger
+> {
+  stagger: Stagger;
 
-  constructor(public parent: T, public rect: DOMRect) {
-    this.relativeTo = parent.relativeTo && { ...parent.relativeTo };
-  }
-
-  get options(): ElementOptions {
-    return this.parent.options;
-  }
-
-  get stagger() {
-    return this.parent.stagger;
-  }
-
-  get top() {
-    return this.rect.top - (this.relativeTo?.rect.top ?? 0);
-  }
-
-  get left() {
-    return this.rect.left - (this.relativeTo?.rect.left ?? 0);
-  }
-
-  get width() {
-    return this.rect.width;
-  }
-
-  get height() {
-    return this.rect.height;
+  constructor(
+    public parent: T,
+    public options: ElementOptions,
+    public relativeTo: HTMLElement,
+    public top = 0,
+    public left = 0,
+    public width = 0,
+    public height = 0
+  ) {
+    if (parent instanceof Ranges) {
+      this.stagger = parent.stagger;
+    } else {
+      this.stagger = parent;
+    }
   }
 
   get bottom() {
@@ -57,12 +47,11 @@ export type SerializedBox = ReturnType<Box["toJSON"]>;
 
 export type RangesChildNode = Range | string;
 
-export abstract class Ranges<T extends Box> {
-  #boundingRect?: DOMRect;
-  #boundingBox?: Box<this>;
+export abstract class Ranges<
+  T extends Box<any>,
+  U extends Ranges<any, any> | Stagger
+> extends Box<U> {
   #childNodes: readonly RangesChildNode[] = [];
-
-  rects: DOMRect[] = [];
 
   /**
    * The text of *just* the childNodes that are ranges,
@@ -76,12 +65,16 @@ export abstract class Ranges<T extends Box> {
    */
   innerText!: string;
 
+  boxes: T[] = [];
+
   constructor(
-    public stagger: Stagger,
+    parent: U,
     public options: StaggerElementBoxOptions,
-    public relativeTo?: { element: HTMLElement; rect: DOMRect },
+    relativeTo: HTMLElement,
     childNodes?: RangesChildNode[]
   ) {
+    super(parent, options, relativeTo);
+
     if (childNodes) {
       this.childNodes = childNodes;
     }
@@ -98,92 +91,14 @@ export abstract class Ranges<T extends Box> {
       .filter((_, i) => typeof this.#childNodes[i] !== "string")
       .join("");
 
-    this.scanRects();
+    this.boxes = this.scanBoxes();
   }
 
   get childNodes(): readonly RangesChildNode[] {
     return this.#childNodes;
   }
 
-  scanRects() {
-    const allRects = this.ranges.flatMap((range) => [
-      ...range.getClientRects(),
-    ]);
-
-    this.rects = Ranges.optimizeRects(allRects);
-
-    this.#boundingRect = undefined;
-    this.#boundingBox = undefined;
-
-    return this.rects;
-  }
-
-  private static optimizeRects(rects: DOMRect[]) {
-    const TOLERANCE = 1; // 1px tolerance for position matching
-
-    return rects.reduce<DOMRect[]>((merged, currentRect) => {
-      // If merged is empty, start with current rect
-      if (merged.length === 0) {
-        return [currentRect];
-      }
-
-      // Try to find a rectangle to merge with
-      const mergeIndex = merged.findIndex((existingRect) => {
-        // Check if same height and vertical alignment
-        const sameHeight =
-          Math.abs(existingRect.height - currentRect.height) <= TOLERANCE;
-        const sameTop =
-          Math.abs(existingRect.top - currentRect.top) <= TOLERANCE;
-
-        // Check horizontal relationships
-        const isAdjacent =
-          Math.abs(existingRect.left - currentRect.right) <= TOLERANCE ||
-          Math.abs(existingRect.right - currentRect.left) <= TOLERANCE;
-
-        const isOverlapping =
-          existingRect.left <= currentRect.right + TOLERANCE &&
-          currentRect.left <= existingRect.right + TOLERANCE;
-
-        // Check containment
-        const rect1ContainsRect2 =
-          existingRect.left <= currentRect.left + TOLERANCE &&
-          existingRect.right >= currentRect.right - TOLERANCE &&
-          existingRect.top <= currentRect.top + TOLERANCE &&
-          existingRect.bottom >= currentRect.bottom - TOLERANCE;
-
-        const rect2ContainsRect1 =
-          currentRect.left <= existingRect.left + TOLERANCE &&
-          currentRect.right >= existingRect.right - TOLERANCE &&
-          currentRect.top <= existingRect.top + TOLERANCE &&
-          currentRect.bottom >= existingRect.bottom - TOLERANCE;
-
-        return (
-          (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
-          rect1ContainsRect2 ||
-          rect2ContainsRect1
-        );
-      });
-
-      if (mergeIndex === -1) {
-        // No merge possible, add as new rectangle
-        return [...merged, currentRect];
-      }
-
-      // Create merged rectangle
-      const existingRect = merged[mergeIndex];
-      const newRect = new DOMRect(
-        Math.min(existingRect.left, currentRect.left),
-        Math.min(existingRect.top, currentRect.top),
-        Math.max(existingRect.right, currentRect.right) -
-          Math.min(existingRect.left, currentRect.left),
-        Math.max(existingRect.bottom, currentRect.bottom) -
-          Math.min(existingRect.top, currentRect.top)
-      );
-
-      // Update merged array with new rectangle
-      return merged.map((rect, i) => (i === mergeIndex ? newRect : rect));
-    }, []);
-  }
+  abstract scanBoxes(): T[];
 
   createChildNodeTrimmer() {
     const childNodeOffsets = this.childNodesOffsets;
@@ -329,20 +244,18 @@ export abstract class Ranges<T extends Box> {
     return this.innerText;
   }
 
-  get boundingRect(): DOMRect {
-    return (this.#boundingRect ??= this.rects.reduce((box, current) => {
-      const left = Math.min(box.left, current.left);
-      const top = Math.min(box.top, current.top);
-      const right = Math.max(box.right, current.right);
-      const bottom = Math.max(box.bottom, current.bottom);
+  // get boundingRect(): DOMRect {
+  //   return (this.#boundingRect ??= this.rects.reduce((box, current) => {
+  //     const left = Math.min(box.left, current.left);
+  //     const top = Math.min(box.top, current.top);
+  //     const right = Math.max(box.right, current.right);
+  //     const bottom = Math.max(box.bottom, current.bottom);
 
-      return new DOMRect(left, top, right - left, bottom - top);
-    }));
-  }
+  //     return new DOMRect(left, top, right - left, bottom - top);
+  //   }));
+  // }
 
-  get boundingBox() {
-    return (this.#boundingBox ??= new Box(this, this.boundingRect));
-  }
-
-  abstract get boxes(): T[];
+  // get boundingBox() {
+  //   return (this.#boundingBox ??= new Box(this, this.boundingRect));
+  // }
 }

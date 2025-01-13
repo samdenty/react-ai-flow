@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { TextOptions } from "text-stagger";
+import { type TextOptions } from "text-stagger";
 import { useResolvedOptions } from "./utils/useCachedOptions.js";
 import { useStaggerContext } from "./StaggerProvider.js";
 

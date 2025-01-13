@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
-import { Stagger, StaggerOptions } from "text-stagger";
+import { Stagger, type StaggerOptions } from "text-stagger";
 import { useCachedOptions } from "./utils/useCachedOptions.js";
 import { useIsomorphicLayoutEffect } from "./utils/useIsomorphicLayoutEffect.js";
 

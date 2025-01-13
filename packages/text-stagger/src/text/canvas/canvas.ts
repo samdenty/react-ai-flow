@@ -1,4 +1,4 @@
-import { SerializedText } from "../Text.js";
+import { type SerializedText } from "../Text.js";
 import { paintWorkletRegistered } from "./paint-worklet.js";
 
 export enum CanvasMaskRenderMode {

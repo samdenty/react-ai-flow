@@ -1,4 +1,4 @@
-import { SerializedText } from "../Text.js";
+import { type SerializedText } from "../Text.js";
 import { doPaint } from "./canvas.js";
 
 export let paintWorkletRegistered!: Promise<void>;

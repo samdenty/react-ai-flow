@@ -1,13 +1,13 @@
 import {
   ElementAnimation,
-  ElementOptions,
-  ScanEvent,
+  type ElementOptions,
+  type ScanEvent,
 } from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";
 
-export type TextLike = Text | Ranges<any> | string;
+export type TextLike = Text | Ranges<any, any> | string;
 
 export type SplitterImpl<T extends ElementOptions> = T & {
   splitText(text: Text, event: ScanEvent): ParsedTextSplit[];

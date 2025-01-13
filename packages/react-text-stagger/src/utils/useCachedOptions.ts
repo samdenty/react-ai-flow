@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { mergeTextSplitter, StaggerOptions, TextOptions } from "text-stagger";
+import {
+  mergeTextSplitter,
+  type StaggerOptions,
+  type TextOptions,
+} from "text-stagger";
 import { useStaggerContext } from "../StaggerProvider.js";
 
 export function useResolvedOptions(options: TextOptions) {

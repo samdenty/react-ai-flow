@@ -1,9 +1,10 @@
 import {
-  ParsedTextOptions,
+  mergeTextSplitter,
+  type ParsedTextOptions,
   resolveTextSplitter,
   Text,
-  TextOptions,
-  TextSplitterOptions,
+  type TextOptions,
+  type TextSplitterOptions,
 } from "../text/index.js";
 
 export interface StaggerOptions extends TextOptions {}
@@ -48,7 +49,31 @@ export class Stagger {
   }
 
   get elements() {
-    return this.texts.flatMap((text) => text.elements);
+    const elements = this.texts.flatMap((text) => {
+      if (!text.relativeTo) {
+        return [];
+      }
+
+      text.scanPosition();
+
+      return text.elements.map((element) => ({
+        element,
+        top: text.top + element.top,
+        left: text.left + element.left,
+      }));
+    });
+
+    elements.sort((a, b) => {
+      // First sort by top position
+      if (a.top !== b.top) {
+        return a.top - b.top;
+      }
+
+      // If top positions are equal, sort by left position
+      return a.left - b.left;
+    });
+
+    return elements.map(({ element }) => element);
   }
 
   cancelPaint() {
@@ -66,7 +91,7 @@ export class Stagger {
 
     if (element) {
       const oldProgress = element.progress;
-      element.progress = Math.min(1, element.progress + 0.04);
+      element.progress = Math.min(1, element.progress + 0.05);
 
       if (oldProgress !== element.progress) {
         this.#paintQueue.add(element.text);
@@ -158,7 +183,7 @@ export class Stagger {
         return;
       }
 
-      return text.scanElementLines(text.relativeTo.element, event);
+      return text.scanElementLines(event);
     });
   }
 
@@ -185,7 +210,12 @@ export class Stagger {
       scan({ reason: ScanReason.Mutation, entries });
     });
 
-    const text = Text.scanText(this, id, element, textOptions);
+    const text = new Text(
+      this,
+      id,
+      element,
+      mergeTextSplitter<ParsedTextOptions>(this.options, textOptions)
+    );
 
     let scanner: ReturnType<typeof requestAnimationFrame> | undefined;
 
@@ -194,7 +224,7 @@ export class Stagger {
         return;
       }
 
-      text.scanElementLines(element, event);
+      text.scanElementLines(event);
 
       this.requestPaint([text]);
 
@@ -219,30 +249,7 @@ export class Stagger {
       this.#textsListeners.forEach((listener) => listener());
     };
 
-    const texts = [...this.#texts];
-
-    for (const [, { text }] of texts) {
-      if (!text.relativeTo) {
-        continue;
-      }
-
-      text.relativeTo.rect = text.relativeTo.element.getBoundingClientRect();
-    }
-
-    texts.push([id, { text, dispose }]);
-
-    texts.sort(([, { text: a }], [, { text: b }]) => {
-      // First sort by top position
-      if (a.top !== b.top) {
-        return a.top - b.top;
-      }
-
-      // If top positions are equal, sort by left position
-      return a.left - b.left;
-    });
-
-    this.#texts = new Map(texts);
-
+    this.#texts.set(id, { text, dispose });
     this.#textsListeners.forEach((listener) => listener());
 
     return dispose;

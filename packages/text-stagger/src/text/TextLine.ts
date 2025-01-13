@@ -1,9 +1,9 @@
-import { ElementOptions, StaggerElementBox } from "../stagger/index.js";
+import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import { Ranges, RangesChildNode } from "./Ranges.js";
+import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
-export class TextLine extends Ranges<StaggerElementBox> {
+export class TextLine extends Ranges<Box, Text> {
   startOfText = false;
   endOfText = false;
 
@@ -16,8 +16,28 @@ export class TextLine extends Ranges<StaggerElementBox> {
     ranges: Range[],
     options?: ElementOptions
   ) {
-    super(text.stagger, mergeObject(text.options, options), text.relativeTo);
+    super(text, mergeObject(text.options, options), text.relativeTo);
     this.childNodes = ranges;
+  }
+
+  scanBoxes() {
+    const allRects = this.ranges.flatMap((range) => [
+      ...range.getClientRects(),
+    ]);
+
+    const rects = optimizeRects(allRects);
+
+    return rects.map((rect) => {
+      return new Box(
+        this,
+        this.options,
+        this.relativeTo,
+        rect.top - this.text.top,
+        rect.left - this.text.left,
+        rect.width,
+        rect.height
+      );
+    });
   }
 
   override set childNodes(ranges: RangesChildNode[]) {
@@ -36,30 +56,30 @@ export class TextLine extends Ranges<StaggerElementBox> {
     return [...super.childNodes, "\n"];
   }
 
-  get boxes(): StaggerElementBox[] {
-    return this.text.boxes.filter(({ line }) => line === this);
-  }
-
-  static scanLines(element: HTMLElement, text: Text): TextLine[] {
+  static scanLines(text: Text): TextLine[] {
     const lines: TextLine[] = [...text.lines];
     const lastRange = lines.at(-1)?.ranges.at(-1);
     const lastNode = lastRange?.endContainer;
     const lastOffset = lastRange?.endOffset ?? 0;
 
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
-      acceptNode: (node) => {
-        if (!lastNode || lastNode === node) {
-          return NodeFilter.FILTER_ACCEPT;
-        }
+    const walker = document.createTreeWalker(
+      text.relativeTo,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          if (!lastNode || lastNode === node) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
 
-        const position = lastNode.compareDocumentPosition(node);
-        if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
-          return NodeFilter.FILTER_ACCEPT;
-        }
+          const position = lastNode.compareDocumentPosition(node);
+          if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
 
-        return NodeFilter.FILTER_REJECT;
-      },
-    });
+          return NodeFilter.FILTER_REJECT;
+        },
+      }
+    );
 
     const textNodes: {
       textNode: globalThis.Text;
@@ -123,16 +143,16 @@ export class TextLine extends Ranges<StaggerElementBox> {
             text.options
           );
 
-          const [firstRect, secondRect] = newLine.rects;
+          const [firstBox, secondBox] = newLine.boxes;
 
           // Handle the case where the node has no content
-          if (!firstRect) {
+          if (!firstBox) {
             return;
           }
 
-          const { top } = firstRect;
+          const { top } = firstBox;
 
-          if (secondRect) {
+          if (secondBox) {
             let wrapStart = start;
             let wrapEnd = textContent.length;
 
@@ -142,10 +162,10 @@ export class TextLine extends Ranges<StaggerElementBox> {
 
               range.setStart(textNode, start);
               range.setEnd(textNode, mid);
-              newLine.scanRects();
+              newLine.boxes = newLine.scanBoxes();
 
               const isWrapped =
-                newLine.rects[0].top > top || newLine.rects.length > 1;
+                newLine.boxes[0].top > top || newLine.boxes.length > 1;
 
               if (isWrapped) {
                 wrapEnd = mid - 1;
@@ -158,15 +178,14 @@ export class TextLine extends Ranges<StaggerElementBox> {
             range.setStart(textNode, start);
             range.setEnd(textNode, wrapEnd);
 
-            newLine.scanRects();
+            newLine.boxes = newLine.scanBoxes();
           }
 
           // Find existing line with same vertical position
           const existingLine = lines.find(
             (line) =>
-              Math.abs(line.boundingBox.top - newLine.boundingBox.top) <= 1 &&
-              Math.abs(line.boundingBox.bottom - newLine.boundingBox.bottom) <=
-                1
+              Math.abs(line.top - newLine.top) <= 1 &&
+              Math.abs(line.bottom - newLine.bottom) <= 1
           );
 
           if (existingLine) {
@@ -201,7 +220,7 @@ export class TextLine extends Ranges<StaggerElementBox> {
     );
 
     // Sort lines by vertical position
-    lines.sort((a, b) => a.boundingBox.top - b.boundingBox.top);
+    lines.sort((a, b) => a.top - b.top);
 
     lines.forEach((line, i) => {
       line.startOfText = i === 0;
@@ -258,4 +277,70 @@ function createParentChecker() {
 
     return { isHidden: false, blockParent } as const;
   };
+}
+
+function optimizeRects(rects: DOMRect[]) {
+  const TOLERANCE = 1; // 1px tolerance for position matching
+
+  return rects.reduce<DOMRect[]>((merged, currentRect) => {
+    // If merged is empty, start with current rect
+    if (merged.length === 0) {
+      return [currentRect];
+    }
+
+    // Try to find a rectangle to merge with
+    const mergeIndex = merged.findIndex((existingRect) => {
+      // Check if same height and vertical alignment
+      const sameHeight =
+        Math.abs(existingRect.height - currentRect.height) <= TOLERANCE;
+      const sameTop = Math.abs(existingRect.top - currentRect.top) <= TOLERANCE;
+
+      // Check horizontal relationships
+      const isAdjacent =
+        Math.abs(existingRect.left - currentRect.right) <= TOLERANCE ||
+        Math.abs(existingRect.right - currentRect.left) <= TOLERANCE;
+
+      const isOverlapping =
+        existingRect.left <= currentRect.right + TOLERANCE &&
+        currentRect.left <= existingRect.right + TOLERANCE;
+
+      // Check containment
+      const rect1ContainsRect2 =
+        existingRect.left <= currentRect.left + TOLERANCE &&
+        existingRect.right >= currentRect.right - TOLERANCE &&
+        existingRect.top <= currentRect.top + TOLERANCE &&
+        existingRect.bottom >= currentRect.bottom - TOLERANCE;
+
+      const rect2ContainsRect1 =
+        currentRect.left <= existingRect.left + TOLERANCE &&
+        currentRect.right >= existingRect.right - TOLERANCE &&
+        currentRect.top <= existingRect.top + TOLERANCE &&
+        currentRect.bottom >= existingRect.bottom - TOLERANCE;
+
+      return (
+        (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
+        rect1ContainsRect2 ||
+        rect2ContainsRect1
+      );
+    });
+
+    if (mergeIndex === -1) {
+      // No merge possible, add as new rectangle
+      return [...merged, currentRect];
+    }
+
+    // Create merged rectangle
+    const existingRect = merged[mergeIndex];
+    const newRect = new DOMRect(
+      Math.min(existingRect.left, currentRect.left),
+      Math.min(existingRect.top, currentRect.top),
+      Math.max(existingRect.right, currentRect.right) -
+        Math.min(existingRect.left, currentRect.left),
+      Math.max(existingRect.bottom, currentRect.bottom) -
+        Math.min(existingRect.top, currentRect.top)
+    );
+
+    // Update merged array with new rectangle
+    return merged.map((rect, i) => (i === mergeIndex ? newRect : rect));
+  }, []);
 }

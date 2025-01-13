@@ -1,7 +1,7 @@
-import { Ranges, RangesChildNode, Text } from "../text/index.js";
+import { Ranges, type RangesChildNode, Text } from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import {
-  SerializedStaggerElementBox,
+  type SerializedStaggerElementBox,
   StaggerElementBox,
 } from "./StaggerElementBox.js";
 
@@ -20,18 +20,38 @@ export interface ElementOptions {
   delay?: number;
 }
 
+let ID = 0;
+
 export type AnimationDuration = number | CustomAnimationDuration;
 export type CustomAnimationDuration = (element: StaggerElement) => number;
 
-export class StaggerElement extends Ranges<StaggerElementBox> {
-  boxes: StaggerElementBox[] = [];
+export class StaggerElement extends Ranges<StaggerElementBox, Text> {
+  id = ++ID;
+
+  scanBoxes() {
+    const allRects = this.ranges.flatMap((range) => [
+      ...range.getClientRects(),
+    ]);
+
+    return allRects.map((rect) => {
+      return new StaggerElementBox(
+        this,
+        this.options,
+        this.relativeTo,
+        rect.top - this.text.top,
+        rect.left - this.text.left,
+        rect.width,
+        rect.height
+      );
+    });
+  }
 
   constructor(
     public text: Text,
     childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
-    super(text.stagger, mergeObject(text.options, options), text.relativeTo);
+    super(text, mergeObject(text.options, options), text.relativeTo);
 
     this.childNodes = childNodes;
   }
@@ -60,8 +80,6 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
       originalProgress * this.boxes.reduce((acc, box) => acc + box.width, 0);
 
     super.childNodes = childNodes;
-
-    this.boxes = this.rects.map((rect) => new StaggerElementBox(this, rect));
 
     const newWidth = this.boxes.reduce((acc, box) => acc + box.width, 0);
 
@@ -112,6 +130,7 @@ export class StaggerElement extends Ranges<StaggerElementBox> {
 
   toJSON() {
     return {
+      ...super.toJSON(),
       textContent: this.textContent,
       animation: this.animation,
       boxes: this.boxes as SerializedStaggerElementBox[],

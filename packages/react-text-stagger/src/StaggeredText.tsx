@@ -7,7 +7,7 @@ import {
   useImperativeHandle,
 } from "react";
 import { useStaggerContext } from "./StaggerProvider.js";
-import { Text, TextOptions } from "text-stagger";
+import { Text, type TextOptions } from "text-stagger";
 import { useTextStagger } from "./useTextStagger.js";
 
 export interface StaggeredTextProps extends TextOptions {

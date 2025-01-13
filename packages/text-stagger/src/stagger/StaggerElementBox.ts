@@ -1,7 +1,7 @@
-import { Box, TextLine, SplitterImpl } from "../text/index.js";
+import { Box, TextLine, type SplitterImpl } from "../text/index.js";
 import {
   ElementAnimation,
-  ElementOptions,
+  type ElementOptions,
   StaggerElement,
 } from "./StaggerElement.js";
 
@@ -24,18 +24,16 @@ export class StaggerElementBox extends Box<StaggerElement> {
   }
 
   get line() {
-    const TOLERANCE = 1; // 1px tolerance for position matching
+    const TOLERANCE = 1;
 
-    return (this.#line ??= this.text.lines.find(
-      ({ boundingRect: { top, bottom, left, right } }) => {
-        return (
-          top <= this.rect.top + TOLERANCE &&
-          bottom >= this.rect.bottom - TOLERANCE &&
-          left <= this.rect.left + TOLERANCE &&
-          right >= this.rect.right - TOLERANCE
-        );
-      }
-    ));
+    return (this.#line ??= this.text.lines.find((line) => {
+      return (
+        line.top <= this.top + TOLERANCE &&
+        line.bottom >= this.bottom - TOLERANCE &&
+        line.left <= this.left + TOLERANCE &&
+        line.right >= this.right - TOLERANCE
+      );
+    }));
   }
 
   get isLast() {
@@ -62,11 +60,7 @@ export class StaggerElementBox extends Box<StaggerElement> {
       }
     }
 
-    return this.parent.stagger.convertToPx(
-      cssLiteral,
-      this,
-      this.relativeTo?.element
-    );
+    return this.parent.stagger.convertToPx(cssLiteral, this, this.relativeTo);
   }
 
   override toJSON() {

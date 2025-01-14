@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type TextOptions } from "text-stagger";
 import { useResolvedOptions } from "./utils/useCachedOptions.js";
 import { useStaggerContext } from "./StaggerProvider.js";
@@ -18,7 +11,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   const options = useResolvedOptions(textOptions);
   const stagger = useStaggerContext();
   const elementRef = useRef<HTMLElement | null>();
-  const [elementRefCount, updateElementRefCount] = useReducer((x) => x + 1, 0);
+  const [initialized, setInitialized] = useState(false);
   const [text, setText] = useState(() => stagger.getText(id));
 
   useEffect(() => {
@@ -31,11 +24,15 @@ export function useTextStagger(textOptions: TextOptions = {}) {
     setText(stagger.getText(id));
 
     return dispose;
-  }, [elementRefCount, elementRef, options]);
+  }, [initialized, options]);
 
   const ref = useCallback((element: HTMLElement | null | undefined) => {
-    if (!elementRef.current) {
-      updateElementRefCount();
+    const existingText = stagger.getText(id);
+
+    if (existingText) {
+      existingText.container = element || undefined;
+    } else if (element && !elementRef.current) {
+      setInitialized(true);
     }
 
     elementRef.current = element;

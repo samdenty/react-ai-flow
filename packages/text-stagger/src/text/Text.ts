@@ -4,7 +4,7 @@ import {
   StaggerElement,
   type SerializedStaggerElement,
 } from "../stagger/index.js";
-import { Ranges, type RangesChildNode } from "./Ranges.js";
+import { Ranges } from "./Ranges.js";
 import { type ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
@@ -77,7 +77,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   readonly className: string;
 
   scanRects() {
-    return [this.relativeTo.getBoundingClientRect()];
+    return [this.container.getBoundingClientRect()];
   }
 
   scanBoxes() {
@@ -98,26 +98,61 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     );
   }
 
-  constructor(
-    stagger: Stagger,
-    public id: number,
-    element: HTMLElement & { text?: Text },
-    public options: ParsedTextOptions
-  ) {
-    super(stagger, options, element);
+  set progress(progress: number) {
+    if (!this.elements.length) {
+      return;
+    }
 
-    const className = this.options.classNamePrefix + "-" + id;
+    const boxCount = this.elements.length;
+    const progressPerElement = 1 / boxCount;
 
-    element.text = this;
-    element.classList.add("ai-flow", (this.className = className));
+    this.elements.forEach((element, i) => {
+      const startProgress = i * progressPerElement;
 
-    updateProperty(className, "display", "block");
-    updateProperty(className, "padding", "0 50%");
-    updateProperty(className, "margin", "0 -50%");
+      element.progress = Math.min(
+        1,
+        Math.max(0, (progress - startProgress) / progressPerElement)
+      );
+    });
+  }
 
-    // hide until first render, but don't set to zero otherwise it
-    // won't be scanned by the layout engine
-    updateProperty(className, "opacity", "0.001");
+  #resizeObserver?: ResizeObserver;
+  #mutationObserver?: MutationObserver;
+  #ignoreNextMutation = false;
+
+  get container(): HTMLElement & { text?: Text } {
+    return super.container;
+  }
+
+  set container(container: (HTMLElement & { text?: Text }) | undefined) {
+    if (container === super.container) {
+      return;
+    }
+
+    if (!container) {
+      this.container.classList.remove("ai-flow", this.className);
+      this.container.removeAttribute("data-progress");
+      this.container.removeAttribute("data-lines");
+      this.container.removeAttribute("data-elements");
+
+      delete this.container.text;
+
+      this.canvas?.remove();
+
+      this.#mutationObserver?.disconnect();
+      this.#resizeObserver?.disconnect();
+
+      return;
+    }
+
+    this.container &&= undefined;
+
+    super.container = container;
+
+    container.classList.add("ai-flow", this.className);
+    container.text = this;
+
+    this.canvas = undefined;
 
     if (this.visualDebug) {
       this.canvas = document.createElement("canvas");
@@ -126,23 +161,95 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       this.canvas.style.top = "0";
       this.canvas.style.left = "0";
 
-      element.prepend(this.canvas);
+      container.prepend(this.canvas);
 
-      updateProperty(className, "mask-image", null);
-      updateProperty(className, "position", "relative");
+      updateProperty(this.className, "mask-image", null);
+      updateProperty(this.className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       this.canvas = document.createElement("canvas");
-      updateProperty(className, "will-change", "mask-image");
+      updateProperty(this.className, "will-change", "mask-image");
     } else if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
       this.canvas = document.createElement("canvas");
       this.canvas.style.display = "none";
       this.canvas.id = this.className;
       document.head.prepend(this.canvas);
 
-      updateProperty(className, "mask-image", `-moz-element(#${className})`);
+      updateProperty(
+        this.className,
+        "mask-image",
+        `-moz-element(#${this.className})`
+      );
     } else if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
-      updateProperty(className, "mask-image", `-webkit-canvas(${className})`);
+      updateProperty(
+        this.className,
+        "mask-image",
+        `-webkit-canvas(${this.className})`
+      );
     }
+
+    this.canvasContext = this.canvas?.getContext("2d", {
+      willReadFrequently: !this.visualDebug,
+      alpha: true,
+    });
+
+    let mounted = false;
+
+    this.#resizeObserver = new ResizeObserver((entries) => {
+      if (!mounted) {
+        this.scanElementLines({ reason: ScanReason.Mounted });
+      } else {
+        this.scanElementLines({ reason: ScanReason.Resize, entries });
+      }
+
+      this.paint();
+
+      mounted = true;
+    });
+
+    this.#mutationObserver = new MutationObserver((entries) => {
+      if (this.#ignoreNextMutation) {
+        this.#ignoreNextMutation = false;
+        return;
+      }
+
+      entries = entries.filter((entry) => entry.target !== this.canvas);
+
+      if (!entries.length) {
+        return;
+      }
+
+      this.scanElementLines({ reason: ScanReason.Mutation, entries });
+    });
+
+    this.#resizeObserver.observe(container);
+
+    this.#mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    });
+  }
+
+  constructor(
+    stagger: Stagger,
+    public id: number,
+    element: HTMLElement,
+    public options: ParsedTextOptions
+  ) {
+    super(stagger, options, undefined!);
+
+    this.className = this.options.classNamePrefix + "-" + id;
+
+    this.container = element;
+
+    updateProperty(this.className, "display", "block");
+    updateProperty(this.className, "padding", "0 50%");
+    updateProperty(this.className, "margin", "0 -50%");
+
+    // hide until first render, but don't set to zero otherwise it
+    // won't be scanned by the layout engine
+    updateProperty(this.className, "opacity", "0.001");
   }
 
   get visualDebug() {
@@ -162,12 +269,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   }
 
   dispose() {
-    this.relativeTo.classList.remove("ai-flow", this.className);
-    this.relativeTo.removeAttribute("data-progress");
-    this.relativeTo.removeAttribute("data-lines");
-    this.relativeTo.removeAttribute("data-elements");
-
-    this.canvas?.remove();
+    this.container = undefined;
   }
 
   paint() {
@@ -175,17 +277,16 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       !this.visualDebug &&
       maskRenderMode === CanvasMaskRenderMode.PaintWorklet
     ) {
-      updateProperty(
-        this.className,
-        "mask-image",
-        `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
-      );
+      if (this.progress === 1) {
+        updateProperty(this.className, "mask-image", null);
+      } else {
+        updateProperty(
+          this.className,
+          "mask-image",
+          `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
+        );
+      }
     }
-
-    this.canvasContext ??= this.canvas?.getContext("2d", {
-      willReadFrequently: true,
-      alpha: true,
-    });
 
     if (this.canvasContext) {
       doPaint(this.canvasContext, this);
@@ -217,7 +318,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   }
 
   diffElements(
-    event: ScanEvent = { reason: ScanReason.Force }
+    event: ScanEvent = { reason: ScanReason.Force },
+    resized?: boolean
   ): StaggerElement[] {
     const trimChildNodes = this.createChildNodeTrimmer();
 
@@ -235,19 +337,11 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         const element = this.elements[elementIndex];
         const textSplit = textSplits[splitIndex];
 
-        let childNodes: RangesChildNode[];
+        const oldText = element.innerText.trim();
+        const currentText = textSplit.text.trim();
 
-        if (!textSplit.text.startsWith(element.innerText)) {
-          childNodes = trimChildNodes(textSplit.start, textSplit.end);
-
-          const textContent = childNodes
-            .filter((range) => typeof range !== "string")
-            .join("");
-
-          // try checking the text content (without the newlines included)
-          if (!textContent.startsWith(element.textContent)) {
-            return false;
-          }
+        if (!currentText.startsWith(oldText)) {
+          return false;
         }
 
         const onlyEqualByPrefix = textSplit.text !== element.innerText;
@@ -257,7 +351,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
           (event.reason === ScanReason.Force && event.reset) ||
           element.childNodes.join("") !== element.innerText
         ) {
-          childNodes ??= trimChildNodes(textSplit.start, textSplit.end);
+          const childNodes = trimChildNodes(textSplit.start, textSplit.end);
           element.childNodes = childNodes;
         }
 
@@ -267,16 +361,23 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     // console.group("diff");
     // console.log(
-    //   this.relativeTo?.element.innerHTML,
+    //   this.container?.innerHTML,
     //   this,
-    //   textSplits.map((a) => a.text).join(""),
+    //   [this.elements.map((element) => element.innerText)],
+    //   [textSplits.map((a) => a.text)],
     //   event
     // );
 
     for (const [action, items] of diffs) {
       if (action === 0) {
-        const existingElements = items as StaggerElement[];
-        elements.push(...existingElements);
+        for (const element of items as StaggerElement[]) {
+          if (resized) {
+            element.rescan();
+          }
+
+          elements.push(element);
+        }
+
         continue;
       }
 
@@ -325,20 +426,16 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     this.updateBounds();
 
-    if (
-      !oldDimensions ||
+    const resized =
       oldDimensions.width !== this.width ||
-      oldDimensions.height !== this.height
-    ) {
+      oldDimensions.height !== this.height;
+
+    if (resized) {
       if (this.canvas) {
         this.canvas.width = this.width;
         this.canvas.height = this.height;
 
         this.lines = [];
-
-        this.elements.forEach((element) => {
-          element.rescan();
-        });
       }
 
       if (
@@ -357,21 +454,53 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     this.lines = TextLine.scanLines(this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
-    this.elements = this.diffElements(event);
+    this.elements = this.diffElements(event, resized);
 
     this.setAttribute("data-lines", this.lines.length);
     this.setAttribute("data-elements", this.elements.length);
+
+    this.stagger.requestAnimation([this]);
   }
 
   setAttribute(name: string, value: string | number) {
     value = String(value);
 
-    if (value === this.relativeTo.getAttribute(name)) {
+    if (value === this.container.getAttribute(name)) {
       return;
     }
 
-    this.stagger.skipMutation(this.relativeTo);
-    this.relativeTo.setAttribute(name, value);
+    this.#ignoreNextMutation = true;
+    this.container.setAttribute(name, value);
+  }
+
+  #pixelCache = new Map<string, number>();
+
+  convertToPx(
+    cssLiteral: string | number,
+    { height, width }: { height: number; width: number }
+  ) {
+    if (typeof cssLiteral === "number") {
+      return cssLiteral;
+    }
+
+    const key = `${height}:${width}:${cssLiteral}`;
+
+    if (!this.#pixelCache.has(key)) {
+      const container = document.createElement("div");
+      container.style.height = `${height}px`;
+      container.style.width = `${width}px`;
+
+      const target = document.createElement("div");
+      target.style.width = cssLiteral;
+      container.appendChild(target);
+      this.container.appendChild(container);
+
+      this.#pixelCache.set(key, target.offsetWidth);
+
+      container.remove();
+    }
+
+    return this.#pixelCache.get(key)!;
   }
 
   private analyzeMutationImpact(

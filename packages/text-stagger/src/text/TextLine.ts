@@ -16,7 +16,7 @@ export class TextLine extends Ranges<Box, Text> {
     ranges: Range[],
     options?: ElementOptions
   ) {
-    super(text, mergeObject(text.options, options), text.relativeTo);
+    super(text, mergeObject(text.options, options), text.container);
     this.childNodes = ranges;
   }
 
@@ -25,7 +25,7 @@ export class TextLine extends Ranges<Box, Text> {
       return new Box(
         this,
         this.options,
-        this.relativeTo,
+        this.container,
         rect.top - this.text.top,
         rect.left - this.text.left,
         rect.width,
@@ -57,7 +57,7 @@ export class TextLine extends Ranges<Box, Text> {
     const lastOffset = lastRange?.endOffset ?? 0;
 
     const walker = document.createTreeWalker(
-      text.relativeTo,
+      text.container,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: (node) => {

@@ -33,7 +33,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       return new StaggerElementBox(
         this,
         this.options,
-        this.relativeTo,
+        this.container,
         rect.top - this.text.top,
         rect.left - this.text.left,
         rect.width,
@@ -52,7 +52,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
-    super(text, mergeObject(text.options, options), text.relativeTo);
+    super(text, mergeObject(text.options, options), text.container);
 
     this.childNodes = childNodes;
   }

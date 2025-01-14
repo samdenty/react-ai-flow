@@ -27,14 +27,19 @@ export class StaggerElementBox extends Box<StaggerElement> {
     progress ||= 0;
 
     const changed = progress !== this.progress;
+
+    if (!changed) {
+      return;
+    }
+
     this.#progress = progress;
 
-    if (changed) {
-      this.text.setAttribute(
-        "data-progress",
-        `${Math.round(this.text.progress * 100)}`
-      );
-    }
+    this.text.setAttribute(
+      "data-progress",
+      `${Math.round(this.text.progress * 100)}`
+    );
+
+    this.text.stagger.requestAnimation([this.text]);
   }
 
   get text() {
@@ -78,7 +83,7 @@ export class StaggerElementBox extends Box<StaggerElement> {
       }
     }
 
-    return this.parent.stagger.convertToPx(cssLiteral, this, this.relativeTo);
+    return this.text.convertToPx(cssLiteral, this);
   }
 
   override toJSON() {

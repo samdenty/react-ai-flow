@@ -7,12 +7,22 @@ import type {
 export class Box<
   T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger
 > {
+  #container!: HTMLElement;
+
   stagger: Stagger;
+
+  get container() {
+    return this.#container;
+  }
+
+  set container(container: HTMLElement) {
+    this.#container = container;
+  }
 
   constructor(
     public parent: T,
     public options: ElementOptions,
-    public relativeTo: HTMLElement,
+    element: HTMLElement,
     public top = 0,
     public left = 0,
     public width = 0,
@@ -23,6 +33,8 @@ export class Box<
     } else {
       this.stagger = parent;
     }
+
+    this.container = element;
   }
 
   set bottom(bottom: number) {
@@ -81,10 +93,10 @@ export abstract class Ranges<
   constructor(
     parent: U,
     public options: StaggerElementBoxOptions,
-    relativeTo: HTMLElement,
+    element: HTMLElement,
     childNodes?: RangesChildNode[]
   ) {
-    super(parent, options, relativeTo);
+    super(parent, options, element);
 
     if (childNodes) {
       this.childNodes = childNodes;
@@ -149,6 +161,10 @@ export abstract class Ranges<
     );
 
     Object.assign(this, bounds);
+
+    if (this.width === 0 && this.innerText === "// BigComponent.jsx\n") {
+      debugger;
+    }
   }
 
   scanRects() {

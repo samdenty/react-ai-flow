@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { useFakeMessages } from "./useFakeMessages.js";
-import { StaggeredText, StaggerProvider } from "react-ai-flow";
+import {
+  StaggeredText,
+  StaggerProvider,
+  StickToBottom,
+  useStickToBottomContext,
+} from "react-ai-flow";
 
 function ScrollToBottom() {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
@@ -43,9 +47,9 @@ function MessagesContent({
             </Message>
           ))}
 
-          {/* {messages.map((message, i) => (
+          {messages.map((message, i) => (
             <Message key={i}>{message}</Message>
-          ))} */}
+          ))}
         </StickToBottom.Content>
         <ScrollToBottom />
       </div>

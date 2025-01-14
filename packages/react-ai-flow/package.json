@@ -22,8 +22,9 @@
     "directory": "packages/react-ai-flow"
   },
   "dependencies": {
+    "optimistic-markdown": "workspace:*",
     "react-text-stagger": "workspace:*",
-    "optimistic-markdown": "workspace:*"
+    "use-stick-to-bottom": "^1.0.43"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",
@@ -33,7 +34,6 @@
     "@types/react-dom": "^18.3.0",
     "lorem-ipsum": "^2.0.8",
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^18.0.0",
-    "use-stick-to-bottom": "^1.0.43"
+    "react-dom": "^18.0.0"
   }
 }

@@ -39,7 +39,7 @@ describe.skip("getTextSplit", () => {
     ).toMatchSnapshot("splits");
 
     expect(options).toMatchSnapshot("options");
-    expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+    expect(options.animation).toEqual(ElementAnimation.GradientToRight);
   });
 
   it("sentence", () => {
@@ -53,7 +53,7 @@ describe.skip("getTextSplit", () => {
     ).toMatchSnapshot("splits");
 
     expect(options).toMatchSnapshot("options");
-    expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+    expect(options.animation).toEqual(ElementAnimation.GradientToRight);
   });
 
   it("paragraph", () => {
@@ -67,7 +67,7 @@ describe.skip("getTextSplit", () => {
     ).toMatchSnapshot("splits");
 
     expect(options).toMatchSnapshot("options");
-    expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+    expect(options.animation).toEqual(ElementAnimation.GradientToRight);
   });
 
   it("allows overriding with custom animation", () => {
@@ -77,9 +77,9 @@ describe.skip("getTextSplit", () => {
 
     expect(
       getTextSplit(TextSplit.Word, {
-        animation: ElementAnimation.GradientReveal,
+        animation: ElementAnimation.GradientToRight,
       }).animation
-    ).toEqual(ElementAnimation.GradientReveal);
+    ).toEqual(ElementAnimation.GradientToRight);
   });
 
   it("forwards all options", () => {

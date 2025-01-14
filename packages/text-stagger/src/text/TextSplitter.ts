@@ -64,7 +64,7 @@ export const enum TextSplit {
   Paragraph = "paragraph",
 }
 
-export const DEFAULT_TEXT_SPLIT = TextSplit.Line;
+const DEFAULT_TEXT_SPLIT = TextSplit.Line;
 
 const CHARACTER_REGEX = /(?!\s)(?=.)/g;
 const WORD_REGEX = /\s+/g;
@@ -100,7 +100,7 @@ export function getTextSplit<T extends ElementOptions>(
     textSplit as TextSplit
   )
     ? ElementAnimation.FadeIn
-    : ElementAnimation.GradientReveal;
+    : ElementAnimation.GradientToRight;
 
   const splitText = {
     [TextSplit.Character]: splitCharacters,

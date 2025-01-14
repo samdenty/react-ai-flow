@@ -89,7 +89,7 @@ export class Stagger {
 
     if (element) {
       const oldProgress = element.progress;
-      element.progress = Math.min(1, element.progress + 0.1);
+      element.progress = Math.min(1, element.progress + 0.01);
 
       if (oldProgress !== element.progress) {
         this.#paintQueue.add(element.text);
@@ -224,7 +224,7 @@ export enum ScanReason {
   Force = "force",
 }
 
-export interface ForceScanEvent {
+export interface ForcedScanEvent {
   reason: ScanReason.Force;
   reset?: boolean;
   data?: any;
@@ -248,4 +248,4 @@ export type ScanEvent =
   | MountedScanEvent
   | MutationScanEvent
   | ResizeScanEvent
-  | ForceScanEvent;
+  | ForcedScanEvent;

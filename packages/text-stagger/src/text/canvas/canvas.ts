@@ -92,7 +92,10 @@ export function doPaint(
       ctx.clearRect(left, top, width, height);
       ctx.fillRect(left, top, width, height);
     } else if (
-      animation === "gradient-reveal" &&
+      (animation === "gradient-right" ||
+        animation === "gradient-down" ||
+        animation === "gradient-left" ||
+        animation === "gradient-up") &&
       width > 0 &&
       height > 0 &&
       progress > 0
@@ -100,28 +103,36 @@ export function doPaint(
       ctx.globalAlpha = 1;
 
       const gradientGutterOverflow = gradientWidth / 2;
-      const gradientStart = -gradientGutterOverflow;
-      const gradientEnd = width + gradientGutterOverflow;
+      const isHorizontal =
+        animation === "gradient-right" || animation === "gradient-left";
+      const isReverse =
+        animation === "gradient-left" || animation === "gradient-up";
+      const size = isHorizontal ? width : height;
 
-      const relativeGradientWidth = gradientEnd - gradientStart;
-      const relativeGradientWidthPercent =
-        gradientWidth / relativeGradientWidth;
+      const gradientStart = -gradientGutterOverflow;
+      const gradientEnd = size + gradientGutterOverflow;
+
+      const relativeGradientSize = gradientEnd - gradientStart;
+      const relativeGradientPercent = gradientWidth / relativeGradientSize;
 
       const startGradientPercent = Math.max(
         0,
-        progress - relativeGradientWidthPercent / 2
+        progress - relativeGradientPercent / 2
       );
       const endGradientPercent = Math.min(
         1,
-        progress + relativeGradientWidthPercent / 2
+        progress + relativeGradientPercent / 2
       );
 
-      const gradient = ctx.createLinearGradient(
-        left + gradientStart,
-        0,
-        left + gradientEnd,
-        0
-      );
+      const [start, end] = isReverse
+        ? [gradientEnd, gradientStart]
+        : [gradientStart, gradientEnd];
+
+      const [x1, y1, x2, y2] = isHorizontal
+        ? [left + start, 0, left + end, 0]
+        : [0, top + start, 0, top + end];
+
+      const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
 
       gradient.addColorStop(startGradientPercent, fill);
       gradient.addColorStop(endGradientPercent, "rgba(0, 0, 0, 0)");

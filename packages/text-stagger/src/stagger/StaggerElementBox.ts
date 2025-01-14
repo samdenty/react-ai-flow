@@ -1,7 +1,7 @@
 import { Box, TextLine, type SplitterImpl } from "../text/index.js";
 import {
-  ElementAnimation,
   type ElementOptions,
+  isGradient,
   StaggerElement,
 } from "./StaggerElement.js";
 
@@ -13,6 +13,18 @@ export class StaggerElementBox extends Box<StaggerElement> {
 
   #line?: TextLine;
   #progress = 0;
+
+  constructor(
+    parent: StaggerElement,
+    public options: StaggerElementBoxOptions,
+    element: HTMLElement,
+    top: number,
+    left: number,
+    width: number,
+    height: number
+  ) {
+    super(parent, options, element, top, left, width, height);
+  }
 
   get element() {
     return this.parent;
@@ -63,11 +75,15 @@ export class StaggerElementBox extends Box<StaggerElement> {
     return this.element.boxes.at(-1) === this;
   }
 
+  get isGradient() {
+    return isGradient(this.options.animation);
+  }
+
   get gradientWidth() {
     let cssLiteral = this.options.gradientWidth;
 
     if (
-      this.options.animation !== ElementAnimation.GradientReveal ||
+      !this.isGradient ||
       cssLiteral == null ||
       this.progress === 0 ||
       this.progress === 1

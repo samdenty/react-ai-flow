@@ -7,7 +7,11 @@ import {
 
 export const enum ElementAnimation {
   FadeIn = "fade-in",
-  GradientReveal = "gradient-reveal",
+
+  GradientToLeft = "gradient-left",
+  GradientToRight = "gradient-right",
+  GradientToUp = "gradient-up",
+  GradientToDown = "gradient-down",
 }
 
 export interface ElementOptions {
@@ -28,6 +32,16 @@ export type CustomAnimationDuration = (element: StaggerElement) => number;
 export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   id = ++ID;
 
+  constructor(
+    public text: Text,
+    childNodes: RangesChildNode[],
+    options?: ElementOptions
+  ) {
+    super(text, mergeObject(text.options, options), text.container);
+
+    this.childNodes = childNodes;
+  }
+
   scanBoxes(rects: DOMRect[]) {
     return rects.map((rect) => {
       return new StaggerElementBox(
@@ -45,16 +59,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   get lines() {
     const lines = new Set(this.boxes.map((box) => box.line));
     return [...lines];
-  }
-
-  constructor(
-    public text: Text,
-    childNodes: RangesChildNode[],
-    options?: ElementOptions
-  ) {
-    super(text, mergeObject(text.options, options), text.container);
-
-    this.childNodes = childNodes;
   }
 
   get progress(): number {
@@ -131,3 +135,14 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 }
 
 export type SerializedStaggerElement = ReturnType<StaggerElement["toJSON"]>;
+
+export function isGradient(
+  animation: ElementAnimation | `${ElementAnimation}`
+) {
+  return (
+    animation === ElementAnimation.GradientToLeft ||
+    animation === ElementAnimation.GradientToRight ||
+    animation === ElementAnimation.GradientToUp ||
+    animation === ElementAnimation.GradientToDown
+  );
+}

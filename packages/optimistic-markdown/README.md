@@ -1,121 +1,91 @@
-# Optimistic Markdown Parser
+# Optimistic Markdown Parser for AI Chat Applications
 
-A robust markdown parser designed for real-time editing that gracefully handles incomplete markdown syntax. This parser is particularly useful for applications requiring live preview functionality, where markdown might be in an incomplete state during user input.
+A specialized markdown parser designed for handling AI-generated markdown content in real-time chat applications. This parser ensures that partially generated or potentially malformed markdown from AI responses renders correctly without breaking the UI.
+
+## Why This Parser?
+
+When working with AI chat applications:
+
+- AI models often generate markdown content in chunks or streams
+- Responses may be cut off mid-generation
+- Markdown syntax might be incomplete during streaming
+- Traditional markdown parsers can break or display incorrectly with partial content
 
 ## Features
 
-- Handles incomplete markdown structures without breaking
-- Supports common markdown elements:
-  - HTML blocks with proper tag nesting
-  - Tables with automatic column alignment
-  - Lists and horizontal rules
-  - Links with configurable default targets
-  - Emphasis (bold/italic) and code blocks
-  - Footnotes
-- Provides options for loading states and link target configuration
-- Preserves escaped characters
-- Auto-closes unclosed tags when appropriate
-
-## Installation
-
-```bash
-npm install optimistic-markdown
-# or
-yarn add optimistic-markdown
-```
+- Handles streaming AI responses gracefully
+- Maintains clean rendering even with incomplete markdown
+- Supports common AI chat elements:
+  - Code blocks (prevents broken syntax highlighting)
+  - Tables (maintains structure during generation)
+  - Links (handles incomplete URLs)
+  - Emphasis and formatting
+  - HTML blocks
+- Zero dependencies
+- TypeScript ready
 
 ## Usage
 
 ```typescript
 import { optimisticMarkdown } from "optimistic-markdown";
 
-// Basic usage
-const result = optimisticMarkdown("# Hello World");
+// Handle streaming AI response chunks
+function processAIResponse(chunk: string) {
+  const formattedMarkdown = optimisticMarkdown(chunk, {
+    isLoading: true, // Indicates content is still being generated
+  });
 
-// With options
-const result = optimisticMarkdown("Check out [this link", {
-  isLoading: false,
-  markdownLinkTarget: "https://default-target.com",
-});
+  // Update your UI with the formatted markdown
+  updateChatUI(formattedMarkdown);
+}
 ```
 
 ## Options
 
-The parser accepts an options object with the following properties:
-
 ```typescript
 interface OptimisticMarkdownOptions {
-  isLoading?: boolean; // Controls loading state behavior
+  isLoading?: boolean; // Whether the AI is still generating content
   markdownLinkTarget?: string; // Default target for incomplete links
 }
 ```
 
-## Special Handling
+## Common AI Chat Scenarios
 
-### Tables
+### Incomplete Code Blocks
 
-- Automatically maintains consistent column counts
-- Generates proper separator lines
-- Handles incomplete table rows
+````
+AI: Here's an example in Python:
 
-### Links
+```py
+def hello_wor
+````
 
-- Completes incomplete links with default target when provided
-- Preserves link text when URL is missing
+-> Parser maintains code block integrity even when cut off
 
-### HTML
-
-- Tracks nested HTML tags
-- Preserves HTML block integrity
-
-### Emphasis and Code
-
-- Handles incomplete emphasis markers (\* and \_)
-- Supports both inline code (`) and fenced code blocks (```)
-- Auto-closes unclosed emphasis and code blocks when appropriate
-
-### Lists and Horizontal Rules
-
-- Differentiates between list items and horizontal rules
-- Handles incomplete checkbox syntax
-- Preserves list structure during editing
-
-## Examples
-
-### Table Handling
+### Partial Tables
 
 ```markdown
-| Header 1       | Header 2  |
-| -------------- | --------- |
-| Content 1      | Content 2 |
-| Incomplete row |
+AI: Here's the data:
+| Model | Perf
+| GPT-4 | 95.
 ```
 
-### Link Completion
+-> Parser maintains table structure during generation
+
+### Cut-off Formatting
 
 ```markdown
-[Incomplete link -> [Incomplete link](https://default-target.com)
+AI: This is \*\*very impor
 ```
 
-### Auto-closing Tags
+-> Parser handles incomplete emphasis markers
 
-```markdown
-**Bold text -> **Bold text\*\*
-`code block -> `code block`
-```
+## Implementation Notes
 
-## Error Handling
-
-The parser is designed to be forgiving and will:
-
-- Never throw errors for malformed input
-- Always return a string output
-- Preserve as much of the original formatting as possible
-- Handle edge cases gracefully
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+- The parser assumes content is being generated from left to right
+- Optimized for streaming performance
+- Safe to run on every chunk update
+- Preserves original formatting where possible
 
 ## License
 

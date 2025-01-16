@@ -14,12 +14,15 @@ export class Stagger {
   #options!: ParsedStaggerOptions;
   #optionsListeners = new Set<(options: ParsedStaggerOptions) => void>();
   #streaming: boolean | null = null;
+  #lastPaint?: number;
 
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
   #texts = new Map<number, { text: Text; dispose: VoidFunction }>();
   #recreationProgresses = new Map<number, number>();
+
+  batchId = 0;
 
   constructor(options?: StaggerOptions) {
     this.options = options;
@@ -83,18 +86,38 @@ export class Stagger {
 
   paint(texts = this.texts) {
     const elements = [...this.elements];
-    const element = elements.find((element) => element.progress !== 1);
 
-    texts.forEach((text) => this.#paintQueue.add(text));
+    const now = Date.now();
+    this.#lastPaint ??= now;
 
-    if (element) {
+    const difference = now - this.#lastPaint;
+
+    this.#lastPaint = now;
+
+    for (const element of elements) {
+      const timeSinceStart = now - element.startTime;
+
+      if (element.progress === 1) {
+        continue;
+      }
+
+      if (timeSinceStart < element.delay) {
+        this.#paintQueue.add(element.text);
+        continue;
+      }
+
       const oldProgress = element.progress;
-      element.progress = Math.min(1, element.progress + 0.01);
+      element.progress = Math.min(
+        1,
+        element.progress + difference / element.duration
+      );
 
       if (oldProgress !== element.progress) {
         this.#paintQueue.add(element.text);
       }
     }
+
+    texts.forEach((text) => this.#paintQueue.add(text));
 
     const paintQueue = [...this.#paintQueue];
 
@@ -119,8 +142,12 @@ export class Stagger {
     }
 
     this.#painter = requestAnimationFrame(() => {
+      this.batchId++;
+
       if (this.paint([])) {
         this.requestAnimation([]);
+      } else {
+        this.#lastPaint = undefined;
       }
     });
   }

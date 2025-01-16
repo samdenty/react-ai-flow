@@ -25,14 +25,18 @@ export function useResolvedOptions(options: TextOptions) {
 
 export function useCachedOptions({
   animation,
-  delay,
-  duration,
+  delay: currentDelay,
+  duration: currentDuration,
+  stagger: currentStagger,
   gradientWidth: currentGradientWidth,
   splitter: currentSplitter,
   visualDebug,
   disabled,
   classNamePrefix,
 }: StaggerOptions): StaggerOptions {
+  const duration = useCachedFunctionLike(currentDuration);
+  const delay = useCachedFunctionLike(currentDelay);
+  const stagger = useCachedFunctionLike(currentStagger);
   const splitter = useCachedFunctionLike(currentSplitter);
   const gradientWidth = useCachedFunctionLike(currentGradientWidth);
 
@@ -42,6 +46,7 @@ export function useCachedOptions({
       delay,
       duration,
       splitter,
+      stagger,
       gradientWidth,
       visualDebug,
       disabled,
@@ -52,6 +57,7 @@ export function useCachedOptions({
       delay,
       duration,
       splitter,
+      stagger,
       gradientWidth,
       visualDebug,
       disabled,

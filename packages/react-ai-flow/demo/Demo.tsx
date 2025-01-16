@@ -72,7 +72,7 @@ function Messages({ speed }: { speed: number }) {
   const [paused, setPaused] = useState<React.ReactNode[][] | false>(false);
 
   return (
-    <StaggerProvider>
+    <StaggerProvider streaming>
       <div className="prose flex flex-col gap-2 w-full overflow-hidden">
         <StickToBottom className="h-[50vh] flex flex-col" initial="instant">
           <MessagesContent
@@ -115,13 +115,16 @@ function Message({ children }: { children: React.ReactNode }) {
     <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
       <StaggeredText
         splitter="word"
-        visualDebug
+        // visualDebug
+        duration={100}
+        // delay={(item) => item.index * 1000}
+        // stagger={100}
         gradientWidth={(box) => {
           // console.log(box.options);
           // return box.progress * box.width;
-          return 250;
+          return "100%";
         }}
-        animation="fade-in"
+        animation="gradient-right"
       >
         {children}
       </StaggeredText>

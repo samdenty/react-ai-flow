@@ -61,7 +61,7 @@ export function doPaint(
     // Fill everything above the boxs
     ctx.fillRect(0, 0, text.width, top);
 
-    if (isLast) {
+    if (isLast && !text.streaming) {
       ctx.globalAlpha =
         animation === "fade-in"
           ? progress
@@ -75,6 +75,10 @@ export function doPaint(
     }
   }
 
+  // draw the boxes so that the stuff on top overlaps
+  // stuff on bottom (ie. so it's not clearRect'd away)
+  boxes.reverse();
+
   // Second pass: Draw the regular boxes
   for (const {
     animation,
@@ -86,10 +90,10 @@ export function doPaint(
     gradientWidth,
   } of boxes) {
     ctx.fillStyle = fill;
+    ctx.clearRect(left, top, width, height);
 
     if (animation === "fade-in") {
       ctx.globalAlpha = progress;
-      ctx.clearRect(left, top, width, height);
       ctx.fillRect(left, top, width, height);
     } else if (
       (animation === "gradient-right" ||

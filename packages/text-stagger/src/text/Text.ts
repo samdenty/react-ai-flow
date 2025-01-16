@@ -206,6 +206,9 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       mounted = true;
     });
 
+    let mutations: MutationRecord[] = [];
+    let mutationScanner: number | undefined;
+
     this.#mutationObserver = new MutationObserver((entries) => {
       if (this.#ignoreNextMutation) {
         this.#ignoreNextMutation = false;
@@ -214,11 +217,26 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
       entries = entries.filter((entry) => entry.target !== this.canvas);
 
-      if (!entries.length) {
+      mutations.push(...entries);
+
+      if (!mutations.length) {
         return;
       }
 
-      this.scanElementLines({ reason: ScanReason.Mutation, entries });
+      if (mutationScanner) {
+        cancelAnimationFrame(mutationScanner);
+      }
+
+      mutationScanner = requestAnimationFrame(() => {
+        this.scanElementLines({
+          reason: ScanReason.Mutation,
+          entries: mutations,
+        });
+
+        mutations = [];
+
+        this.paint();
+      });
     });
 
     this.#resizeObserver.observe(container);
@@ -320,22 +338,24 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   diffElements(
     event: ScanEvent = { reason: ScanReason.Force },
     resized?: boolean
-  ): StaggerElement[] {
+  ) {
     const trimChildNodes = this.createChildNodeTrimmer();
 
-    const textSplits = this.options.splitText(this, event);
-    const elements: StaggerElement[] = [];
+    const oldElements = this.elements;
+    const newSplitElements = this.options.splitText(this, event);
+
+    this.elements = [];
 
     const diffs = calcSlices(
-      this.elements as (StaggerElement | ParsedTextSplit)[],
-      textSplits as (StaggerElement | ParsedTextSplit)[],
+      oldElements as (StaggerElement | ParsedTextSplit)[],
+      newSplitElements as (StaggerElement | ParsedTextSplit)[],
       (elementIndex, splitIndex) => {
         if (elementIndex === -1 || splitIndex === -1) {
           return false;
         }
 
-        const element = this.elements[elementIndex];
-        const textSplit = textSplits[splitIndex];
+        const element = oldElements[elementIndex];
+        const textSplit = newSplitElements[splitIndex];
 
         const oldText = element.innerText.trim();
         const currentText = textSplit.text.trim();
@@ -375,7 +395,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
             element.rescan();
           }
 
-          elements.push(element);
+          this.elements.push(element);
         }
 
         continue;
@@ -390,25 +410,18 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
       const splits = items as ParsedTextSplit[];
 
-      // console.log(
-      //   "add",
-      //   splits.map((split) => split.text)
-      // );
+      console.warn(
+        "add",
+        Date.now(),
+        splits.map((split) => split.text)
+      );
 
-      for (const textSplit of splits) {
-        const element = new StaggerElement(
-          this,
-          trimChildNodes(textSplit.start, textSplit.end),
-          textSplit
-        );
-
-        elements.push(element);
+      for (const split of splits) {
+        new StaggerElement(this, trimChildNodes(split.start, split.end), split);
       }
     }
 
     // console.groupEnd();
-
-    return elements;
   }
 
   scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
@@ -454,7 +467,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     this.lines = TextLine.scanLines(this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
-    this.elements = this.diffElements(event, resized);
+    this.diffElements(event, resized);
 
     this.setAttribute("data-lines", this.lines.length);
     this.setAttribute("data-elements", this.elements.length);

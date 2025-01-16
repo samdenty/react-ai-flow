@@ -161,10 +161,6 @@ export abstract class Ranges<
     );
 
     Object.assign(this, bounds);
-
-    if (this.width === 0 && this.innerText === "// BigComponent.jsx\n") {
-      debugger;
-    }
   }
 
   scanRects() {

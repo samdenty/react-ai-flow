@@ -8,8 +8,8 @@ import {
 export const enum ElementAnimation {
   FadeIn = "fade-in",
 
+  GradientReveal = "gradient-reveal",
   GradientLeft = "gradient-left",
-  GradientRight = "gradient-right",
   GradientUp = "gradient-up",
   GradientDown = "gradient-down",
 }
@@ -232,7 +232,7 @@ export function isGradient(
 ) {
   return (
     animation === ElementAnimation.GradientLeft ||
-    animation === ElementAnimation.GradientRight ||
+    animation === ElementAnimation.GradientReveal ||
     animation === ElementAnimation.GradientUp ||
     animation === ElementAnimation.GradientDown
   );

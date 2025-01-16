@@ -100,7 +100,7 @@ export function getTextSplit<T extends ElementOptions>(
     textSplit as TextSplit
   )
     ? ElementAnimation.FadeIn
-    : ElementAnimation.GradientRight;
+    : ElementAnimation.GradientReveal;
 
   const splitText = {
     [TextSplit.Character]: splitCharacters,

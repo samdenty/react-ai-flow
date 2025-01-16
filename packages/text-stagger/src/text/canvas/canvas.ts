@@ -96,7 +96,7 @@ export function doPaint(
       ctx.globalAlpha = progress;
       ctx.fillRect(left, top, width, height);
     } else if (
-      (animation === "gradient-right" ||
+      (animation === "gradient-reveal" ||
         animation === "gradient-down" ||
         animation === "gradient-left" ||
         animation === "gradient-up") &&
@@ -108,7 +108,7 @@ export function doPaint(
 
       const gradientGutterOverflow = gradientWidth / 2;
       const isHorizontal =
-        animation === "gradient-right" || animation === "gradient-left";
+        animation === "gradient-reveal" || animation === "gradient-left";
       const isReverse =
         animation === "gradient-left" || animation === "gradient-up";
       const size = isHorizontal ? width : height;

@@ -124,7 +124,7 @@ function Message({ children }: { children: React.ReactNode }) {
           // return box.progress * box.width;
           return "100%";
         }}
-        animation="gradient-right"
+        animation="gradient-reveal"
       >
         {children}
       </StaggeredText>

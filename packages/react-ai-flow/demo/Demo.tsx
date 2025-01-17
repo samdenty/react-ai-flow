@@ -115,7 +115,7 @@ function Message({ children }: { children: React.ReactNode }) {
     <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
       <StaggeredText
         splitter="word"
-        // visualDebug
+        visualDebug
         duration={100}
         // delay={(item) => item.index * 1000}
         // stagger={100}

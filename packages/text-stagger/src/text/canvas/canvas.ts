@@ -14,12 +14,12 @@ export function doPaint(
   ctx: CanvasRenderingContext2D | PaintRenderingContext2D,
   text: SerializedText
 ) {
-  const fill = `rgba(0, 0, 0, ${text.visualDebug ? 0.8 : 1})`;
+  const fill = `rgba(0, 0, 0, ${text.visualDebug ? 0.75 : 1})`;
   const surroundingFill = text.visualDebug
     ? `rgba(0, 0, 255, 0.4)`
     : `rgba(0, 0, 0, 1)`;
 
-  ctx.clearRect(0, 0, text.width, text.height);
+  ctx.clearRect(0, 0, text.canvasWidth, text.height);
 
   const boxes = text.elements.flatMap((element) => {
     const { animation } = element;
@@ -59,7 +59,7 @@ export function doPaint(
     ctx.fillRect(0, top, left, height);
 
     // Fill everything above the boxs
-    ctx.fillRect(0, 0, text.width, top);
+    ctx.fillRect(0, 0, text.canvasWidth, top);
 
     if (isLast && !text.streaming) {
       ctx.globalAlpha =
@@ -68,10 +68,15 @@ export function doPaint(
           : Math.max(0, (progress - 0.6) / 0.4);
 
       // Fill everything to the right of the box
-      ctx.fillRect(left + width, top, text.width - left - width, height);
+      ctx.fillRect(left + width, top, text.canvasWidth - left - width, height);
 
       // Fill everything below the box
-      ctx.fillRect(0, top + height, text.width, text.height - top - height);
+      ctx.fillRect(
+        0,
+        top + height,
+        text.canvasWidth,
+        text.height - top - height
+      );
     }
   }
 

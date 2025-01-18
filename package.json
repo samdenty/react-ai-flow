@@ -12,7 +12,7 @@
     "test": "vitest",
     "release": "pnpm build && pnpm -r publish --ignore-scripts --no-git-checks",
     "typecheck": "tsc --build",
-    "dev": "pnpm build; pnpm --filter react-ai-flow run dev",
+    "dev": "pnpm --filter react-ai-flow run dev",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

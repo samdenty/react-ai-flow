@@ -3,8 +3,9 @@ import {
   type StaggerElementBoxOptions,
   StaggerElement,
   type SerializedStaggerElement,
+  type ElementOptions,
 } from "../stagger/index.js";
-import { Ranges } from "./Ranges.js";
+import { Ranges, type RangesChildNode } from "./Ranges.js";
 import { type ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
@@ -43,6 +44,8 @@ export interface ParsedTextOptions
   visualDebug: boolean;
   disabled: boolean;
   classNamePrefix: string;
+  delayTrailing: boolean;
+  stagger: NonNullable<ElementOptions["stagger"]>;
 }
 
 export interface TextOptions extends TextSplitterOptions {
@@ -63,6 +66,16 @@ export interface TextOptions extends TextSplitterOptions {
    * @default "text-stagger"
    */
   classNamePrefix?: string;
+
+  /**
+   * Delays animating the trailing element until the next element appears,
+   * producing smoother animations by avoiding duplicate updates. When disabled,
+   * the trailing element may flicker as it animates multiple times in response
+   * to streaming updates targeting the same position.
+   *
+   * @requires stagger.streaming hints to be set correctly
+   */
+  delayTrailing?: boolean;
 }
 
 export class Text extends Ranges<StaggerElementBox, Stagger> {
@@ -70,14 +83,36 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
   lines: TextLine[] = [];
   elements: StaggerElement[] = [];
+  trailingSplit: ParsedTextSplit | null = null;
 
   canvas?: HTMLCanvasElement;
   canvasContext?: PaintRenderingContext2D | null;
+  canvasWidth = 0;
+  #scannedDimensions?: { width: number; height: number };
+
+  text = this;
 
   readonly className: string;
 
   scanRects() {
-    return [this.container.getBoundingClientRect()];
+    const rect = this.container.getBoundingClientRect();
+
+    this.canvasWidth = rect.width;
+
+    const styles = getComputedStyle(this.container);
+
+    const rectWithoutPadding = new DOMRect(
+      rect.left,
+      rect.top,
+      rect.width -
+        parseFloat(styles.paddingLeft) -
+        parseFloat(styles.paddingRight),
+      rect.height -
+        parseFloat(styles.paddingTop) -
+        parseFloat(styles.paddingBottom)
+    );
+
+    return [[rectWithoutPadding]];
   }
 
   scanBoxes() {
@@ -249,6 +284,22 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     });
   }
 
+  revealTrailing() {
+    if (!this.trailingSplit) {
+      return;
+    }
+
+    const trimChildNodes = this.createChildNodeTrimmer();
+
+    new StaggerElement(
+      this,
+      trimChildNodes(this.trailingSplit.start, this.trailingSplit.end),
+      this.trailingSplit
+    );
+
+    this.trailingSplit = null;
+  }
+
   constructor(
     stagger: Stagger,
     public id: number,
@@ -328,6 +379,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   toJSON() {
     return {
       ...super.toJSON(),
+      canvasWidth: this.canvasWidth,
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
@@ -346,49 +398,85 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     this.elements = [];
 
-    const diffs = calcSlices(
-      oldElements as (StaggerElement | ParsedTextSplit)[],
-      newSplitElements as (StaggerElement | ParsedTextSplit)[],
-      (elementIndex, splitIndex) => {
-        if (elementIndex === -1 || splitIndex === -1) {
-          return false;
+    const diffs = [
+      ...calcSlices(
+        oldElements as (StaggerElement | ParsedTextSplit)[],
+        newSplitElements as (StaggerElement | ParsedTextSplit)[],
+        (elementIndex, splitIndex) => {
+          if (elementIndex === -1 || splitIndex === -1) {
+            return false;
+          }
+
+          const element = oldElements[elementIndex];
+          const textSplit = newSplitElements[splitIndex];
+
+          const oldText = element.innerText.trim();
+          const currentText = textSplit.text.trim();
+
+          const startsWithPrevious = currentText.startsWith(oldText);
+          const oldStartsWithCurrent = oldText.startsWith(currentText);
+          const notExactMatch = textSplit.text !== element.innerText;
+
+          if (!startsWithPrevious && !oldStartsWithCurrent) {
+            return false;
+          }
+
+          if (
+            notExactMatch ||
+            (event.reason === ScanReason.Force && event.reset) ||
+            element.childNodes.join("") !== element.innerText
+          ) {
+            if (
+              (startsWithPrevious || oldStartsWithCurrent) &&
+              element.progress
+            ) {
+              let newNodes: RangesChildNode[] = [];
+              let currentStart = textSplit.start;
+              let remainingLength = textSplit.end - textSplit.start;
+
+              // Process each box until we run out of length
+              for (const text of element.childText) {
+                if (remainingLength <= 0) break;
+
+                // For the last segment, might need to trim to remainingLength
+                const length = Math.min(text.length, remainingLength);
+                const boxNodes = trimChildNodes(
+                  currentStart,
+                  currentStart + length
+                );
+                newNodes.push(...boxNodes);
+
+                currentStart += length;
+                remainingLength -= length;
+              }
+
+              // For startsWithPrevious, add the extra content at the end
+              if (startsWithPrevious) {
+                newNodes.push(
+                  ...trimChildNodes(
+                    textSplit.start + oldText.length,
+                    textSplit.end
+                  )
+                );
+              }
+
+              element.childNodes = newNodes;
+            } else {
+              const childNodes = trimChildNodes(textSplit.start, textSplit.end);
+              element.childNodes = childNodes;
+            }
+          }
+
+          return true;
         }
-
-        const element = oldElements[elementIndex];
-        const textSplit = newSplitElements[splitIndex];
-
-        const oldText = element.innerText.trim();
-        const currentText = textSplit.text.trim();
-
-        if (!currentText.startsWith(oldText)) {
-          return false;
-        }
-
-        const onlyEqualByPrefix = textSplit.text !== element.innerText;
-
-        if (
-          onlyEqualByPrefix ||
-          (event.reason === ScanReason.Force && event.reset) ||
-          element.childNodes.join("") !== element.innerText
-        ) {
-          const childNodes = trimChildNodes(textSplit.start, textSplit.end);
-          element.childNodes = childNodes;
-        }
-
-        return true;
-      }
-    );
+      ),
+    ];
 
     // console.group("diff");
-    // console.log(
-    //   this.container?.innerHTML,
-    //   this,
-    //   [this.elements.map((element) => element.innerText)],
-    //   [textSplits.map((a) => a.text)],
-    //   event
-    // );
 
-    for (const [action, items] of diffs) {
+    diffs.forEach(([action, items], i) => {
+      const isLastDiff = i === diffs.length - 1;
+
       if (action === 0) {
         for (const element of items as StaggerElement[]) {
           if (resized) {
@@ -398,14 +486,14 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
           this.elements.push(element);
         }
 
-        continue;
+        return;
       }
 
       if (action === -1) {
-        // for (const element of items as StaggerElement[]) {
-        //   console.log("remove", [element.innerText]);
-        // }
-        continue;
+        for (const element of items as StaggerElement[]) {
+          console.error("remove", [element.innerText]);
+        }
+        return;
       }
 
       const splits = items as ParsedTextSplit[];
@@ -416,10 +504,30 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         splits.map((split) => split.text)
       );
 
-      for (const split of splits) {
-        new StaggerElement(this, trimChildNodes(split.start, split.end), split);
+      for (const text of this.stagger.texts) {
+        if (!text.trailingSplit || text === this) {
+          continue;
+        }
+
+        text.revealTrailing();
       }
-    }
+
+      splits.forEach((split, i) => {
+        const isLastElement =
+          this.isLast && isLastDiff && i === splits.length - 1;
+
+        if (
+          isLastElement &&
+          this.options.delayTrailing &&
+          this.stagger.streaming === true
+        ) {
+          this.trailingSplit = split;
+          return;
+        }
+
+        new StaggerElement(this, trimChildNodes(split.start, split.end), split);
+      });
+    });
 
     // console.groupEnd();
   }
@@ -435,17 +543,23 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       }
     }
 
-    const oldDimensions = this.canvas || { ...this };
+    const oldDimensions = this.#scannedDimensions;
 
     this.updateBounds();
 
+    this.#scannedDimensions = {
+      width: this.width,
+      height: this.height,
+    };
+
     const resized =
+      !oldDimensions ||
       oldDimensions.width !== this.width ||
       oldDimensions.height !== this.height;
 
     if (resized) {
       if (this.canvas) {
-        this.canvas.width = this.width;
+        this.canvas.width = this.canvasWidth;
         this.canvas.height = this.height;
 
         this.lines = [];

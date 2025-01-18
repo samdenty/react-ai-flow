@@ -114,11 +114,16 @@ function Message({ children }: { children: React.ReactNode }) {
   return (
     <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
       <StaggeredText
-        splitter="word"
+        splitter="line"
         visualDebug
-        duration={100}
+        delayTrailing
+        duration={(element) => {
+          return (element.width / element.text.width) * 1000;
+        }}
+        // stagger={(element, prev) => {
+        //   return prev.duration * 0.4;
+        // }}
         // delay={(item) => item.index * 1000}
-        // stagger={100}
         gradientWidth={(box) => {
           // console.log(box.options);
           // return box.progress * box.width;

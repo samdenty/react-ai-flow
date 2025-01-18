@@ -13,6 +13,10 @@ export default defineConfig({
         "../react-text-stagger/src/index.ts"
       ),
       "text-stagger": path.resolve(__dirname, "../text-stagger/src/index.ts"),
+      "optimistic-markdown": path.resolve(
+        __dirname,
+        "../optimistic-markdown/src/index.ts"
+      ),
     },
   },
   server: {

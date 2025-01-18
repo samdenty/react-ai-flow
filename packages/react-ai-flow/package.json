@@ -23,8 +23,7 @@
   },
   "dependencies": {
     "optimistic-markdown": "workspace:*",
-    "react-text-stagger": "workspace:*",
-    "use-stick-to-bottom": "^1.0.43"
+    "react-text-stagger": "workspace:*"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",

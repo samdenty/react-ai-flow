@@ -1,4 +1,4 @@
-import { Box, TextLine, type SplitterImpl } from "../text/index.js";
+import { Box, Ranges, TextLine, type SplitterImpl } from "../text/index.js";
 import {
   type ElementOptions,
   isGradient,
@@ -8,7 +8,7 @@ import {
 export interface StaggerElementBoxOptions
   extends SplitterImpl<ElementOptions> {}
 
-export class StaggerElementBox extends Box<StaggerElement> {
+export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   static DEFAULT_GRADIENT_WIDTH = 100;
 
   #line?: TextLine;
@@ -18,12 +18,29 @@ export class StaggerElementBox extends Box<StaggerElement> {
     parent: StaggerElement,
     public options: StaggerElementBoxOptions,
     element: HTMLElement,
-    top: number,
-    left: number,
-    width: number,
-    height: number
+    ranges: Range[],
+    private rect: DOMRect
   ) {
-    super(parent, options, element, top, left, width, height);
+    super(parent, options, element);
+    this.childNodes = ranges;
+  }
+
+  scanRects() {
+    return [[this.rect]];
+  }
+
+  scanBoxes(rects: DOMRect[][]) {
+    return rects.flat().map((rect) => {
+      return new Box(
+        this,
+        this.options,
+        this.container,
+        rect.top - this.text.top,
+        rect.left - this.text.left,
+        rect.width,
+        rect.height
+      );
+    });
   }
 
   get element() {

@@ -27,6 +27,7 @@
     "@types/react-dom": "^18.3.0"
   },
   "dependencies": {
-    "text-stagger": "workspace:^"
+    "text-stagger": "workspace:^",
+    "use-stick-to-bottom": "^1.0.44"
   }
 }

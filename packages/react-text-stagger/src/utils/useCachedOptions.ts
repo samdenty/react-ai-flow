@@ -30,6 +30,7 @@ export function useCachedOptions({
   stagger: currentStagger,
   gradientWidth: currentGradientWidth,
   splitter: currentSplitter,
+  delayTrailing,
   visualDebug,
   disabled,
   classNamePrefix,
@@ -49,6 +50,7 @@ export function useCachedOptions({
       stagger,
       gradientWidth,
       visualDebug,
+      delayTrailing,
       disabled,
       classNamePrefix,
     }),
@@ -60,13 +62,14 @@ export function useCachedOptions({
       stagger,
       gradientWidth,
       visualDebug,
+      delayTrailing,
       disabled,
       classNamePrefix,
     ]
   );
 }
 
-function useCachedFunctionLike<T extends any>(value: T): T {
+export function useCachedFunctionLike<T extends any>(value: T): T {
   const valueRef = useRef(value);
   valueRef.current = value;
 

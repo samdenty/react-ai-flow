@@ -10,11 +10,15 @@ import {
 export interface StaggerOptions extends TextOptions {}
 export interface ParsedStaggerOptions extends ParsedTextOptions {}
 
+declare global {
+  var staggers: Stagger[] | undefined;
+}
+
 export class Stagger {
   #options!: ParsedStaggerOptions;
   #optionsListeners = new Set<(options: ParsedStaggerOptions) => void>();
+  #paintListeners = new Set<() => void>();
   #streaming: boolean | null = null;
-  #lastPaint?: number;
 
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
@@ -26,8 +30,35 @@ export class Stagger {
 
   constructor(options?: StaggerOptions) {
     this.options = options;
+
+    if (import.meta.env.DEV) {
+      globalThis.staggers ??= [];
+      globalThis.staggers.push(this);
+    }
   }
 
+  dispose() {
+    for (const { dispose } of this.texts) {
+      dispose();
+    }
+
+    if (import.meta.env.DEV && globalThis.staggers) {
+      const index = globalThis.staggers.indexOf(this);
+      if (index !== -1) {
+        globalThis.staggers?.splice(index, 1);
+      }
+    }
+  }
+
+  /**
+   * Allows you to hint to whether the stagger is currently streaming a response.
+   *
+   * If `null`, the streaming state is unknown.
+   * If `true` then certain streaming only enhancements are enabled.
+   * If `false` the streaming enhancements are disabled.
+   *
+   * @default null (unknown/disabled)
+   */
   get streaming() {
     return this.#streaming;
   }
@@ -37,8 +68,15 @@ export class Stagger {
       return;
     }
 
+    const previousStreaming = this.#streaming;
     this.#streaming = streaming;
     this.requestAnimation();
+
+    if (previousStreaming === true && !streaming) {
+      for (const text of this.texts) {
+        text.revealTrailing();
+      }
+    }
   }
 
   toString() {
@@ -88,29 +126,21 @@ export class Stagger {
     const elements = [...this.elements];
 
     const now = Date.now();
-    this.#lastPaint ??= now;
-
-    const difference = now - this.#lastPaint;
-
-    this.#lastPaint = now;
 
     for (const element of elements) {
-      const timeSinceStart = now - element.startTime;
+      const elapsed = now - element.startTime - element.delay;
 
       if (element.progress === 1) {
         continue;
       }
 
-      if (timeSinceStart < element.delay) {
+      if (elapsed < 0) {
         this.#paintQueue.add(element.text);
         continue;
       }
 
       const oldProgress = element.progress;
-      element.progress = Math.min(
-        1,
-        element.progress + difference / element.duration
-      );
+      element.progress = Math.min(1, elapsed / element.duration);
 
       if (oldProgress !== element.progress) {
         this.#paintQueue.add(element.text);
@@ -131,6 +161,8 @@ export class Stagger {
       text.paint();
     }
 
+    this.#paintListeners.forEach((listener) => listener());
+
     return elements.some((element) => element.progress !== 1);
   }
 
@@ -146,8 +178,6 @@ export class Stagger {
 
       if (this.paint([])) {
         this.requestAnimation([]);
-      } else {
-        this.#lastPaint = undefined;
       }
     });
   }
@@ -164,11 +194,21 @@ export class Stagger {
         visualDebug: false,
         disabled: false,
         classNamePrefix: Stagger.classNamePrefix,
+        delayTrailing: false,
+        stagger: (_, prevElement) => prevElement?.duration ?? 0,
       },
       options
     );
 
     this.#optionsListeners.forEach((listener) => listener(this.options));
+  }
+
+  onDidPaint(listener: () => void) {
+    this.#paintListeners.add(listener);
+
+    return () => {
+      this.#paintListeners.delete(listener);
+    };
   }
 
   onDidChangeOptions(listener: (options: ParsedStaggerOptions) => void) {

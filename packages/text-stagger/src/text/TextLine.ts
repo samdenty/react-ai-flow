@@ -2,10 +2,11 @@ import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
 import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
-
 export class TextLine extends Ranges<Box, Text> {
   startOfText = false;
   endOfText = false;
+
+  id: string;
 
   private constructor(
     public text: Text,
@@ -18,10 +19,11 @@ export class TextLine extends Ranges<Box, Text> {
   ) {
     super(text, mergeObject(text.options, options), text.container);
     this.childNodes = ranges;
+    this.id = `${this.text.id}:${index}`;
   }
 
-  scanBoxes(rects: DOMRect[]) {
-    return rects.map((rect) => {
+  scanBoxes(rects: DOMRect[][]) {
+    return rects.flat().map((rect) => {
       return new Box(
         this,
         this.options,

@@ -3,6 +3,7 @@ import type {
   StaggerElementBoxOptions,
   ElementOptions,
 } from "../stagger/index.js";
+import type { Text } from "./Text.js";
 
 export class Box<
   T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger
@@ -86,6 +87,8 @@ export abstract class Ranges<
    */
   innerText!: string;
 
+  abstract text: Text;
+
   get boxes() {
     return this.#boxes;
   }
@@ -103,14 +106,16 @@ export abstract class Ranges<
     }
   }
 
+  childText: string[] = [];
+
   set childNodes(childNodes: RangesChildNode[]) {
     this.#childNodes = Object.freeze([...childNodes]);
 
-    const strings = this.#childNodes.map((childNode) => childNode.toString());
+    this.childText = this.#childNodes.map((childNode) => childNode.toString());
 
-    this.innerText = strings.join("");
+    this.innerText = this.childText.join("");
 
-    this.textContent = strings
+    this.textContent = this.childText
       .filter((_, i) => typeof this.#childNodes[i] !== "string")
       .join("");
 
@@ -118,7 +123,7 @@ export abstract class Ranges<
   }
 
   rescan() {
-    const rects = optimizeRects(this.scanRects());
+    const rects = this.scanRects();
 
     this.updateBounds(rects);
 
@@ -130,12 +135,14 @@ export abstract class Ranges<
   }
 
   updateBounds(rects = this.scanRects()) {
-    const bounds = rects.reduce(
+    const bounds = rects.flat().reduce(
       (bounds, rect, i) => {
-        if (this.parent instanceof Ranges) {
+        if ((this as any) !== this.text) {
+          this.text.updateBounds();
+
           rect = new DOMRect(
-            rect.left - this.parent.left,
-            rect.top - this.parent.top,
+            rect.left - this.text.left,
+            rect.top - this.text.top,
             rect.width,
             rect.height
           );
@@ -164,12 +171,12 @@ export abstract class Ranges<
   }
 
   scanRects() {
-    return this.ranges.flatMap((range) => {
-      return [...range.getClientRects()];
+    return this.ranges.map((range) => {
+      return optimizeRects([...range.getClientRects()]);
     });
   }
 
-  abstract scanBoxes(rects: DOMRect[]): T[];
+  abstract scanBoxes(rects: DOMRect[][]): T[];
 
   createChildNodeTrimmer() {
     const childNodeOffsets = this.childNodesOffsets;
@@ -207,7 +214,7 @@ export abstract class Ranges<
           trimmedRange.setStart(cachedStart.node, cachedStart.offset);
         } else if (trimFromStart) {
           if (commonAncestorContainer.nodeType === Node.TEXT_NODE) {
-            const node = commonAncestorContainer as Text;
+            const node = commonAncestorContainer as globalThis.Text;
             const startOffset = trimmedRange.startOffset + trimFromStart;
             trimmedRange.setStart(node, startOffset);
             offsetsCache.set(start, { node, offset: startOffset });
@@ -215,7 +222,7 @@ export abstract class Ranges<
             let charCount = -trimmedRange.startOffset;
 
             while (walker.nextNode()) {
-              const node = walker.currentNode as Text;
+              const node = walker.currentNode as globalThis.Text;
               if (!trimmedRange.intersectsNode(node)) {
                 continue;
               }
@@ -238,7 +245,7 @@ export abstract class Ranges<
           trimmedRange.setEnd(cachedEnd.node, cachedEnd.offset);
         } else if (trimFromEnd) {
           if (commonAncestorContainer.nodeType === Node.TEXT_NODE) {
-            const node = commonAncestorContainer as Text;
+            const node = commonAncestorContainer as globalThis.Text;
             const endOffset = trimmedRange.endOffset - trimFromEnd;
             trimmedRange.setEnd(node, endOffset);
             offsetsCache.set(end, { node, offset: endOffset });
@@ -264,7 +271,7 @@ export abstract class Ranges<
             );
 
             do {
-              const node = walker.currentNode as Text;
+              const node = walker.currentNode as globalThis.Text;
               if (!trimmedRange.intersectsNode(node)) {
                 continue;
               }

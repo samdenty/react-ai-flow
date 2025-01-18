@@ -1,4 +1,9 @@
-import { Ranges, type RangesChildNode, Text } from "../text/index.js";
+import {
+  type ParsedTextOptions,
+  Ranges,
+  type RangesChildNode,
+  Text,
+} from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import {
   type SerializedStaggerElementBox,
@@ -21,8 +26,23 @@ export interface ElementOptions {
     | number
     | ((box: StaggerElementBox) => string | number | undefined);
 
+  /**
+   * @example
+   * For 1 second:
+   * duration: (element) => element.width / element.text.width * 1000
+   */
   duration?: number | ((element: StaggerElement) => number);
-  stagger?: number | ((element: StaggerElement) => number);
+  /**
+   * @example
+   * For half the duration of the animation:
+   * delay: (_, prevElement) => prevElement.duration / 2
+   */
+  stagger?:
+    | number
+    | ((
+        element: StaggerElement,
+        previousElement: StaggerElement | null
+      ) => number);
   delay?: (element: StaggerElement) => number;
 }
 
@@ -35,118 +55,150 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   id = ++ID;
 
   startTime: number;
-  duration = 0;
-  delay = 0;
-  private staggerDelay = 0;
+  duration: number;
+  #delay: number | null = null;
+  staggerDelay: number | null = null;
 
   batchId: number;
   index: number;
+
+  override options: ElementOptions & ParsedTextOptions;
 
   constructor(
     public text: Text,
     childNodes: RangesChildNode[],
     options?: ElementOptions
   ) {
-    super(text, mergeObject(text.options, options), text.container);
+    const parsedOptions = mergeObject(text.options, options);
+    super(text, parsedOptions, text.container);
+    this.options = parsedOptions;
 
-    const currentTime = Date.now();
-    this.startTime = currentTime;
+    const now = Date.now();
+
     this.batchId = this.stagger.batchId;
-    this.index = 1;
 
-    // Find any currently animating elements
-    const activeElements = this.stagger.elements.filter((element) => {
-      const elapsedTime = currentTime - element.startTime - element.delay;
+    const latestElementInBatch = this.stagger.elements.findLast(
+      (el) => el.batchId === this.batchId
+    );
+
+    const lastActiveElement = this.stagger.elements.findLast((element) => {
+      const elapsedTime = now - element.startTime - element.delay;
       return elapsedTime < element.duration;
     });
 
-    // If there are active animations, sync with them
-    if (activeElements.length > 0) {
-      // Sort by end time to find the last one that will finish
-      const sortedByEndTime = [...activeElements].sort((a, b) => {
-        const aEndTime = a.startTime + a.delay + a.duration;
-        const bEndTime = b.startTime + b.delay + b.duration;
-        return aEndTime - bEndTime;
-      });
-
-      const lastElement = sortedByEndTime[sortedByEndTime.length - 1];
-      const lastEndTime =
-        lastElement.startTime + lastElement.delay + lastElement.duration;
-
-      // If the last animation is still going
-      if (lastEndTime > this.startTime) {
-        this.startTime = lastElement.startTime;
-        this.batchId = lastElement.batchId;
-        this.index = lastElement.index + 1;
-
-        const elapsedSinceStart = currentTime - this.startTime;
-        const effectiveDelay = this.delay + this.staggerDelay;
-
-        if (elapsedSinceStart > effectiveDelay) {
-          const timeIntoAnimation = elapsedSinceStart - effectiveDelay;
-          const initialProgress = Math.min(
-            1,
-            timeIntoAnimation / this.duration
-          );
-          this.progress = initialProgress;
-        } else {
-          // An animation is still playing and this is a new batch
-          this.progress = 0;
-        }
-      }
+    if (latestElementInBatch) {
+      this.index = latestElementInBatch.index + 1;
+      this.startTime = latestElementInBatch.startTime;
+      this.batchId = latestElementInBatch.batchId;
+    } else {
+      this.startTime = now;
+      this.index = lastActiveElement ? 1 : 0;
     }
 
-    this.childNodes = childNodes;
     text.elements.push(this);
 
-    // Find last element in current batch for stagger accumulation
-    const lastElementInCurrentBatch = this.stagger.elements.findLast(
-      (el) => el.batchId === this.batchId && el.index < this.index
-    );
-
-    if (typeof this.options.duration === "number") {
-      this.duration = this.options.duration;
-    } else if (typeof this.options.duration === "function") {
-      this.duration = this.options.duration(this);
-    }
+    this.childNodes = childNodes;
+    this.duration = this.calculateDuration();
 
     if (typeof this.options.delay === "number") {
-      this.delay = this.options.delay;
-    } else if (typeof this.options.delay === "function") {
-      this.delay = this.options.delay(this);
+      this.#delay = this.options.delay;
     }
-
-    this.duration ||= 500;
 
     if (typeof this.options.stagger === "number") {
       this.staggerDelay = this.options.stagger;
-    } else if (typeof this.options.stagger === "function") {
-      this.staggerDelay = this.options.stagger(this);
-    } else if (this.index && !this.delay && !this.staggerDelay) {
-      this.staggerDelay = this.duration;
+    } else {
+      this.staggerDelay = this.options.stagger(
+        this,
+        latestElementInBatch ?? lastActiveElement ?? null
+      );
     }
 
-    this.staggerDelay += lastElementInCurrentBatch?.staggerDelay ?? 0;
-    this.delay += this.staggerDelay;
+    if (latestElementInBatch) {
+      this.staggerDelay += latestElementInBatch.staggerDelay ?? 0;
+    } else if (lastActiveElement) {
+      const difference = now - lastActiveElement.startTime;
+
+      this.staggerDelay += Math.max(
+        0,
+        (lastActiveElement.staggerDelay ?? 0) - difference
+      );
+    }
+
+    if (typeof this.options.delay === "function") {
+      this.#delay = this.options.delay(this);
+    }
   }
 
-  scanBoxes(rects: DOMRect[]) {
-    return rects.map((rect) => {
-      return new StaggerElementBox(
-        this,
-        this.options,
-        this.container,
-        rect.top - this.text.top,
-        rect.left - this.text.left,
-        rect.width,
-        rect.height
-      );
+  private calculateDuration() {
+    let duration: number | null = null;
+    if (typeof this.options.duration === "number") {
+      duration = this.options.duration;
+    } else if (typeof this.options.duration === "function") {
+      duration = this.options.duration(this);
+    }
+
+    return duration ?? (this.width / this.text.width) * 500;
+  }
+
+  get delay() {
+    return (this.#delay ?? 0) + (this.staggerDelay ?? 0);
+  }
+
+  scanBoxes(rects: DOMRect[][]) {
+    return rects.flatMap((rects, i) => {
+      return rects.map((rect) => {
+        return new StaggerElementBox(
+          this,
+          this.options,
+          this.container,
+          [this.ranges[i]],
+          rect
+        );
+      });
     });
   }
 
   get lines() {
     const lines = new Set(this.boxes.map((box) => box.line));
-    return [...lines];
+    return [...lines].filter((line) => !!line);
+  }
+
+  get isLast() {
+    return this.text.elements.at(-1) === this;
+  }
+
+  override rescan() {
+    const oldBoxCount = this.boxes.length;
+    const oldProgresses = this.boxes.map((box) => box.progress);
+
+    super.rescan();
+
+    const now = Date.now();
+
+    if (oldBoxCount && this.boxes.length !== oldBoxCount) {
+      this.duration = this.calculateDuration();
+
+      const progresses =
+        this.boxes.length > oldBoxCount
+          ? oldProgresses
+          : this.boxes.map((_, i) => oldProgresses[i]);
+
+      // Calculate total elapsed time from old progress values
+      const totalElapsedTime = progresses.reduce(
+        (current, progress) =>
+          current + progress * (this.duration / this.boxes.length),
+        0
+      );
+
+      this.startTime = now - totalElapsedTime;
+      this.staggerDelay = 0;
+      this.batchId = this.stagger.batchId;
+    }
+
+    // Restore progress to existing boxes, new boxes start at 0
+    this.boxes.forEach((box, i) => {
+      box.progress = i < oldBoxCount ? oldProgresses[i] : 0;
+    });
   }
 
   get progress(): number {
@@ -157,16 +209,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return (
       this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
     );
-  }
-
-  get isLast() {
-    return this.text.elements.at(-1) === this;
-  }
-
-  override rescan() {
-    const widthProgress = this.progress * this.width;
-    super.rescan();
-    this.progress = widthProgress / this.width || 0;
   }
 
   set progress(progress: number) {
@@ -188,20 +230,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
         1,
         Math.max(0, (progress - boxStartProgress) / progressPerBox)
       );
-
-      if (
-        this.text.streaming &&
-        box.isLast &&
-        this.isLast &&
-        this.text.isLast
-      ) {
-        const runwayWidth = Math.max(box.width, box.gradientWidth);
-        const maxProgress = Math.min(
-          1,
-          Math.max(0.5, 1 - box.gradientWidth / runwayWidth)
-        );
-        boxProgress = Math.min(maxProgress, boxProgress);
-      }
 
       box.progress = boxProgress;
     });

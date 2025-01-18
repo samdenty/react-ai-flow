@@ -346,15 +346,11 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       !this.visualDebug &&
       maskRenderMode === CanvasMaskRenderMode.PaintWorklet
     ) {
-      if (this.progress === 1) {
-        updateProperty(this.className, "mask-image", null);
-      } else {
-        updateProperty(
-          this.className,
-          "mask-image",
-          `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
-        );
-      }
+      updateProperty(
+        this.className,
+        "mask-image",
+        `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
+      );
     }
 
     if (this.canvasContext) {

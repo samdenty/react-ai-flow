@@ -31,7 +31,7 @@ export class Stagger {
   constructor(options?: StaggerOptions) {
     this.options = options;
 
-    if (import.meta.env.DEV) {
+    if (import.meta?.env?.DEV) {
       globalThis.staggers ??= [];
       globalThis.staggers.push(this);
     }
@@ -42,7 +42,7 @@ export class Stagger {
       text.dispose();
     }
 
-    if (import.meta.env.DEV && globalThis.staggers) {
+    if (import.meta?.env?.DEV && globalThis.staggers) {
       const index = globalThis.staggers.indexOf(this);
       if (index !== -1) {
         globalThis.staggers?.splice(index, 1);

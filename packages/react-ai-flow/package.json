@@ -1,6 +1,6 @@
 {
   "name": "react-ai-flow",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
   "main": "dist/index.js",

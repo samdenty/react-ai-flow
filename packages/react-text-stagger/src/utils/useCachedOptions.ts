@@ -29,6 +29,9 @@ export function useCachedOptions({
   duration: currentDuration,
   stagger: currentStagger,
   gradientWidth: currentGradientWidth,
+  customStyles: currentCustomStyles,
+  blurAmount: currentBlurAmount,
+  animationTiming: currentAnimationTiming,
   splitter: currentSplitter,
   delayTrailing,
   visualDebug,
@@ -40,6 +43,9 @@ export function useCachedOptions({
   const stagger = useCachedFunctionLike(currentStagger);
   const splitter = useCachedFunctionLike(currentSplitter);
   const gradientWidth = useCachedFunctionLike(currentGradientWidth);
+  const customStyles = useCachedFunctionLike(currentCustomStyles);
+  const blurAmount = useCachedFunctionLike(currentBlurAmount);
+  const animationTiming = useCachedFunctionLike(currentAnimationTiming);
 
   return useMemo<StaggerOptions>(
     () => ({
@@ -49,6 +55,9 @@ export function useCachedOptions({
       splitter,
       stagger,
       gradientWidth,
+      customStyles,
+      blurAmount,
+      animationTiming,
       visualDebug,
       delayTrailing,
       disabled,
@@ -61,6 +70,9 @@ export function useCachedOptions({
       splitter,
       stagger,
       gradientWidth,
+      customStyles,
+      blurAmount,
+      animationTiming,
       visualDebug,
       delayTrailing,
       disabled,

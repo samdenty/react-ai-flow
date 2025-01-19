@@ -17,10 +17,37 @@ export const enum ElementAnimation {
   GradientLeft = "gradient-left",
   GradientUp = "gradient-up",
   GradientDown = "gradient-down",
+
+  // Custom style-powered animations
+  Custom = "custom",
+  BlurIn = "blur-in",
+  BounceIn = "bounce-in",
+}
+
+export const enum ElementAnimationTiming {
+  Linear = "linear",
+  Ease = "ease",
+  EaseIn = "ease-in",
+  EaseOut = "ease-out",
+  EaseInOut = "ease-in-out",
 }
 
 export interface ElementOptions {
   animation?: ElementAnimation | `${ElementAnimation}`;
+
+  animationTiming?:
+    | ElementAnimationTiming
+    | `${ElementAnimationTiming}`
+    | ((
+        box: StaggerElementBox
+      ) => number | ElementAnimationTiming | `${ElementAnimationTiming}`);
+
+  customStyles?: (
+    box: StaggerElementBox
+  ) => Partial<Record<keyof CSSStyleDeclaration, string>> | null | undefined;
+
+  blurAmount?: string | number | ((box: StaggerElementBox) => string | number);
+
   gradientWidth?:
     | string
     | number
@@ -32,6 +59,7 @@ export interface ElementOptions {
    * duration: (element) => element.width / element.text.width * 1000
    */
   duration?: number | ((element: StaggerElement) => number);
+
   /**
    * @example
    * For half the duration of the animation:
@@ -43,6 +71,7 @@ export interface ElementOptions {
         element: StaggerElement,
         previousElement: StaggerElement | null
       ) => number);
+
   delay?: (element: StaggerElement) => number;
 }
 
@@ -151,7 +180,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
           this,
           this.options,
           this.container,
-          [this.ranges[i]],
+          this.ranges[i],
           rect
         );
       });

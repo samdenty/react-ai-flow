@@ -59,7 +59,7 @@ export class TextLine extends Ranges<Box, Text> {
     const lastOffset = lastRange?.endOffset ?? 0;
 
     const walker = document.createTreeWalker(
-      text.container,
+      text.maskContainer,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: (node) => {

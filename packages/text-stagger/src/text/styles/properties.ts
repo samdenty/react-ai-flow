@@ -5,10 +5,20 @@ const streamRules = new Map<string, CSSStyleRule>();
 
 export function updateProperty(
   className: string,
-  property: string,
-  value: string | null
+  property: string | null,
+  value?: string | null
 ) {
   let rule = streamRules.get(className);
+
+  if (!property) {
+    if (rule) {
+      streamRules.delete(className);
+      const ruleIndex = [...styleSheet.cssRules].indexOf(rule);
+      styleSheet.deleteRule(ruleIndex);
+    }
+
+    return;
+  }
 
   // If we don't have a rule yet or need to recreate it
   if (!rule) {

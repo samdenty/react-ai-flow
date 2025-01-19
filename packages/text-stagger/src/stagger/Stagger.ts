@@ -38,8 +38,8 @@ export class Stagger {
   }
 
   dispose() {
-    for (const { dispose } of this.texts) {
-      dispose();
+    for (const text of this.texts) {
+      text.dispose();
     }
 
     if (import.meta.env.DEV && globalThis.staggers) {
@@ -89,10 +89,6 @@ export class Stagger {
 
   get elements() {
     const elements = this.texts.flatMap((text) => {
-      if (!text.container) {
-        return [];
-      }
-
       text.updateBounds();
 
       return text.elements.map((element) => ({

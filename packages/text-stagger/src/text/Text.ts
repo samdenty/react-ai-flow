@@ -18,8 +18,8 @@ import {
   CanvasMaskRenderMode,
   doPaint,
   maskRenderMode,
-  updateProperty,
 } from "./canvas/index.js";
+import { updateProperty } from "./styles/index.js";
 
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
   "style",
@@ -85,10 +85,12 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   elements: StaggerElement[] = [];
   trailingSplit: ParsedTextSplit | null = null;
 
+  maskContainer!: HTMLElement;
   canvas?: HTMLCanvasElement;
   canvasContext?: PaintRenderingContext2D | null;
-  canvasWidth = 0;
+  canvasRect = new DOMRect();
   #scannedDimensions?: { width: number; height: number };
+  customAnimationContainer?: HTMLElement;
 
   text = this;
 
@@ -96,23 +98,11 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
   scanRects() {
     const rect = this.container.getBoundingClientRect();
+    const maskRect = this.maskContainer.getBoundingClientRect();
 
-    this.canvasWidth = rect.width;
+    this.canvasRect = maskRect;
 
-    const styles = getComputedStyle(this.container);
-
-    const rectWithoutPadding = new DOMRect(
-      rect.left,
-      rect.top,
-      rect.width -
-        parseFloat(styles.paddingLeft) -
-        parseFloat(styles.paddingRight),
-      rect.height -
-        parseFloat(styles.paddingTop) -
-        parseFloat(styles.paddingBottom)
-    );
-
-    return [[rectWithoutPadding]];
+    return [[rect]];
   }
 
   scanBoxes() {
@@ -153,26 +143,25 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
   #resizeObserver?: ResizeObserver;
   #mutationObserver?: MutationObserver;
-  #ignoreNextMutation = false;
 
   get container(): HTMLElement & { text?: Text } {
     return super.container;
   }
 
-  set container(container: (HTMLElement & { text?: Text }) | undefined) {
-    if (container === super.container) {
+  set container(maskContainer: (HTMLElement & { text?: Text }) | undefined) {
+    if (maskContainer === super.container) {
       return;
     }
 
-    if (!container) {
-      this.container.classList.remove("ai-flow", this.className);
-      this.container.removeAttribute("data-progress");
-      this.container.removeAttribute("data-lines");
-      this.container.removeAttribute("data-elements");
+    const containerClass = `ai-flow-${this.id}`;
 
-      delete this.container.text;
-
+    if (!maskContainer) {
+      this.container.parentElement?.appendChild(this.maskContainer);
+      this.container.remove();
       this.canvas?.remove();
+      this.customAnimationContainer?.remove();
+
+      updateProperty(containerClass, null);
 
       this.#mutationObserver?.disconnect();
       this.#resizeObserver?.disconnect();
@@ -182,10 +171,25 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     this.container &&= undefined;
 
-    super.container = container;
+    super.container = document.createElement("div");
 
-    container.classList.add("ai-flow", this.className);
-    container.text = this;
+    this.maskContainer = maskContainer;
+    this.maskContainer.parentElement?.insertBefore(
+      this.container,
+      this.maskContainer
+    );
+    this.maskContainer.classList.add(this.className);
+
+    this.customAnimationContainer = document.createElement("div");
+    this.customAnimationContainer.classList.add(
+      `${this.options.classNamePrefix}-custom-${this.id}`
+    );
+
+    this.container.append(this.maskContainer);
+    this.container.classList.add(containerClass);
+    this.container.text = this;
+
+    updateProperty(containerClass, "position", "relative");
 
     this.canvas = undefined;
 
@@ -194,12 +198,12 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       this.canvas.style.position = "absolute";
       this.canvas.style.pointerEvents = "none";
       this.canvas.style.top = "0";
-      this.canvas.style.left = "0";
+      this.canvas.style.left = "50%";
+      this.canvas.style.transform = "translateX(-50%)";
 
-      container.prepend(this.canvas);
+      this.container.append(this.canvas);
 
       updateProperty(this.className, "mask-image", null);
-      updateProperty(this.className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
       this.canvas = document.createElement("canvas");
       updateProperty(this.className, "will-change", "mask-image");
@@ -221,6 +225,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         `-webkit-canvas(${this.className})`
       );
     }
+
+    this.container.append(this.customAnimationContainer);
 
     this.canvasContext = this.canvas?.getContext("2d", {
       willReadFrequently: !this.visualDebug,
@@ -245,13 +251,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     let mutationScanner: number | undefined;
 
     this.#mutationObserver = new MutationObserver((entries) => {
-      if (this.#ignoreNextMutation) {
-        this.#ignoreNextMutation = false;
-        return;
-      }
-
-      entries = entries.filter((entry) => entry.target !== this.canvas);
-
       mutations.push(...entries);
 
       if (!mutations.length) {
@@ -274,9 +273,9 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       });
     });
 
-    this.#resizeObserver.observe(container);
+    this.#resizeObserver.observe(this.maskContainer);
 
-    this.#mutationObserver.observe(container, {
+    this.#mutationObserver.observe(this.maskContainer, {
       childList: true,
       subtree: true,
       attributes: true,
@@ -375,7 +374,10 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
   toJSON() {
     return {
       ...super.toJSON(),
-      canvasWidth: this.canvasWidth,
+      canvasRect: {
+        width: this.canvasRect.width,
+        height: this.canvasRect.height,
+      },
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
@@ -468,8 +470,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       ),
     ];
 
-    // console.group("diff");
-
     diffs.forEach(([action, items], i) => {
       const isLastDiff = i === diffs.length - 1;
 
@@ -486,19 +486,10 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       }
 
       if (action === -1) {
-        for (const element of items as StaggerElement[]) {
-          console.error("remove", [element.innerText]);
-        }
         return;
       }
 
       const splits = items as ParsedTextSplit[];
-
-      console.warn(
-        "add",
-        Date.now(),
-        splits.map((split) => split.text)
-      );
 
       for (const text of this.stagger.texts) {
         if (!text.trailingSplit || text === this) {
@@ -524,8 +515,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         new StaggerElement(this, trimChildNodes(split.start, split.end), split);
       });
     });
-
-    // console.groupEnd();
   }
 
   scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
@@ -555,8 +544,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     if (resized) {
       if (this.canvas) {
-        this.canvas.width = this.canvasWidth;
-        this.canvas.height = this.height;
+        this.canvas.width = this.canvasRect.width;
+        this.canvas.height = this.canvasRect.height;
 
         this.lines = [];
       }
@@ -579,21 +568,10 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     this.diffElements(event, resized);
 
-    this.setAttribute("data-lines", this.lines.length);
-    this.setAttribute("data-elements", this.elements.length);
+    this.container.setAttribute("data-lines", `${this.lines.length}`);
+    this.container.setAttribute("data-elements", `${this.elements.length}`);
 
     this.stagger.requestAnimation([this]);
-  }
-
-  setAttribute(name: string, value: string | number) {
-    value = String(value);
-
-    if (value === this.container.getAttribute(name)) {
-      return;
-    }
-
-    this.#ignoreNextMutation = true;
-    this.container.setAttribute(name, value);
   }
 
   #pixelCache = new Map<string, number>();

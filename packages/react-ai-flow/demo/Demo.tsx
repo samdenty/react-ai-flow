@@ -88,6 +88,32 @@ function Messages({ speed }: { speed: number }) {
   );
 }
 
+function Message({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
+      <StaggeredText
+        splitter="word"
+        visualDebug
+        delayTrailing
+        duration={(element) => {
+          return (element.width / element.text.width) * 1000;
+        }}
+        // stagger={(element, prev) => {
+        //   return prev ? prev.duration * 0.1 : 0;
+        // }}
+        // delay={(item) => item.index * 1000}
+        gradientWidth={(box) => {
+          // return box.progress * box.width;
+          return "100%";
+        }}
+        animation="gradient-reveal"
+      >
+        {children}
+      </StaggeredText>
+    </div>
+  );
+}
+
 export function Demo() {
   const [speed, setSpeed] = useState(0.05);
 
@@ -106,33 +132,6 @@ export function Demo() {
       <div className="flex gap-6 w-full max-w-screen-lg">
         <Messages speed={speed} />
       </div>
-    </div>
-  );
-}
-
-function Message({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
-      <StaggeredText
-        splitter="line"
-        visualDebug
-        delayTrailing
-        duration={(element) => {
-          return (element.width / element.text.width) * 1000;
-        }}
-        // stagger={(element, prev) => {
-        //   return prev.duration * 0.4;
-        // }}
-        // delay={(item) => item.index * 1000}
-        gradientWidth={(box) => {
-          // console.log(box.options);
-          // return box.progress * box.width;
-          return "100%";
-        }}
-        animation="gradient-reveal"
-      >
-        {children}
-      </StaggeredText>
     </div>
   );
 }

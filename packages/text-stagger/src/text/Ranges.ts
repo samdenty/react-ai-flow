@@ -62,6 +62,10 @@ export class Box<
       height: this.height,
     };
   }
+
+  dispose() {
+    // noop
+  }
 }
 
 export type SerializedBox = ReturnType<Box["toJSON"]>;
@@ -127,6 +131,7 @@ export abstract class Ranges<
 
     this.updateBounds(rects);
 
+    this.#boxes.forEach((box) => box.dispose());
     this.#boxes = this.scanBoxes(rects);
   }
 
@@ -141,8 +146,8 @@ export abstract class Ranges<
           this.text.updateBounds();
 
           rect = new DOMRect(
-            rect.left - this.text.left,
-            rect.top - this.text.top,
+            rect.left - this.text.canvasRect.left,
+            rect.top - this.text.canvasRect.top,
             rect.width,
             rect.height
           );

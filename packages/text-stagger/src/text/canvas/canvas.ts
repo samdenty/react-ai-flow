@@ -19,13 +19,13 @@ export function doPaint(
     ? `rgba(0, 0, 255, 0.4)`
     : `rgba(0, 0, 0, 1)`;
 
-  ctx.clearRect(0, 0, text.canvasWidth, text.height);
+  ctx.clearRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 
   const boxes = text.elements.flatMap((element) => {
     const { animation } = element;
 
     return element.boxes.map((box) => {
-      const { left, top, width, height, progress, gradientWidth } = box;
+      const { left, top, width, height, timing, gradientWidth } = box;
       const isLast = element.isLast && box.isLast;
 
       return {
@@ -34,7 +34,7 @@ export function doPaint(
         top,
         width,
         height,
-        progress,
+        timing,
         gradientWidth,
         isLast,
       };
@@ -43,39 +43,34 @@ export function doPaint(
 
   ctx.fillStyle = surroundingFill;
 
-  for (const {
-    left,
-    width,
-    top,
-    height,
-    progress,
-    isLast,
-    animation,
-  } of boxes) {
+  for (const { left, width, top, height, timing, isLast, animation } of boxes) {
     ctx.globalAlpha =
-      animation === "fade-in" ? progress : Math.min(1, progress / 0.4);
+      animation === "fade-in" ? timing : Math.min(1, timing / 0.4);
 
     // Fill everything to the left of the box
     ctx.fillRect(0, top, left, height);
 
     // Fill everything above the boxs
-    ctx.fillRect(0, 0, text.canvasWidth, top);
+    ctx.fillRect(0, 0, text.canvasRect.width, top);
 
     if (isLast && !text.streaming) {
       ctx.globalAlpha =
-        animation === "fade-in"
-          ? progress
-          : Math.max(0, (progress - 0.6) / 0.4);
+        animation === "fade-in" ? timing : Math.max(0, (timing - 0.6) / 0.4);
 
       // Fill everything to the right of the box
-      ctx.fillRect(left + width, top, text.canvasWidth - left - width, height);
+      ctx.fillRect(
+        left + width,
+        top,
+        text.canvasRect.width - left - width,
+        height
+      );
 
       // Fill everything below the box
       ctx.fillRect(
         0,
         top + height,
-        text.canvasWidth,
-        text.height - top - height
+        text.canvasRect.width,
+        text.canvasRect.height - top - height
       );
     }
   }
@@ -91,14 +86,14 @@ export function doPaint(
     top,
     width,
     height,
-    progress,
+    timing,
     gradientWidth,
   } of boxes) {
     ctx.fillStyle = fill;
     ctx.clearRect(left, top, width, height);
 
-    if (animation === "fade-in") {
-      ctx.globalAlpha = progress;
+    if (animation === "fade-in" || timing === 1) {
+      ctx.globalAlpha = timing;
       ctx.fillRect(left, top, width, height);
     } else if (
       (animation === "gradient-reveal" ||
@@ -107,7 +102,7 @@ export function doPaint(
         animation === "gradient-up") &&
       width > 0 &&
       height > 0 &&
-      progress > 0
+      timing > 0
     ) {
       ctx.globalAlpha = 1;
 
@@ -126,11 +121,11 @@ export function doPaint(
 
       const startGradientPercent = Math.max(
         0,
-        progress - relativeGradientPercent / 2
+        timing - relativeGradientPercent / 2
       );
       const endGradientPercent = Math.min(
         1,
-        progress + relativeGradientPercent / 2
+        timing + relativeGradientPercent / 2
       );
 
       const [start, end] = isReverse
@@ -154,8 +149,8 @@ export function doPaint(
 
   // Final pass: Draw debug rectangles on top
   if (text.visualDebug) {
-    for (const { left, top, width, height, progress } of boxes) {
-      ctx.globalAlpha = progress === 1 ? 1 : 0.5;
+    for (const { left, top, width, height, timing } of boxes) {
+      ctx.globalAlpha = timing === 1 ? 1 : 0.5;
       ctx.strokeStyle = "red";
       ctx.strokeRect(left, top, width, height);
     }

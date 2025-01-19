@@ -557,8 +557,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         this.canvasContext = document.getCSSCanvasContext?.(
           "2d",
           this.className,
-          this.width,
-          this.height
+          this.canvasRect.width,
+          this.canvasRect.height
         );
       }
     }

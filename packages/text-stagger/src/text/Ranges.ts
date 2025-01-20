@@ -139,11 +139,19 @@ export abstract class Ranges<
     return this.#childNodes;
   }
 
-  updateBounds(rects = this.scanRects()) {
+  updateBounds(rects?: DOMRect[][]) {
+    let scanned = false;
+    if (!rects) {
+      rects = this.scanRects();
+      scanned = true;
+    }
+
     const bounds = rects.flat().reduce(
       (bounds, rect, i) => {
         if ((this as any) !== this.text) {
-          this.text.updateBounds();
+          if (scanned) {
+            this.text.updateBounds();
+          }
 
           rect = new DOMRect(
             rect.left - this.text.canvasRect.left,

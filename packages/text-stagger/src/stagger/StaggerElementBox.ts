@@ -1,7 +1,6 @@
 import { Box, Ranges, TextLine, type SplitterImpl } from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
-import { updateProperty } from "../text/styles/properties.js";
 import {
   ElementAnimation,
   ElementAnimationTiming,
@@ -24,7 +23,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   id = ++ID;
   className: string;
 
-  customAnimationElement?: HTMLElement;
+  customAnimationElement?: HTMLElement & { initialStyle?: string };
 
   constructor(
     parent: StaggerElement,
@@ -107,7 +106,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
     this.#progress = progress;
 
-    this.text.container.setAttribute(
+    this.text.setAttribute(
       "data-progress",
       `${Math.round(this.text.progress * 100)}`
     );
@@ -129,18 +128,21 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     if (!this.customAnimationElement) {
       this.customAnimationElement = document.createElement("div");
       this.customAnimationElement.className = this.className;
-      updateProperty(
-        this.customAnimationElement.className,
-        "pointer-events",
-        "none"
-      );
 
       this.text.customAnimationContainer?.append(this.customAnimationElement);
+
+      cloneRangeWithStyles(this.range, this.customAnimationElement);
+
+      this.customAnimationElement.style.pointerEvents = "none";
+
+      this.customAnimationElement.initialStyle =
+        this.customAnimationElement.getAttribute("style")!;
     }
 
-    this.customAnimationElement.textContent = "";
-
-    cloneRangeWithStyles(this.range, this.customAnimationElement);
+    this.customAnimationElement.setAttribute(
+      "style",
+      this.customAnimationElement.initialStyle!
+    );
 
     this.customAnimationElement.style.lineHeight = `${this.height}px`;
     this.customAnimationElement.style.height = `${this.height}px`;

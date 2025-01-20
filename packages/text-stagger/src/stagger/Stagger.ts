@@ -23,7 +23,7 @@ export class Stagger {
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
-  #texts = new Map<number, { text: Text; dispose: VoidFunction }>();
+  #texts = new Map<number, Text>();
   #recreationProgresses = new Map<number, number>();
 
   batchId = 0;
@@ -31,10 +31,8 @@ export class Stagger {
   constructor(options?: StaggerOptions) {
     this.options = options;
 
-    if (import.meta?.env?.DEV) {
-      globalThis.staggers ??= [];
-      globalThis.staggers.push(this);
-    }
+    globalThis.staggers ??= [];
+    globalThis.staggers.push(this);
   }
 
   dispose() {
@@ -42,7 +40,7 @@ export class Stagger {
       text.dispose();
     }
 
-    if (import.meta?.env?.DEV && globalThis.staggers) {
+    if (globalThis.staggers) {
       const index = globalThis.staggers.indexOf(this);
       if (index !== -1) {
         globalThis.staggers?.splice(index, 1);
@@ -84,13 +82,19 @@ export class Stagger {
   }
 
   get texts() {
-    return [...this.#texts.values()].map(({ text }) => text);
+    return [...this.#texts.values()].sort((a, b) => {
+      // First sort by top position
+      if (a.top !== b.top) {
+        return a.top - b.top;
+      }
+
+      // If top positions are equal, sort by left position
+      return a.left - b.left;
+    });
   }
 
   get elements() {
     const elements = this.texts.flatMap((text) => {
-      text.updateBounds();
-
       return text.elements.map((element) => ({
         element,
         top: text.top + element.top,
@@ -119,8 +123,11 @@ export class Stagger {
   }
 
   paint(texts = this.texts) {
-    const elements = [...this.elements];
+    for (const text of this.texts) {
+      text.updateBounds();
+    }
 
+    const elements = [...this.elements];
     const now = Date.now();
 
     for (const element of elements) {
@@ -163,14 +170,13 @@ export class Stagger {
   }
 
   requestAnimation(texts = this.texts) {
-    this.cancelPaint();
-
     for (const text of texts) {
       this.#paintQueue.add(text);
     }
 
-    this.#painter = requestAnimationFrame(() => {
+    this.#painter ??= requestAnimationFrame(() => {
       this.batchId++;
+      this.#painter = undefined;
 
       if (this.paint([])) {
         this.requestAnimation([]);
@@ -224,13 +230,20 @@ export class Stagger {
   }
 
   getText(id: number): Text | null {
-    return this.#texts.get(id)?.text ?? null;
+    return this.#texts.get(id) ?? null;
   }
 
   disposeText(id: number) {
-    const { dispose } = this.#texts.get(id) || {};
+    const text = this.#texts.get(id);
+    if (!text) {
+      return;
+    }
 
-    dispose?.();
+    text.dispose();
+
+    this.#recreationProgresses.set(id, text.progress);
+    this.#texts.delete(id);
+    this.#textsListeners.forEach((listener) => listener());
   }
 
   scanText({ id, ...props }: { id?: number } & (ScanEvent | {}) = {}) {
@@ -266,17 +279,10 @@ export class Stagger {
       text.progress = recreatedProgress;
     }
 
-    const dispose = () => {
-      text.dispose();
-      this.#recreationProgresses.set(id, text.progress);
-      this.#texts.delete(id);
-      this.#textsListeners.forEach((listener) => listener());
-    };
-
-    this.#texts.set(id, { text, dispose });
+    this.#texts.set(id, text);
     this.#textsListeners.forEach((listener) => listener());
 
-    return dispose;
+    return () => this.disposeText(id);
   }
 }
 

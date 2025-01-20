@@ -83,13 +83,13 @@ export type CustomAnimationDuration = (element: StaggerElement) => number;
 export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   id = ++ID;
 
-  startTime: number;
-  duration: number;
+  startTime!: number;
+  duration!: number;
   #delay: number | null = null;
   staggerDelay: number | null = null;
 
-  batchId: number;
-  index: number;
+  batchId!: number;
+  index!: number;
 
   override options: ElementOptions & ParsedTextOptions;
 
@@ -102,15 +102,27 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     super(text, parsedOptions, text.container);
     this.options = parsedOptions;
 
+    this.childNodes = childNodes;
+    text.elements.push(this);
+
+    this.restartAnimation();
+  }
+
+  restartAnimation() {
     const now = Date.now();
 
+    this.progress = 0;
     this.batchId = this.stagger.batchId;
 
-    const latestElementInBatch = this.stagger.elements.findLast(
+    const elements = this.stagger.elements;
+    const currentIndex = elements.indexOf(this);
+    const previousElements = elements.slice(0, currentIndex);
+
+    const latestElementInBatch = previousElements.findLast(
       (el) => el.batchId === this.batchId
     );
 
-    const lastActiveElement = this.stagger.elements.findLast((element) => {
+    const lastActiveElement = previousElements.findLast((element) => {
       const elapsedTime = now - element.startTime - element.delay;
       return elapsedTime < element.duration;
     });
@@ -124,9 +136,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       this.index = lastActiveElement ? 1 : 0;
     }
 
-    text.elements.push(this);
-
-    this.childNodes = childNodes;
     this.duration = this.calculateDuration();
 
     if (typeof this.options.delay === "number") {

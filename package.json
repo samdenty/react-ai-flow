@@ -15,7 +15,7 @@
     "dev": "pnpm --filter react-ai-flow run dev",
     "prepublishOnly": "pnpm build"
   },
-  "dependencies": {
+  "devDependencies": {
     "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.3",
     "@vitejs/plugin-react": "^4.3.1",

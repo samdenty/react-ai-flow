@@ -3,7 +3,7 @@ import { doPaint } from "./canvas.js";
 
 export let paintWorkletRegistered!: Promise<void>;
 
-if (CSS.paintWorklet) {
+if (globalThis.CSS?.paintWorklet) {
   try {
     const workletBlob = new Blob([`(${paintWorklet})(${doPaint});`], {
       type: "text/javascript",
@@ -11,7 +11,7 @@ if (CSS.paintWorklet) {
 
     const workletUrl = URL.createObjectURL(workletBlob);
 
-    paintWorkletRegistered = CSS.paintWorklet
+    paintWorkletRegistered = globalThis.CSS.paintWorklet
       .addModule(workletUrl)
       .then(() => URL.revokeObjectURL(workletUrl));
   } catch (error) {

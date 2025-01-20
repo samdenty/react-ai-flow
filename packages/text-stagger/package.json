@@ -1,6 +1,6 @@
 {
   "name": "text-stagger",
-  "version": "0.0.10",
+  "version": "0.0.13",
   "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
   "main": "dist/index.js",

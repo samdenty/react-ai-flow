@@ -162,11 +162,11 @@ function getCanvasRenderingMode(): CanvasMaskRenderMode {
     return CanvasMaskRenderMode.PaintWorklet;
   }
 
-  if (document.getCSSCanvasContext) {
+  if (globalThis.document?.getCSSCanvasContext) {
     return CanvasMaskRenderMode.WebkitCanvas;
   }
 
-  if (document.mozSetImageElement) {
+  if (globalThis.document?.mozSetImageElement) {
     return CanvasMaskRenderMode.MozElement;
   }
 

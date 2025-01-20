@@ -106,7 +106,7 @@ function Message({ children }: { children: React.ReactNode }) {
           // return box.progress * box.width;
           return "100%";
         }}
-        animation="gradient-reveal"
+        animation="blur-in"
       >
         {children}
       </StaggeredText>

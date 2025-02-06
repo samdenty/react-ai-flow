@@ -10,7 +10,7 @@ import {
   StaggerElementBox,
 } from "./StaggerElementBox.js";
 
-export const enum ElementAnimation {
+export enum ElementAnimation {
   FadeIn = "fade-in",
 
   GradientReveal = "gradient-reveal",
@@ -24,7 +24,7 @@ export const enum ElementAnimation {
   BounceIn = "bounce-in",
 }
 
-export const enum ElementAnimationTiming {
+export enum ElementAnimationTiming {
   Linear = "linear",
   Ease = "ease",
   EaseIn = "ease-in",
@@ -56,7 +56,7 @@ export interface ElementOptions {
   /**
    * @example
    * For 1 second:
-   * duration: (element) => element.width / element.text.width * 1000
+   * duration: (element) => element.width / element.text.root.width * 1000
    */
   duration?: number | ((element: StaggerElement) => number);
 
@@ -114,9 +114,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     this.progress = 0;
     this.batchId = this.stagger.batchId;
 
-    const elements = this.stagger.elements;
-    const currentIndex = elements.indexOf(this);
-    const previousElements = elements.slice(0, currentIndex);
+    const previousElements = this.previousElements;
 
     const latestElementInBatch = previousElements.findLast(
       (el) => el.batchId === this.batchId
@@ -167,6 +165,16 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     }
   }
 
+  get previousElements() {
+    const index = this.stagger.elements.indexOf(this);
+    return this.stagger.elements.slice(0, index);
+  }
+
+  get nextElements() {
+    const index = this.stagger.elements.indexOf(this);
+    return this.stagger.elements.slice(index + 1);
+  }
+
   private calculateDuration() {
     let duration: number | null = null;
     if (typeof this.options.duration === "number") {
@@ -175,7 +183,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       duration = this.options.duration(this);
     }
 
-    return duration ?? (this.width / this.text.width) * 500;
+    return duration ?? (this.width / this.text.root.width) * 500;
   }
 
   get delay() {
@@ -303,3 +311,36 @@ export function isGradient(
     animation === ElementAnimation.GradientDown
   );
 }
+
+const linearTiming = (progress: number): number => {
+  return progress;
+};
+
+const easeTiming = (progress: number): number => {
+  return progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+};
+
+const easeInTiming = (progress: number): number => {
+  return progress * progress * progress;
+};
+
+const easeOutTiming = (progress: number): number => {
+  return 1 - Math.pow(1 - progress, 3);
+};
+
+const easeInOutTiming = (progress: number): number => {
+  return progress < 0.5
+    ? 8 * progress * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 4) / 2;
+};
+
+// Usage with timing enum:
+export const timingFunctions = {
+  [ElementAnimationTiming.Linear]: linearTiming,
+  [ElementAnimationTiming.Ease]: easeTiming,
+  [ElementAnimationTiming.EaseIn]: easeInTiming,
+  [ElementAnimationTiming.EaseOut]: easeOutTiming,
+  [ElementAnimationTiming.EaseInOut]: easeInOutTiming,
+};

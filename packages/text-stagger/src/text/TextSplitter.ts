@@ -56,7 +56,7 @@ export type CustomTextSplitter<T extends ElementOptions> = (context: {
   ): ParsedTextSplit[];
 }) => TextSplitter<T> | TextSplitElement[];
 
-export const enum TextSplit {
+export enum TextSplit {
   Character = "character",
   Word = "word",
   Line = "line",

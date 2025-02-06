@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   createContext,
   useContext,
   useState,
@@ -16,28 +15,13 @@ export interface StaggeredTextProps extends TextOptions {
 
 export const StaggeredTextContext = createContext<number | null>(null);
 
-let ID = 0;
-
 export function StaggeredText(props: StaggeredTextProps) {
   const { children, ...restProps } = props;
-  const id = useMemo(() => ID++, []);
-
-  let parentText: number | null = null;
-  try {
-    parentText = useContext(StaggeredTextContext);
-  } catch (e) {
-    // ignore
-  }
-
-  const { ref, options } = useTextStagger(restProps);
+  const { id, ref, options } = useTextStagger(restProps);
 
   return (
     <StaggeredTextContext.Provider value={id}>
-      {parentText || options.disabled ? (
-        children
-      ) : (
-        <div ref={ref}>{children}</div>
-      )}
+      {options.disabled ? children : <span ref={ref}>{children}</span>}
     </StaggeredTextContext.Provider>
   );
 }

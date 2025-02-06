@@ -1,3 +1,4 @@
+import type { ElementAnimation } from "../../stagger/StaggerElement.js";
 import { type SerializedText } from "../Text.js";
 import { paintWorkletRegistered } from "./paint-worklet.js";
 
@@ -25,13 +26,16 @@ export function doPaint(
     const { animation } = element;
 
     return element.boxes.map((box) => {
-      const { left, top, width, height, timing, gradientWidth } = box;
+      const { left, top, bottom, right, width, height, timing, gradientWidth } =
+        box;
       const isLast = element.isLast && box.isLast;
 
       return {
         animation,
         left,
         top,
+        bottom,
+        right,
         width,
         height,
         timing,
@@ -39,6 +43,43 @@ export function doPaint(
         isLast,
       };
     });
+  });
+
+  boxes.push(
+    ...text.subtext.map((subtext): (typeof boxes)[0] => ({
+      ...subtext,
+      right: subtext.right,
+      bottom: subtext.bottom,
+      animation: "fade-in" as ElementAnimation,
+      isLast: false,
+      gradientWidth: 0,
+      timing: subtext.progress,
+    }))
+  );
+
+  boxes.sort((a, b) => {
+    // Changed overlap check to not count touching as overlap
+    const verticalOverlap = !(a.bottom <= b.top || b.bottom <= a.top);
+
+    if (verticalOverlap) {
+      const aContainsB = a.left <= b.left && a.right >= b.right;
+      const bContainsA = b.left <= a.left && b.right >= a.right;
+
+      if (aContainsB) return -1;
+      if (bContainsA) return 1;
+
+      if (a.left !== b.left) {
+        return a.left - b.left;
+      }
+    }
+
+    // Sort by top position for non-overlapping or same-left overlapping elements
+    if (a.top !== b.top) {
+      return a.top - b.top;
+    }
+
+    // If same top, sort by left
+    return a.left - b.left;
   });
 
   ctx.fillStyle = surroundingFill;

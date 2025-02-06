@@ -42,6 +42,7 @@ export interface ParsedTextOptions
   extends SplitterImpl<TextSplitterOptions>,
     StaggerElementBoxOptions {
   visualDebug: boolean;
+  maxFps: number | null | ((text: Text) => boolean | number | null);
   disabled: boolean;
   classNamePrefix: string;
   delayTrailing: boolean;
@@ -55,6 +56,13 @@ export interface TextOptions extends TextSplitterOptions {
    * @default false
    */
   visualDebug?: boolean;
+
+  /**
+   * Lock the animation to a maximum FPS.
+   *
+   * @default null for no limit
+   */
+  maxFps?: number | null | ((text: Text) => boolean | number | null);
 
   /**
    * Disable the text from being animated
@@ -78,8 +86,10 @@ export interface TextOptions extends TextSplitterOptions {
   delayTrailing?: boolean;
 }
 
-export class Text extends Ranges<StaggerElementBox, Stagger> {
+export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
   #mutationCache = new WeakMap<Node, number>();
+  #ignoredNodes = new WeakSet<Node>();
+  #maxFps?: number;
 
   lines: TextLine[] = [];
   elements: StaggerElement[] = [];
@@ -95,11 +105,34 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     canvasHeight: number;
   };
   customAnimationClassName: string;
-  customAnimationContainer?: HTMLElement;
+  customAnimationContainer: HTMLElement;
+  lastPaint?: number;
 
   text = this;
 
   readonly className: string;
+
+  createIgnoredElement(element: HTMLElement): void;
+  createIgnoredElement<K extends keyof HTMLElementTagNameMap>(
+    element: K
+  ): HTMLElementTagNameMap[K];
+  createIgnoredElement(element: HTMLElement | keyof HTMLElementTagNameMap) {
+    if (typeof element === "string") {
+      element = document.createElement(element);
+    }
+
+    this.#ignoredNodes.add(element);
+
+    return element;
+  }
+
+  get root(): Text {
+    if (this.parent instanceof Text) {
+      return this.parent.root;
+    }
+
+    return this;
+  }
 
   scanRects() {
     let rect = this.container.getBoundingClientRect();
@@ -127,31 +160,100 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       rect.height
     );
 
-    if (this.customAnimationContainer) {
-      let { top, left } = this.customAnimationContainer.getBoundingClientRect();
+    updateProperty(
+      this.customAnimationClassName,
+      "height",
+      `${rectWithoutPadding.height}px`
+    );
 
-      if (top !== rectWithoutPadding.top || left !== rectWithoutPadding.left) {
-        const styles = getComputedStyle(this.customAnimationContainer);
-
-        const offsetTop =
-          Math.abs(parseFloat(styles.marginTop) || 0) +
-          (top - rectWithoutPadding.top);
-
-        const offsetLeft =
-          Math.abs(parseFloat(styles.marginLeft) || 0) +
-          (left - rectWithoutPadding.left);
-
-        updateProperty(
-          this.customAnimationClassName,
-          "margin",
-          `-${offsetTop}px 0 0 -${offsetLeft}px`
-        );
-      }
-    }
+    updateProperty(
+      this.customAnimationClassName,
+      "width",
+      `${rectWithoutPadding.width}px`
+    );
 
     this.canvasRect = rect;
 
     return [[rectWithoutPadding]];
+  }
+
+  updateBounds(rects?: DOMRect[][]) {
+    super.updateBounds(rects);
+
+    this.updateCustomAnimationPosition();
+  }
+
+  insertCustomAnimationContainer() {
+    if (this.text.customAnimationContainer.parentElement) {
+      return;
+    }
+
+    this.text.container.insertAdjacentElement(
+      "afterend",
+      this.text.customAnimationContainer
+    );
+
+    this.updateCustomAnimationPosition(true);
+  }
+
+  get shouldSkipFrame() {
+    const now = Date.now();
+    const ms = 1000 / this.maxFps;
+
+    return (
+      this.stagger.lastPaint &&
+      this.lastPaint &&
+      (now - this.stagger.lastPaint < ms || now - this.lastPaint < ms)
+    );
+  }
+
+  get maxFps() {
+    if (this.#maxFps != null) {
+      return this.#maxFps;
+    }
+
+    requestAnimationFrame(() => {
+      this.#maxFps = undefined;
+    });
+
+    const maxFps = this.options.maxFps ?? Infinity;
+
+    if (typeof maxFps === "number") {
+      return (this.#maxFps = maxFps);
+    }
+
+    const result = maxFps(this);
+
+    if (typeof result === "number") {
+      return (this.#maxFps = result);
+    }
+
+    if (result === false) {
+      return (this.#maxFps = 0);
+    }
+
+    return (this.#maxFps = Infinity);
+  }
+
+  private updateCustomAnimationPosition(force?: boolean) {
+    if (!force && !this.customAnimationContainer.childNodes.length) {
+      return;
+    }
+
+    let { top, left } = this.customAnimationContainer.getBoundingClientRect();
+
+    if (top === this.top && left === this.left) {
+      return;
+    }
+
+    const offsetTop = top - this.top;
+    const offsetLeft = left - this.left;
+
+    updateProperty(
+      this.customAnimationClassName,
+      "margin",
+      `${-offsetTop}px 0px 0px ${-offsetLeft}px`
+    );
   }
 
   scanBoxes() {
@@ -205,7 +307,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     if (!container) {
       this.canvas?.remove();
-      this.customAnimationContainer?.remove();
+      this.customAnimationContainer.remove();
       delete this.container.text;
 
       this.#mutationObserver?.disconnect();
@@ -218,23 +320,21 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     super.container = container;
 
+    this.container.text = this;
     this.container.classList.add("ai-flow", this.className);
 
-    this.customAnimationContainer = document.createElement("div");
-    this.customAnimationContainer.className = this.customAnimationClassName;
+    updateProperty(this.customAnimationClassName, "position", "absolute");
 
-    updateProperty(this.customAnimationClassName, "position", "relative");
-    updateProperty(this.customAnimationClassName, "pointer-events", "none");
-
-    this.container.insertAdjacentElement(
-      "afterend",
-      this.customAnimationContainer
-    );
+    if (!this.visualDebug) {
+      updateProperty(this.customAnimationClassName, "pointer-events", "none");
+    }
 
     this.canvas = undefined;
 
+    updateProperty(this.className, "position", "relative");
+
     if (this.visualDebug) {
-      this.canvas = document.createElement("canvas");
+      this.canvas = this.createIgnoredElement("canvas");
       this.canvas.style.position = "absolute";
       this.canvas.style.pointerEvents = "none";
       this.canvas.style.top = "0";
@@ -244,12 +344,11 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       this.container.prepend(this.canvas);
 
       updateProperty(this.className, "mask-image", null);
-      updateProperty(this.className, "position", "relative");
     } else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
-      this.canvas = document.createElement("canvas");
+      this.canvas = this.createIgnoredElement("canvas");
       updateProperty(this.className, "will-change", "mask-image");
     } else if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
-      this.canvas = document.createElement("canvas");
+      this.canvas = this.createIgnoredElement("canvas");
       this.canvas.style.display = "none";
       this.canvas.id = this.className;
       document.head.prepend(this.canvas);
@@ -281,8 +380,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         this.scanElementLines({ reason: ScanReason.Resize, entries });
       }
 
-      this.paint();
-
       mounted = true;
     });
 
@@ -295,26 +392,40 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         return;
       }
 
-      entries = entries.filter((entry) => entry.target !== this.canvas);
-      mutations.push(...entries);
+      const mutated = mutations.some((mutation) => {
+        let currentElement: Node | null = mutation.target;
 
-      if (!mutations.length) {
+        while (currentElement) {
+          if (this.#ignoredNodes.has(currentElement)) {
+            return false;
+          }
+
+          currentElement = currentElement.parentElement;
+        }
+
+        if (!mutation.addedNodes.length) {
+          return true;
+        }
+
+        return [...mutation.addedNodes].some(
+          (node) => !this.#ignoredNodes.has(node)
+        );
+      });
+
+      if (!mutated) {
         return;
       }
 
-      if (mutationScanner) {
-        cancelAnimationFrame(mutationScanner);
-      }
+      mutations.push(...entries);
 
-      mutationScanner = requestAnimationFrame(() => {
+      mutationScanner ??= requestAnimationFrame(() => {
         this.scanElementLines({
           reason: ScanReason.Mutation,
           entries: mutations,
         });
 
         mutations = [];
-
-        this.paint();
+        mutationScanner = undefined;
       });
     });
 
@@ -335,29 +446,34 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     const trimChildNodes = this.createChildNodeTrimmer();
 
-    new StaggerElement(
-      this,
-      trimChildNodes(this.trailingSplit.start, this.trailingSplit.end),
-      this.trailingSplit
+    const childNodes = trimChildNodes(
+      this.trailingSplit.start,
+      this.trailingSplit.end
     );
+
+    // childNodes can be empty if a mutation has occurred in meantime
+    if (childNodes.length) {
+      new StaggerElement(this, childNodes, this.trailingSplit);
+    }
 
     this.trailingSplit = null;
   }
 
   constructor(
-    stagger: Stagger,
+    parent: Stagger | Text,
     public id: number,
     element: HTMLElement,
     public options: ParsedTextOptions
   ) {
-    super(stagger, options, undefined!);
+    super(parent, options, undefined!);
 
     this.className = `${this.options.classNamePrefix}-${id}`;
+
     this.customAnimationClassName = `${this.options.classNamePrefix}-custom-${this.id}`;
+    this.customAnimationContainer = this.createIgnoredElement("div");
+    this.customAnimationContainer.className = this.customAnimationClassName;
 
     this.container = element;
-
-    updateProperty(this.className, "display", "block");
 
     // hide until first render, but don't set to zero otherwise it
     // won't be scanned by the layout engine
@@ -374,9 +490,14 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
   dispose() {
     this.container = undefined;
+    updateProperty(this.className, null);
+    updateProperty(this.customAnimationClassName, null);
   }
 
   paint() {
+    this.lastPaint = Date.now();
+    this.stagger.lastPaint = this.lastPaint;
+
     if (
       !this.visualDebug &&
       maskRenderMode === CanvasMaskRenderMode.PaintWorklet
@@ -407,6 +528,10 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     updateProperty(this.className, "opacity", null);
   }
 
+  get subtext() {
+    return this.stagger.texts.filter((text) => text.parent === this);
+  }
+
   toJSON() {
     return {
       ...super.toJSON(),
@@ -414,6 +539,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         width: this.canvasRect.width,
         height: this.canvasRect.height,
       },
+      subtext: this.subtext,
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
@@ -515,15 +641,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
       const splits = items as ParsedTextSplit[];
 
-      const index = this.stagger.texts.indexOf(this);
-      const beforeTexts = this.stagger.texts.slice(0, index);
-      const afterTexts = this.stagger.texts.slice(index + 1);
-
-      for (const text of beforeTexts) {
-        if (!text.trailingSplit) {
-          continue;
-        }
-
+      for (const text of this.previousTexts) {
         text.revealTrailing();
       }
 
@@ -545,12 +663,22 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         new StaggerElement(this, trimChildNodes(split.start, split.end), split);
       });
 
-      for (const text of afterTexts) {
+      for (const text of this.nextTexts) {
         for (const element of text.elements) {
           element.restartAnimation();
         }
       }
     });
+  }
+
+  get previousTexts() {
+    const index = this.stagger.texts.indexOf(this);
+    return this.stagger.texts.slice(0, index);
+  }
+
+  get nextTexts() {
+    const index = this.stagger.texts.indexOf(this);
+    return this.stagger.texts.slice(index + 1);
   }
 
   scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
@@ -561,6 +689,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
         this.lines = [];
       } else {
         this.lines = this.lines.slice(0, impacts.firstAffectedLine);
+        // todo handle subtext
       }
     }
 
@@ -601,16 +730,21 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
       oldDimensions?.width !== this.width ||
       oldDimensions.height !== this.height;
 
-    if (resized) {
+    if (resized || (event.reason === ScanReason.Force && event.reset)) {
       this.lines = [];
 
-      updateProperty(this.customAnimationClassName, "width", `${this.width}px`);
-      updateProperty(
-        this.customAnimationClassName,
-        "height",
-        `${this.height}px`
-      );
+      for (const text of this.nextTexts) {
+        text.updateBounds();
+      }
     }
+
+    updateProperty(
+      this.className,
+      "display",
+      hasBlockElement(this.container, this.#ignoredNodes)
+        ? "block"
+        : "inline-block"
+    );
 
     this.lines = TextLine.scanLines(this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
@@ -619,6 +753,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
 
     this.setAttribute("data-lines", `${this.lines.length}`);
     this.setAttribute("data-elements", `${this.elements.length}`);
+
+    this.paint();
 
     this.stagger.requestAnimation([this]);
   }
@@ -647,11 +783,11 @@ export class Text extends Ranges<StaggerElementBox, Stagger> {
     const key = `${height}:${width}:${cssLiteral}`;
 
     if (!this.#pixelCache.has(key)) {
-      const container = document.createElement("div");
+      const container = this.createIgnoredElement("div");
       container.style.height = `${height}px`;
       container.style.width = `${width}px`;
 
-      const target = document.createElement("div");
+      const target = this.createIgnoredElement("div");
       target.style.width = cssLiteral;
       container.appendChild(target);
       this.container.appendChild(container);
@@ -765,8 +901,12 @@ export type SerializedText = ReturnType<Text["toJSON"]>;
 
 function getAvailableSpace(element: HTMLElement, elementRect: DOMRect) {
   // Initialize variables to store the nearest overflow container's bounds
-  let nearestOverflowContainer = null;
-  let overflowContainerRect = null;
+  let overflowContainer: HTMLElement | null = null;
+  let overflowContainerRect: {
+    left: number;
+    right: number;
+    width: number;
+  } | null = null;
 
   // Start from the parent and traverse up the DOM tree
   let currentElement = element.parentElement;
@@ -775,8 +915,12 @@ function getAvailableSpace(element: HTMLElement, elementRect: DOMRect) {
     const style = getComputedStyle(currentElement);
     const overflowX = style.overflowX;
 
-    if (overflowX === "hidden" || overflowX === "scroll") {
-      nearestOverflowContainer = currentElement;
+    if (
+      overflowX === "hidden" ||
+      overflowX === "scroll" ||
+      overflowX === "auto"
+    ) {
+      overflowContainer = currentElement;
       overflowContainerRect = currentElement.getBoundingClientRect();
       break;
     }
@@ -793,13 +937,53 @@ function getAvailableSpace(element: HTMLElement, elementRect: DOMRect) {
     };
   }
 
+  overflowContainer ||= document.body;
+
+  const styles = getComputedStyle(overflowContainer);
+
+  const paddingLeft = parseFloat(styles.paddingLeft) || 0;
+  const paddingRight = parseFloat(styles.paddingRight) || 0;
+
   // Calculate available space
-  const spaceToLeft = elementRect.left - overflowContainerRect.left;
-  const spaceToRight = overflowContainerRect.right - elementRect.right;
+  const left = Math.max(
+    0,
+    elementRect.left - overflowContainerRect.left - paddingLeft
+  );
+
+  const right = Math.max(
+    0,
+    overflowContainerRect.right - elementRect.right - paddingRight
+  );
 
   return {
-    left: Math.max(0, spaceToLeft),
-    right: Math.max(0, spaceToRight),
-    overflowContainer: nearestOverflowContainer || document.body,
+    left,
+    right,
+    overflowContainer,
   };
+}
+
+function hasBlockElement(element: Element, ignored: WeakSet<Node>) {
+  // Get computed style for direct children
+  for (const child of element.children) {
+    if (ignored.has(child)) continue;
+
+    const display = window.getComputedStyle(child).display;
+
+    // Check if current element is block
+    if (
+      display === "block" ||
+      display === "flex" ||
+      display === "grid" ||
+      display === "list-item"
+    ) {
+      return true;
+    }
+
+    // Recursively check children
+    if (hasBlockElement(child, ignored)) {
+      return true;
+    }
+  }
+
+  return false;
 }

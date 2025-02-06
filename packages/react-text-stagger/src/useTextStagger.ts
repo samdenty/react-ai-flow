@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type TextOptions } from "text-stagger";
 import { useResolvedOptions } from "./utils/useCachedOptions.js";
-import { useStaggerContext } from "./StaggerProvider.js";
+import { StaggerProvider, useStaggerContext } from "./StaggerProvider.js";
 import {
   useStickToBottomContext,
   type StickToBottomContext,
@@ -12,12 +12,6 @@ let ID = 0;
 export function useTextStagger(textOptions: TextOptions = {}) {
   const id = useMemo(() => ID++, []);
 
-  const options = useResolvedOptions(textOptions);
-  const stagger = useStaggerContext();
-  const elementRef = useRef<HTMLElement | null>();
-  const [initialized, setInitialized] = useState(false);
-  const [text, setText] = useState(() => stagger.getText(id));
-
   let stickToBottomContext: StickToBottomContext | null = null;
 
   try {
@@ -26,7 +20,25 @@ export function useTextStagger(textOptions: TextOptions = {}) {
     // ignore
   }
 
+  let stagger: StaggerProvider | null = null;
+  try {
+    stagger = useStaggerContext();
+  } catch {
+    // ignore
+  }
+
+  const options = useResolvedOptions(
+    stagger ? textOptions : { ...textOptions, disabled: true }
+  );
+  const elementRef = useRef<HTMLElement | null>();
+  const [initialized, setInitialized] = useState(false);
+  const [text, setText] = useState(() => stagger?.getText(id));
+
   useEffect(() => {
+    if (!stagger) {
+      return;
+    }
+
     const dispose = () => {
       for (const [stickToBottomContext, texts] of stagger.stickToBottom) {
         texts.delete(id);
@@ -53,7 +65,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   }, [stickToBottomContext]);
 
   useEffect(() => {
-    if (!elementRef.current || options.disabled) {
+    if (!stagger || !elementRef.current || options.disabled) {
       return;
     }
 
@@ -65,7 +77,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   }, [initialized, options]);
 
   const ref = useCallback((element: HTMLElement | null | undefined) => {
-    const existingText = stagger.getText(id);
+    const existingText = stagger?.getText(id);
 
     if (existingText) {
       existingText.container = element || undefined;
@@ -77,6 +89,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   }, []);
 
   return {
+    id,
     options,
     text,
     ref,

@@ -74,7 +74,7 @@ function Messages({ speed }: { speed: number }) {
   return (
     <StaggerProvider streaming>
       <div className="prose flex flex-col gap-2 w-full overflow-hidden">
-        <StickToBottom className="h-[50vh] flex flex-col" initial="instant">
+        <StickToBottom className="h-[50vh] flex flex-col" initial={false}>
           <MessagesContent
             messages={paused || messages}
             paused={!!paused}
@@ -106,7 +106,7 @@ function Message({ children }: { children: React.ReactNode }) {
           // return box.progress * box.width;
           return "100%";
         }}
-        animation="blur-in"
+        animation="gradient-reveal"
       >
         {children}
       </StaggeredText>

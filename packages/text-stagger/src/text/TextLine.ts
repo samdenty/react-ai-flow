@@ -2,6 +2,7 @@ import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
 import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
+
 export class TextLine extends Ranges<Box, Text> {
   startOfText = false;
   endOfText = false;
@@ -85,7 +86,7 @@ export class TextLine extends Ranges<Box, Text> {
       textContent: string;
     }[] = [];
 
-    const checkParents = createParentChecker();
+    const checkParents = createParentChecker(text);
 
     while (walker.nextNode()) {
       const textNode = walker.currentNode as globalThis.Text;
@@ -96,6 +97,7 @@ export class TextLine extends Ranges<Box, Text> {
       }
 
       const { isHidden, blockParent } = checkParents(textNode);
+
       if (isHidden) {
         continue;
       }
@@ -225,7 +227,7 @@ export class TextLine extends Ranges<Box, Text> {
   }
 }
 
-function createParentChecker() {
+function createParentChecker(text: Text) {
   const styleCache = new WeakMap<HTMLElement, CSSStyleDeclaration>();
   const blockParentCache = new WeakMap<Element, HTMLElement | null>();
 
@@ -241,16 +243,31 @@ function createParentChecker() {
         styleCache.set(parent, style);
       }
 
-      const hidden =
+      let hidden =
         style.display === "none" ||
         style.visibility === "hidden" ||
-        style.opacity === "0" ||
         (parent.offsetParent === null &&
           parent !== document.body &&
           parent !== document.documentElement);
 
+      hidden ||= text.previousTexts.some(
+        (text) => text.customAnimationContainer === parent
+      );
+
+      hidden ||= text.nextTexts.some((text) => text.container === parent);
+
       if (hidden) {
         return { isHidden: true, blockParent: null } as const;
+      }
+
+      const parentText = text.previousTexts.find(
+        (text) => text.container === parent
+      );
+
+      if (parentText) {
+        parentText.createIgnoredElement(text.container);
+        parentText.createIgnoredElement(text.customAnimationContainer);
+        text.parent = parentText;
       }
 
       // Check if it's a block parent (if we haven't found one yet)

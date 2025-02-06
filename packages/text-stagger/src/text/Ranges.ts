@@ -20,6 +20,38 @@ export class Box<
     this.#container = container;
   }
 
+  static comparePositions(
+    a: { top: number; bottom: number; left: number; right: number },
+    b: { top: number; bottom: number; left: number; right: number }
+  ) {
+    // Changed overlap check to not count touching as overlap
+    const verticalOverlap = !(a.bottom <= b.top || b.bottom <= a.top);
+
+    if (verticalOverlap) {
+      const aContainsB = a.left <= b.left && a.right >= b.right;
+      const bContainsA = b.left <= a.left && b.right >= a.right;
+
+      if (aContainsB) return -1;
+      if (bContainsA) return 1;
+
+      if (a.left !== b.left) {
+        return a.left - b.left;
+      }
+    }
+
+    // Sort by top position for non-overlapping or same-left overlapping elements
+    if (a.top !== b.top) {
+      return a.top - b.top;
+    }
+
+    // If same top, sort by left
+    return a.left - b.left;
+  }
+
+  comparePosition(other: Box) {
+    return Box.comparePositions(this, other);
+  }
+
   constructor(
     public parent: T,
     public options: ElementOptions,
@@ -57,7 +89,9 @@ export class Box<
   toJSON() {
     return {
       top: this.top,
+      bottom: this.bottom,
       left: this.left,
+      right: this.right,
       width: this.width,
       height: this.height,
     };
@@ -180,7 +214,17 @@ export abstract class Ranges<
       { top: 0, left: 0, bottom: 0, right: 0 }
     );
 
+    const changed =
+      bounds.top !== this.top ||
+      bounds.left !== this.left ||
+      bounds.bottom !== this.bottom ||
+      bounds.right !== this.right;
+
     Object.assign(this, bounds);
+
+    if (changed) {
+      this.stagger.invalidatePositions();
+    }
   }
 
   scanRects() {

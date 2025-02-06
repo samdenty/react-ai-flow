@@ -35,9 +35,11 @@ export function useCachedOptions({
   splitter: currentSplitter,
   delayTrailing,
   visualDebug,
+  maxFps: currentMaxFps,
   disabled,
   classNamePrefix,
 }: StaggerOptions): StaggerOptions {
+  const maxFps = useCachedFunctionLike(currentMaxFps);
   const duration = useCachedFunctionLike(currentDuration);
   const delay = useCachedFunctionLike(currentDelay);
   const stagger = useCachedFunctionLike(currentStagger);
@@ -59,6 +61,7 @@ export function useCachedOptions({
       blurAmount,
       animationTiming,
       visualDebug,
+      maxFps,
       delayTrailing,
       disabled,
       classNamePrefix,
@@ -74,6 +77,7 @@ export function useCachedOptions({
       blurAmount,
       animationTiming,
       visualDebug,
+      maxFps,
       delayTrailing,
       disabled,
       classNamePrefix,

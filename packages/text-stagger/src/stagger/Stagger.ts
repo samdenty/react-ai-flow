@@ -1,4 +1,5 @@
 import {
+  Box,
   mergeTextSplitter,
   type ParsedTextOptions,
   resolveTextSplitter,
@@ -6,6 +7,7 @@ import {
   type TextOptions,
   type TextSplitterOptions,
 } from "../text/index.js";
+import type { StaggerElement } from "./StaggerElement.js";
 
 export interface StaggerOptions extends TextOptions {}
 export interface ParsedStaggerOptions extends ParsedTextOptions {}
@@ -23,10 +25,14 @@ export class Stagger {
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
-  #texts = new Map<number, Text>();
   #recreationProgresses = new Map<number, number>();
+  #invalidatePositions = true;
+
+  #texts: Text[] = [];
+  #elements?: StaggerElement[];
 
   batchId = 0;
+  lastPaint?: number;
 
   constructor(options?: StaggerOptions) {
     this.options = options;
@@ -68,7 +74,7 @@ export class Stagger {
 
     const previousStreaming = this.#streaming;
     this.#streaming = streaming;
-    this.requestAnimation();
+    this.requestAnimation(this.texts);
 
     if (previousStreaming === true && !streaming) {
       for (const text of this.texts) {
@@ -82,37 +88,40 @@ export class Stagger {
   }
 
   get texts() {
-    return [...this.#texts.values()].sort((a, b) => {
-      // First sort by top position
-      if (a.top !== b.top) {
-        return a.top - b.top;
-      }
+    if (this.#invalidatePositions) {
+      this.#texts.sort((a, b) => a.comparePosition(b));
 
-      // If top positions are equal, sort by left position
-      return a.left - b.left;
-    });
+      this.#invalidatePositions = false;
+    }
+
+    return this.#texts;
   }
 
   get elements() {
-    const elements = this.texts.flatMap((text) => {
-      return text.elements.map((element) => ({
-        element,
-        top: text.top + element.top,
-        left: text.left + element.left,
-      }));
-    });
+    if (!this.#elements) {
+      const elements = this.texts.flatMap((text) => {
+        return text.elements.map((element) => {
+          return {
+            element,
+            top: text.top + element.boxes[0].top,
+            bottom: text.top + element.boxes[0].bottom,
+            left: text.left + element.boxes[0].left,
+            right: text.left + element.boxes[0].right,
+          };
+        });
+      });
 
-    elements.sort((a, b) => {
-      // First sort by top position
-      if (a.top !== b.top) {
-        return a.top - b.top;
-      }
+      elements.sort(Box.comparePositions);
 
-      // If top positions are equal, sort by left position
-      return a.left - b.left;
-    });
+      this.#elements = elements.map(({ element }) => element);
+    }
 
-    return elements.map(({ element }) => element);
+    return this.#elements;
+  }
+
+  invalidatePositions() {
+    this.#invalidatePositions = true;
+    this.#elements = undefined;
   }
 
   cancelPaint() {
@@ -122,23 +131,27 @@ export class Stagger {
     }
   }
 
-  paint(texts = this.texts) {
+  paint(texts: Text[] = []) {
     for (const text of this.texts) {
       text.updateBounds();
     }
 
-    const elements = [...this.elements];
     const now = Date.now();
 
-    for (const element of elements) {
+    const paintQueue = new Set([...this.#paintQueue, ...texts]);
+    this.#paintQueue.clear();
+
+    let skippedFrame = false;
+
+    for (const element of this.elements) {
       const elapsed = now - element.startTime - element.delay;
 
-      if (element.progress === 1) {
+      if (elapsed < 0 || element.progress === 1) {
         continue;
       }
 
-      if (elapsed < 0) {
-        this.#paintQueue.add(element.text);
+      if (element.text.shouldSkipFrame) {
+        skippedFrame = true;
         continue;
       }
 
@@ -146,31 +159,25 @@ export class Stagger {
       element.progress = Math.min(1, elapsed / element.duration);
 
       if (oldProgress !== element.progress) {
-        this.#paintQueue.add(element.text);
+        paintQueue.add(element.text);
       }
     }
 
-    texts.forEach((text) => this.#paintQueue.add(text));
+    if (paintQueue.size) {
+      for (const text of paintQueue) {
+        text.paint();
+      }
 
-    const paintQueue = [...this.#paintQueue];
-
-    if (!paintQueue.length) {
-      return false;
+      this.#paintListeners.forEach((listener) => listener());
     }
 
-    this.#paintQueue.clear();
-
-    for (const text of paintQueue) {
-      text.paint();
-    }
-
-    this.#paintListeners.forEach((listener) => listener());
-
-    return elements.some((element) => element.progress !== 1);
+    return (
+      skippedFrame || this.elements.some((element) => element.progress !== 1)
+    );
   }
 
-  requestAnimation(texts = this.texts) {
-    for (const text of texts) {
+  requestAnimation(force: Text[] = []) {
+    for (const text of force) {
       this.#paintQueue.add(text);
     }
 
@@ -178,8 +185,8 @@ export class Stagger {
       this.batchId++;
       this.#painter = undefined;
 
-      if (this.paint([])) {
-        this.requestAnimation([]);
+      if (this.paint()) {
+        this.requestAnimation();
       }
     });
   }
@@ -194,6 +201,7 @@ export class Stagger {
     this.#options = resolveTextSplitter<ParsedStaggerOptions>(
       {
         visualDebug: false,
+        maxFps: null,
         disabled: false,
         classNamePrefix: Stagger.classNamePrefix,
         delayTrailing: false,
@@ -230,11 +238,11 @@ export class Stagger {
   }
 
   getText(id: number): Text | null {
-    return this.#texts.get(id) ?? null;
+    return this.texts.find((text) => text.id === id) ?? null;
   }
 
   disposeText(id: number) {
-    const text = this.#texts.get(id);
+    const text = this.getText(id);
     if (!text) {
       return;
     }
@@ -242,7 +250,7 @@ export class Stagger {
     text.dispose();
 
     this.#recreationProgresses.set(id, text.progress);
-    this.#texts.delete(id);
+    this.texts.splice(this.texts.indexOf(text), 1);
     this.#textsListeners.forEach((listener) => listener());
   }
 
@@ -253,11 +261,7 @@ export class Stagger {
     const texts = id == null ? this.texts : [this.getText(id)];
 
     texts.forEach((text) => {
-      if (!text) {
-        return;
-      }
-
-      return text.scanElementLines(event);
+      text?.scanElementLines(event);
     });
   }
 
@@ -279,7 +283,7 @@ export class Stagger {
       text.progress = recreatedProgress;
     }
 
-    this.#texts.set(id, text);
+    this.texts.push(text);
     this.#textsListeners.forEach((listener) => listener());
 
     return () => this.disposeText(id);

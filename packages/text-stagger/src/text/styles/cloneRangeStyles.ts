@@ -20,7 +20,11 @@ const COPY_STYLES = [
   "opacity",
 ] as const;
 
-export function cloneRangeWithStyles(range: Range, target: HTMLElement) {
+export function cloneRangeWithStyles(
+  range: Range,
+  target: HTMLElement,
+  onElement?: (element: HTMLElement, styles: CSSStyleDeclaration) => void
+) {
   // Get the common ancestor container
   const ancestorContainer = range.commonAncestorContainer;
 
@@ -47,7 +51,7 @@ export function cloneRangeWithStyles(range: Range, target: HTMLElement) {
       }
     }
 
-    targetElement.style.pointerEvents = "none";
+    onElement?.(targetElement, style);
   }
 
   // Helper function to copy computed styles to an element

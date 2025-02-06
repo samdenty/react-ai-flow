@@ -7,6 +7,7 @@ import {
   type ElementOptions,
   isGradient,
   StaggerElement,
+  timingFunctions,
 } from "./StaggerElement.js";
 
 export interface StaggerElementBoxOptions
@@ -112,8 +113,6 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     );
 
     this.updateCustomAnimation();
-
-    this.text.stagger.requestAnimation([this.text]);
   }
 
   updateCustomAnimation() {
@@ -122,18 +121,34 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     if (!styles) {
       this.customAnimationElement?.remove();
       this.customAnimationElement = undefined;
+
+      if (!this.text.customAnimationContainer.childNodes.length) {
+        this.text.customAnimationContainer.remove();
+      }
+
       return;
     }
 
     if (!this.customAnimationElement) {
-      this.customAnimationElement = document.createElement("div");
+      this.customAnimationElement = this.text.createIgnoredElement("div");
       this.customAnimationElement.className = this.className;
 
-      this.text.customAnimationContainer?.append(this.customAnimationElement);
+      this.text.insertCustomAnimationContainer();
+      this.text.customAnimationContainer.append(this.customAnimationElement);
 
-      cloneRangeWithStyles(this.range, this.customAnimationElement);
+      cloneRangeWithStyles(
+        this.range,
+        this.customAnimationElement,
+        (element) => {
+          if (!this.text.options.visualDebug) {
+            element.style.pointerEvents = "none";
+          }
+        }
+      );
 
-      this.customAnimationElement.style.pointerEvents = "none";
+      if (this.customAnimationElement.style.display === "list-item") {
+        this.customAnimationElement.style.display = "";
+      }
 
       this.customAnimationElement.initialStyle =
         this.customAnimationElement.getAttribute("style")!;
@@ -231,36 +246,3 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 export type SerializedStaggerElementBox = ReturnType<
   StaggerElementBox["toJSON"]
 >;
-
-const linearTiming = (progress: number): number => {
-  return progress;
-};
-
-const easeTiming = (progress: number): number => {
-  return progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-};
-
-const easeInTiming = (progress: number): number => {
-  return progress * progress * progress;
-};
-
-const easeOutTiming = (progress: number): number => {
-  return 1 - Math.pow(1 - progress, 3);
-};
-
-const easeInOutTiming = (progress: number): number => {
-  return progress < 0.5
-    ? 8 * progress * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 4) / 2;
-};
-
-// Usage with timing enum:
-const timingFunctions = {
-  [ElementAnimationTiming.Linear]: linearTiming,
-  [ElementAnimationTiming.Ease]: easeTiming,
-  [ElementAnimationTiming.EaseIn]: easeInTiming,
-  [ElementAnimationTiming.EaseOut]: easeOutTiming,
-  [ElementAnimationTiming.EaseInOut]: easeInOutTiming,
-};

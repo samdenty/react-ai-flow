@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Stagger, type StaggerOptions } from "text-stagger";
 import {
   useCachedFunctionLike,
@@ -33,19 +33,20 @@ export function StaggerProvider({
   const targetScrollTop = useCachedFunctionLike(currentTargetScrollTop);
   const options = useCachedOptions(props);
 
-  const stagger = useMemo(() => {
+  const [stagger, setStagger] = useState<StaggerProvider | null>(null);
+
+  useEffect(() => {
     const stagger = new Stagger(options) as StaggerProvider;
     stagger.stickToBottom = new Map();
-    return stagger;
+    setStagger(stagger);
+    return () => stagger.dispose();
   }, []);
 
   useEffect(() => {
-    return () => {
-      stagger.dispose();
-    };
-  }, []);
+    if (!stagger) {
+      return;
+    }
 
-  useEffect(() => {
     return stagger.onDidPaint(() => {
       for (const [stickToBottomContext, texts] of stagger.stickToBottom) {
         const elements = stagger.elements.filter((element) =>
@@ -66,9 +67,7 @@ export function StaggerProvider({
 
           const scrollRect = scrollElement.getBoundingClientRect();
           const relativePosition =
-            lastElement.top +
-            lastElement.height +
-            lastElement.text.top -
+            lastElement.bottom -
             scrollRect.top;
 
           const newTarget =
@@ -88,14 +87,18 @@ export function StaggerProvider({
         stickToBottomContext.scrollToBottom();
       }
     });
-  }, [targetScrollTop]);
+  }, [stagger, targetScrollTop]);
 
   useIsomorphicLayoutEffect(() => {
-    stagger.options = options;
+    if (stagger) {
+      stagger.options = options;
+    }
   }, [stagger, options]);
 
   useIsomorphicLayoutEffect(() => {
-    stagger.streaming = streaming;
+    if (stagger) {
+      stagger.streaming = streaming;
+    }
   }, [stagger, streaming]);
 
   return (
@@ -106,11 +109,5 @@ export function StaggerProvider({
 }
 
 export function useStaggerContext() {
-  const context = useContext(StaggerProviderContext);
-
-  if (!context) {
-    throw new Error("useStagger must be used within a StaggerProvider");
-  }
-
-  return context;
+  return useContext(StaggerProviderContext);
 }

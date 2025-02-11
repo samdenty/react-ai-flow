@@ -267,7 +267,26 @@ export function splitText(
     );
   }
 
-  const text = String(textLike);
+  if (typeof textLike !== "string") {
+    const splits: ParsedTextSplit[] = [];
+
+    for (const textLikes of textLike.continuousChildNodes) {
+      const text = textLikes.join("");
+      const lastEnd = splits.at(-1)?.end ?? 0;
+      const relativeSplits = splitText(text, splitter, splitOptions);
+
+      for (const split of relativeSplits) {
+        split.start += lastEnd;
+        split.end += lastEnd;
+
+        splits.push(split);
+      }
+    }
+
+    return splits;
+  }
+
+  const text = textLike;
 
   const {
     separateDelimiters,

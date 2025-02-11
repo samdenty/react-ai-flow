@@ -163,6 +163,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     if (typeof this.options.delay === "function") {
       this.#delay = this.options.delay(this);
     }
+
+    this.nextElements[0]?.restartAnimation();
   }
 
   get previousElements() {
@@ -285,9 +287,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return this.options.animation;
   }
 
+  get relativeToText() {
+    return this.relativeTo(this.text);
+  }
+
   toJSON() {
     return {
-      ...super.toJSON(),
       startTime: this.startTime,
       duration: this.duration,
       delay: this.delay,

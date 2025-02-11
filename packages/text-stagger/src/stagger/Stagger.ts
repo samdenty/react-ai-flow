@@ -16,6 +16,8 @@ declare global {
   var staggers: Stagger[] | undefined;
 }
 
+let ID = 0;
+
 export class Stagger {
   #options!: ParsedStaggerOptions;
   #optionsListeners = new Set<(options: ParsedStaggerOptions) => void>();
@@ -32,6 +34,7 @@ export class Stagger {
   #elements?: StaggerElement[];
 
   batchId = 0;
+  id = ++ID;
   lastPaint?: number;
 
   constructor(options?: StaggerOptions) {
@@ -47,10 +50,9 @@ export class Stagger {
     }
 
     if (globalThis.staggers) {
-      const index = globalThis.staggers.indexOf(this);
-      if (index !== -1) {
-        globalThis.staggers?.splice(index, 1);
-      }
+      globalThis.staggers = globalThis.staggers.filter(
+        (stagger) => stagger !== this
+      );
     }
   }
 
@@ -99,21 +101,8 @@ export class Stagger {
 
   get elements() {
     if (!this.#elements) {
-      const elements = this.texts.flatMap((text) => {
-        return text.elements.map((element) => {
-          return {
-            element,
-            top: text.top + element.boxes[0].top,
-            bottom: text.top + element.boxes[0].bottom,
-            left: text.left + element.boxes[0].left,
-            right: text.left + element.boxes[0].right,
-          };
-        });
-      });
-
-      elements.sort(Box.comparePositions);
-
-      this.#elements = elements.map(({ element }) => element);
+      this.#elements = this.texts.flatMap((text) => text.elements);
+      this.#elements.sort(Box.comparePositions);
     }
 
     return this.#elements;
@@ -182,6 +171,8 @@ export class Stagger {
     }
 
     this.#painter ??= requestAnimationFrame(() => {
+      console.groupEnd();
+      console.group("paint");
       this.batchId++;
       this.#painter = undefined;
 

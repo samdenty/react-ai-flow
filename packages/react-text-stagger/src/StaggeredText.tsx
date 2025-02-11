@@ -21,7 +21,7 @@ export function StaggeredText(props: StaggeredTextProps) {
 
   return (
     <StaggeredTextContext.Provider value={id}>
-      {options.disabled ? children : <span ref={ref}>{children}</span>}
+      {options?.disabled ? children : <span ref={ref}>{children}</span>}
     </StaggeredTextContext.Provider>
   );
 }
@@ -29,14 +29,14 @@ export function StaggeredText(props: StaggeredTextProps) {
 export function useStaggeredTextContext(ref?: React.Ref<Text | null>) {
   const stagger = useStaggerContext();
   const id = useContext(StaggeredTextContext);
-  const [text, setText] = useState(
-    id == null ? null : () => stagger.getText(id)
-  );
+  const [text, setText] = useState<Text | null>(null);
 
   useEffect(() => {
-    if (id == null) {
+    if (!stagger || id == null) {
       return;
     }
+
+    setText(stagger.getText(id));
 
     return stagger.onDidChangeTexts(() => {
       setText(stagger.getText(id));

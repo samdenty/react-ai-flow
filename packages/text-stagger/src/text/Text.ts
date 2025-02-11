@@ -135,46 +135,27 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
   }
 
   scanRects() {
-    let rect = this.container.getBoundingClientRect();
-    const styles = getComputedStyle(this.container);
+    updateProperty(this.className, "padding", "0px");
+    updateProperty(this.className, "margin", "0px");
 
-    let { left, right } = getAvailableSpace(this.container, rect);
+    const rect = this.container.getBoundingClientRect();
 
-    const paddingLeft = parseFloat(styles.paddingLeft) || 0;
-    const paddingRight = parseFloat(styles.paddingRight) || 0;
+    const { left, right } = getAvailableSpace(this.container, rect);
 
-    left += paddingLeft;
-    right += paddingRight;
+    updateProperty(this.className, "padding", `0px ${right}px 0 ${left}px`);
+    updateProperty(this.className, "margin", `0px ${-right}px 0 ${-left}px`);
 
-    if (paddingLeft !== left || paddingRight !== right) {
-      updateProperty(this.className, "padding", `0px ${right}px 0 ${left}px`);
-      updateProperty(this.className, "margin", `0px ${-right}px 0 ${-left}px`);
+    updateProperty(this.customAnimationClassName, "height", `${rect.height}px`);
+    updateProperty(this.customAnimationClassName, "width", `${rect.width}px`);
 
-      rect = this.container.getBoundingClientRect();
-    }
-
-    const rectWithoutPadding = new DOMRect(
-      rect.left + left,
+    this.canvasRect = new DOMRect(
+      rect.left - left,
       rect.top,
-      rect.width - (left + right),
+      rect.width + left + right,
       rect.height
     );
 
-    updateProperty(
-      this.customAnimationClassName,
-      "height",
-      `${rectWithoutPadding.height}px`
-    );
-
-    updateProperty(
-      this.customAnimationClassName,
-      "width",
-      `${rectWithoutPadding.width}px`
-    );
-
-    this.canvasRect = rect;
-
-    return [[rectWithoutPadding]];
+    return [[rect]];
   }
 
   updateBounds(rects?: DOMRect[][]) {
@@ -246,13 +227,18 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
       return;
     }
 
-    const offsetTop = top - this.top;
-    const offsetLeft = left - this.left;
+    const styles = getComputedStyle(this.customAnimationContainer);
+
+    let offsetTop = parseFloat(styles.marginTop) || 0;
+    let offsetLeft = parseFloat(styles.marginLeft) || 0;
+
+    offsetTop -= top - this.top;
+    offsetLeft -= left - this.left;
 
     updateProperty(
       this.customAnimationClassName,
       "margin",
-      `${-offsetTop}px 0px 0px ${-offsetLeft}px`
+      `${offsetTop}px 0px 0px ${offsetLeft}px`
     );
   }
 
@@ -307,7 +293,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
     if (!container) {
       this.canvas?.remove();
-      this.customAnimationContainer.remove();
+      // this.customAnimationContainer.remove();
       delete this.container.text;
 
       this.#mutationObserver?.disconnect();
@@ -532,9 +518,30 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
     return this.stagger.texts.filter((text) => text.parent === this);
   }
 
+  get relativeToParentCanvas() {
+    if (!(this.parent instanceof Text)) {
+      return null;
+    }
+
+    const { left, top, right, bottom, width, height } = this.relativeTo(
+      this.parent
+    );
+
+    const marginLeft = this.parent.text.left - this.parent.text.canvasRect.left;
+
+    return {
+      left: left + marginLeft,
+      right: right + marginLeft,
+      top,
+      bottom,
+      width,
+      height,
+    };
+  }
+
   toJSON() {
     return {
-      ...super.toJSON(),
+      relativeToParentCanvas: this.relativeToParentCanvas,
       canvasRect: {
         width: this.canvasRect.width,
         height: this.canvasRect.height,
@@ -593,7 +600,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
           let currentStart = textSplit.start;
           let remainingLength = textSplit.end - textSplit.start;
 
-          for (const text of element.childText) {
+          for (const text of element.continuousChildText) {
             if (remainingLength <= 0) break;
 
             const length = Math.min(text.length, remainingLength);
@@ -662,12 +669,6 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
         new StaggerElement(this, trimChildNodes(split.start, split.end), split);
       });
-
-      for (const text of this.nextTexts) {
-        for (const element of text.elements) {
-          element.restartAnimation();
-        }
-      }
     });
   }
 

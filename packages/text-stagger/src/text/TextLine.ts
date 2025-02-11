@@ -29,8 +29,8 @@ export class TextLine extends Ranges<Box, Text> {
         this,
         this.options,
         this.container,
-        rect.top - this.text.top,
-        rect.left - this.text.left,
+        rect.top - this.parent.top,
+        rect.left - this.parent.left,
         rect.width,
         rect.height
       );
@@ -197,7 +197,7 @@ export class TextLine extends Ranges<Box, Text> {
 
             if (
               rangeToExtend?.toString() ===
-              existingLine.textContent + range.toString()
+              `${childNodes[rangeToExtendIndex]}${range}`
             ) {
               childNodes[rangeToExtendIndex] = rangeToExtend;
             } else {
@@ -216,7 +216,7 @@ export class TextLine extends Ranges<Box, Text> {
     );
 
     // Sort lines by vertical position
-    lines.sort((a, b) => a.top - b.top);
+    lines.sort(Box.comparePositions);
 
     lines.forEach((line, i) => {
       line.startOfText = i === 0;
@@ -264,7 +264,7 @@ function createParentChecker(text: Text) {
         (text) => text.container === parent
       );
 
-      if (parentText) {
+      if (parentText && parentText.parent !== text) {
         parentText.createIgnoredElement(text.container);
         parentText.createIgnoredElement(text.customAnimationContainer);
         text.parent = parentText;

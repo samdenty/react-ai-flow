@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type TextOptions } from "text-stagger";
 import { useResolvedOptions } from "./utils/useCachedOptions.js";
-import { StaggerProvider, useStaggerContext } from "./StaggerProvider.js";
+import { useStaggerContext } from "./StaggerProvider.js";
 import {
   useStickToBottomContext,
   type StickToBottomContext,
@@ -20,13 +20,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
     // ignore
   }
 
-  let stagger: StaggerProvider | null = null;
-  try {
-    stagger = useStaggerContext();
-  } catch {
-    // ignore
-  }
-
+  const stagger = useStaggerContext();
   const options = useResolvedOptions(
     stagger ? textOptions : { ...textOptions, disabled: true }
   );
@@ -65,7 +59,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
   }, [stickToBottomContext]);
 
   useEffect(() => {
-    if (!stagger || !elementRef.current || options.disabled) {
+    if (!stagger || !elementRef.current || !options || options.disabled) {
       return;
     }
 

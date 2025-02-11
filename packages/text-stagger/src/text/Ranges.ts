@@ -56,8 +56,8 @@ export class Box<
     public parent: T,
     public options: ElementOptions,
     element: HTMLElement,
-    public top = 0,
-    public left = 0,
+    private relativeTopToParent = 0,
+    private relativeLeftToParent = 0,
     public width = 0,
     public height = 0
   ) {
@@ -70,6 +70,82 @@ export class Box<
     this.container = element;
   }
 
+  get relativeToParent(): {
+    top: number;
+    left: number;
+    bottom: number;
+    right: number;
+    height: number;
+    width: number;
+  } {
+    return this.relativeTo(this.parent);
+  }
+
+  relativeTo(
+    other:
+      | {
+          top: number;
+          left: number;
+          bottom: number;
+          right: number;
+        }
+      | {}
+  ) {
+    if (!(other instanceof Box)) {
+      return {
+        top: this.top,
+        left: this.left,
+        bottom: this.bottom,
+        right: this.right,
+        width: this.width,
+        height: this.height,
+      };
+    }
+
+    return {
+      top: this.top - other.top,
+      left: this.left - other.left,
+      bottom: this.bottom - other.top,
+      right: this.right - other.left,
+      width: this.width,
+      height: this.height,
+    };
+  }
+
+  set top(top: number) {
+    if (this.parent instanceof Ranges) {
+      this.relativeTopToParent = top - this.parent.top;
+      return;
+    }
+
+    this.relativeTopToParent = top;
+  }
+
+  set left(left: number) {
+    if (this.parent instanceof Ranges) {
+      this.relativeLeftToParent = left - this.parent.left;
+      return;
+    }
+
+    this.relativeLeftToParent = left;
+  }
+
+  get top(): number {
+    if (this.parent instanceof Ranges) {
+      return this.parent.top + this.relativeTopToParent;
+    }
+
+    return this.relativeTopToParent;
+  }
+
+  get left(): number {
+    if (this.parent instanceof Ranges) {
+      return this.parent.left + this.relativeLeftToParent;
+    }
+
+    return this.relativeLeftToParent;
+  }
+
   set bottom(bottom: number) {
     this.height = bottom - this.top;
   }
@@ -80,29 +156,19 @@ export class Box<
 
   set right(right: number) {
     this.width = right - this.left;
+    if (this.width === 11531.6325) {
+      debugger;
+    }
   }
 
   get right() {
     return this.left + this.width;
   }
 
-  toJSON() {
-    return {
-      top: this.top,
-      bottom: this.bottom,
-      left: this.left,
-      right: this.right,
-      width: this.width,
-      height: this.height,
-    };
-  }
-
   dispose() {
     // noop
   }
 }
-
-export type SerializedBox = ReturnType<Box["toJSON"]>;
 
 export type RangesChildNode = Range | string;
 
@@ -111,7 +177,7 @@ export abstract class Ranges<
   U extends Ranges<any, any> | Stagger
 > extends Box<U> {
   #boxes: T[] = [];
-  #childNodes: readonly RangesChildNode[] = [];
+  #continuousChildNodes: readonly RangesChildNode[][] = [];
 
   /**
    * The text of *just* the childNodes that are ranges,
@@ -144,17 +210,45 @@ export abstract class Ranges<
     }
   }
 
-  childText: string[] = [];
+  continuousChildText: string[][] = [];
 
   set childNodes(childNodes: RangesChildNode[]) {
-    this.#childNodes = Object.freeze([...childNodes]);
+    const continuousChildNodes = [];
+    let group = [];
 
-    this.childText = this.#childNodes.map((childNode) => childNode.toString());
+    for (let i = 0; i < childNodes.length; i++) {
+      const item = childNodes[i];
+      const next = childNodes[i + 1];
 
-    this.innerText = this.childText.join("");
+      group.push(item);
 
-    this.textContent = this.childText
-      .filter((_, i) => typeof this.#childNodes[i] !== "string")
+      if (typeof item !== "string" && next && typeof next !== "string") {
+        const range = item.cloneRange();
+        const separate = `${range}${next}`;
+
+        range.setEnd(next.endContainer, next.endOffset);
+
+        if (range.toString() !== separate) {
+          continuousChildNodes.push(group);
+          group = [];
+        }
+      }
+    }
+
+    if (group.length) {
+      continuousChildNodes.push(group);
+    }
+
+    this.#continuousChildNodes = Object.freeze(continuousChildNodes);
+
+    this.continuousChildText = this.continuousChildNodes.map((childNodes) =>
+      childNodes.map((childNode) => childNode.toString())
+    );
+
+    this.innerText = this.continuousChildText.flat().join("");
+
+    this.textContent = this.continuousChildText
+      .filter((_, i) => typeof this.#continuousChildNodes[i] !== "string")
       .join("");
 
     this.rescan();
@@ -170,7 +264,11 @@ export abstract class Ranges<
   }
 
   get childNodes(): readonly RangesChildNode[] {
-    return this.#childNodes;
+    return this.#continuousChildNodes.flat();
+  }
+
+  get continuousChildNodes(): readonly RangesChildNode[][] {
+    return this.#continuousChildNodes;
   }
 
   updateBounds(rects?: DOMRect[][]) {
@@ -182,17 +280,8 @@ export abstract class Ranges<
 
     const bounds = rects.flat().reduce(
       (bounds, rect, i) => {
-        if ((this as any) !== this.text) {
-          if (scanned) {
-            this.text.updateBounds();
-          }
-
-          rect = new DOMRect(
-            rect.left - this.text.canvasRect.left,
-            rect.top - this.text.canvasRect.top,
-            rect.width,
-            rect.height
-          );
+        if ((this as any) !== this.text && scanned) {
+          this.text.updateBounds();
         }
 
         if (i === 0) {

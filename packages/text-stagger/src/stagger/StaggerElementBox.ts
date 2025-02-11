@@ -55,8 +55,8 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
         this,
         this.options,
         this.container,
-        rect.top - this.text.canvasRect.top,
-        rect.left - this.text.canvasRect.left,
+        rect.top - this.parent.top,
+        rect.left - this.parent.left,
         rect.width,
         rect.height
       );
@@ -174,14 +174,8 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     }
 
     this.customAnimationElement.style.position = "absolute";
-
-    this.customAnimationElement.style.top = `${
-      this.top - (this.text.top - this.text.canvasRect.top)
-    }px`;
-
-    this.customAnimationElement.style.left = `${
-      this.left - (this.text.left - this.text.canvasRect.left)
-    }px`;
+    this.customAnimationElement.style.top = `${this.top - this.text.top}px`;
+    this.customAnimationElement.style.left = `${this.left - this.text.left}px`;
   }
 
   get text() {
@@ -232,9 +226,27 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     return this.text.convertToPx(cssLiteral, this);
   }
 
-  override toJSON() {
+  get relativeToText() {
+    return this.relativeTo(this.text);
+  }
+
+  get relativeToCanvas() {
+    const { left, top, right, bottom, width, height } = this.relativeToText;
+    const marginLeft = this.text.left - this.text.canvasRect.left;
+
     return {
-      ...super.toJSON(),
+      left: left + marginLeft,
+      right: right + marginLeft,
+      top,
+      bottom,
+      width,
+      height,
+    };
+  }
+
+  toJSON() {
+    return {
+      relativeToCanvas: this.relativeToCanvas,
       progress: this.progress,
       timing: this.timing,
       gradientWidth: this.gradientWidth,

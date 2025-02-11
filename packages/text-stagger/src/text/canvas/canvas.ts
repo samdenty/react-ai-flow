@@ -26,8 +26,12 @@ export function doPaint(
     const { animation } = element;
 
     return element.boxes.map((box) => {
-      const { left, top, bottom, right, width, height, timing, gradientWidth } =
-        box;
+      const {
+        relativeToCanvas: { left, top, bottom, right, width, height },
+        timing,
+        gradientWidth,
+      } = box;
+
       const isLast = element.isLast && box.isLast;
 
       return {
@@ -48,8 +52,12 @@ export function doPaint(
   boxes.push(
     ...text.subtext.map((subtext): (typeof boxes)[0] => ({
       ...subtext,
-      right: subtext.right,
-      bottom: subtext.bottom,
+      top: subtext.relativeToParentCanvas!.top,
+      left: subtext.relativeToParentCanvas!.left,
+      right: subtext.relativeToParentCanvas!.right,
+      bottom: subtext.relativeToParentCanvas!.bottom,
+      width: subtext.relativeToParentCanvas!.width,
+      height: subtext.relativeToParentCanvas!.height,
       animation: "fade-in" as ElementAnimation,
       isLast: false,
       gradientWidth: 0,

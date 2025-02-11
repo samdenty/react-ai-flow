@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   mergeTextSplitter,
+  type ParsedStaggerOptions,
   type StaggerOptions,
   type TextOptions,
 } from "text-stagger";
@@ -8,16 +9,23 @@ import { useStaggerContext } from "../StaggerProvider.js";
 
 export function useResolvedOptions(options: TextOptions) {
   const stagger = useStaggerContext();
-  const [staggerOptions, setStaggerOptions] = useState(() => stagger.options);
+  const [staggerOptions, setStaggerOptions] =
+    useState<ParsedStaggerOptions | null>(null);
 
   useEffect(() => {
+    if (!stagger) {
+      return;
+    }
+
+    setStaggerOptions(stagger.options);
+
     return stagger.onDidChangeOptions(setStaggerOptions);
   }, [stagger]);
 
   const cachedOptions = useCachedOptions(options);
 
   const mergedOptions = useMemo(() => {
-    return mergeTextSplitter(staggerOptions, cachedOptions);
+    return staggerOptions && mergeTextSplitter(staggerOptions, cachedOptions);
   }, [staggerOptions, cachedOptions]);
 
   return mergedOptions;

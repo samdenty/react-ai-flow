@@ -267,12 +267,41 @@ export function splitText(
     );
   }
 
+  const {
+    separateDelimiters,
+    animation = ElementAnimation.FadeIn,
+    ...options
+  } = splitOptions as SplitOptions & { animation?: ElementAnimation };
+
   if (typeof textLike !== "string") {
     const splits: ParsedTextSplit[] = [];
 
-    for (const textLikes of textLike.continuousChildNodes) {
-      const text = textLikes.join("");
+    let texts: { text: string; subtext: Text | null }[];
+
+    if (textLike instanceof Text) {
+      texts = textLike.continuousChildNodes.map(({ nodes, subtext }) => ({
+        text: nodes.join(""),
+        subtext,
+      }));
+    } else {
+      texts = [{ text: textLike.innerText, subtext: null }];
+    }
+
+    for (const { text, subtext } of texts) {
       const lastEnd = splits.at(-1)?.end ?? 0;
+
+      if (subtext) {
+        splits.push({
+          text,
+          start: lastEnd,
+          end: lastEnd + text.length,
+          animation,
+          ...options,
+        });
+
+        continue;
+      }
+
       const relativeSplits = splitText(text, splitter, splitOptions);
 
       for (const split of relativeSplits) {
@@ -287,12 +316,6 @@ export function splitText(
   }
 
   const text = textLike;
-
-  const {
-    separateDelimiters,
-    animation = ElementAnimation.FadeIn,
-    ...options
-  } = splitOptions as SplitOptions & { animation?: ElementAnimation };
 
   const splits: ParsedTextSplit[] = [];
   let lastIndex = 0;

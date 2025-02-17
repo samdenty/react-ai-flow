@@ -1,5 +1,6 @@
 import {
   type ParsedTextOptions,
+  type ParsedTextSplit,
   Ranges,
   type RangesChildNode,
   Text,
@@ -24,6 +25,12 @@ export enum ElementAnimation {
   BounceIn = "bounce-in",
 }
 
+export type GradientAnimation =
+  | ElementAnimation.GradientReveal
+  | ElementAnimation.GradientLeft
+  | ElementAnimation.GradientUp
+  | ElementAnimation.GradientDown;
+
 export enum ElementAnimationTiming {
   Linear = "linear",
   Ease = "ease",
@@ -31,6 +38,11 @@ export enum ElementAnimationTiming {
   EaseOut = "ease-out",
   EaseInOut = "ease-in-out",
 }
+
+export type MaskAnimation = GradientAnimation | ElementAnimation.FadeIn;
+
+export interface CustomStyles
+  extends Partial<Record<keyof CSSStyleDeclaration, string>> {}
 
 export interface ElementOptions {
   animation?: ElementAnimation | `${ElementAnimation}`;
@@ -42,9 +54,7 @@ export interface ElementOptions {
         box: StaggerElementBox
       ) => number | ElementAnimationTiming | `${ElementAnimationTiming}`);
 
-  customStyles?: (
-    box: StaggerElementBox
-  ) => Partial<Record<keyof CSSStyleDeclaration, string>> | null | undefined;
+  customStyles?: (box: StaggerElementBox) => CustomStyles | null | undefined;
 
   blurAmount?: string | number | ((box: StaggerElementBox) => string | number);
 
@@ -93,19 +103,31 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
   override options: ElementOptions & ParsedTextOptions;
 
+  start: number;
+  end: number;
+  subtext: Text | null = null;
+
   constructor(
     public text: Text,
     childNodes: RangesChildNode[],
-    options?: ElementOptions
+    split: ParsedTextSplit
   ) {
-    const parsedOptions = mergeObject(text.options, options);
+    const parsedOptions = mergeObject(text.options, split);
     super(text, parsedOptions, text.container);
     this.options = parsedOptions;
 
+    this.start = split.start;
+    this.end = split.end;
+
+    this.subtext =
+      this.text.continuousChildNodesOffsets.find(({ nodes }) => {
+        return nodes.some(({ start, end }) => {
+          return start >= this.start && end <= this.end;
+        });
+      })?.subtext ?? null;
+
     this.childNodes = childNodes;
     text.elements.push(this);
-
-    this.restartAnimation();
   }
 
   restartAnimation() {
@@ -163,8 +185,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     if (typeof this.options.delay === "function") {
       this.#delay = this.options.delay(this);
     }
-
-    this.nextElements[0]?.restartAnimation();
   }
 
   get previousElements() {
@@ -190,6 +210,16 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
   get delay() {
     return (this.#delay ?? 0) + (this.staggerDelay ?? 0);
+  }
+
+  scanRects() {
+    const { closestCommonParent } = this.subtext || {};
+
+    if (closestCommonParent) {
+      return [[closestCommonParent.rect]];
+    }
+
+    return super.scanRects();
   }
 
   scanBoxes(rects: DOMRect[][]) {
@@ -293,6 +323,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
   toJSON() {
     return {
+      subtext: this.subtext,
       startTime: this.startTime,
       duration: this.duration,
       delay: this.delay,

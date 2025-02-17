@@ -8,9 +8,14 @@ import type { Text } from "./Text.js";
 export class Box<
   T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger
 > {
+  #disposers = new Set<VoidFunction>();
   #container!: HTMLElement;
 
   stagger: Stagger;
+
+  #parentLeft: number;
+  #parentTop: number;
+  #rectListeners = new Set<() => void>();
 
   get container() {
     return this.#container;
@@ -18,38 +23,6 @@ export class Box<
 
   set container(container: HTMLElement) {
     this.#container = container;
-  }
-
-  static comparePositions(
-    a: { top: number; bottom: number; left: number; right: number },
-    b: { top: number; bottom: number; left: number; right: number }
-  ) {
-    // Changed overlap check to not count touching as overlap
-    const verticalOverlap = !(a.bottom <= b.top || b.bottom <= a.top);
-
-    if (verticalOverlap) {
-      const aContainsB = a.left <= b.left && a.right >= b.right;
-      const bContainsA = b.left <= a.left && b.right >= a.right;
-
-      if (aContainsB) return -1;
-      if (bContainsA) return 1;
-
-      if (a.left !== b.left) {
-        return a.left - b.left;
-      }
-    }
-
-    // Sort by top position for non-overlapping or same-left overlapping elements
-    if (a.top !== b.top) {
-      return a.top - b.top;
-    }
-
-    // If same top, sort by left
-    return a.left - b.left;
-  }
-
-  comparePosition(other: Box) {
-    return Box.comparePositions(this, other);
   }
 
   constructor(
@@ -63,8 +36,31 @@ export class Box<
   ) {
     if (parent instanceof Ranges) {
       this.stagger = parent.stagger;
+      this.#parentLeft = parent.left;
+      this.#parentTop = parent.top;
+
+      const listener = () => {
+        this.#parentLeft = parent.left;
+        this.#parentTop = parent.top;
+      };
+
+      let parentRanges = parent;
+
+      do {
+        const parent = parentRanges;
+        parent.#rectListeners.add(listener);
+
+        this.#disposers.add(() => {
+          parent.#rectListeners.delete(listener);
+        });
+      } while (
+        (parentRanges = parentRanges.parent) &&
+        parentRanges instanceof Ranges
+      );
     } else {
       this.stagger = parent;
+      this.#parentTop = 0;
+      this.#parentLeft = 0;
     }
 
     this.container = element;
@@ -81,6 +77,71 @@ export class Box<
     return this.relativeTo(this.parent);
   }
 
+  static calculateRelative(
+    from: {
+      top: number;
+      left: number;
+      bottom: number;
+      right: number;
+      height: number;
+      width: number;
+    },
+    to:
+      | {
+          top: number;
+          left: number;
+          bottom: number;
+          right: number;
+        }
+      | {}
+  ) {
+    if (!(to instanceof Box)) {
+      return {
+        top: from.top,
+        left: from.left,
+        bottom: from.bottom,
+        right: from.right,
+        width: from.width,
+        height: from.height,
+      };
+    }
+
+    return {
+      top: from.top - to.top,
+      left: from.left - to.left,
+      bottom: from.bottom - to.top,
+      right: from.right - to.left,
+      width: from.width,
+      height: from.height,
+    };
+  }
+
+  set top(top: number) {
+    const oldRelativeTop = this.relativeTopToParent;
+    this.relativeTopToParent = top - (this.#parentTop ?? 0);
+
+    if (oldRelativeTop !== this.relativeTopToParent) {
+      this.#rectListeners.forEach((listener) => listener());
+    }
+  }
+
+  set left(left: number) {
+    const oldRelativeLeft = this.relativeLeftToParent;
+    this.relativeLeftToParent = left - (this.#parentLeft ?? 0);
+
+    if (oldRelativeLeft !== this.relativeLeftToParent) {
+      this.#rectListeners.forEach((listener) => listener());
+    }
+  }
+
+  get top(): number {
+    return this.relativeTopToParent + this.#parentTop;
+  }
+
+  get left(): number {
+    return this.relativeLeftToParent + this.#parentLeft;
+  }
+
   relativeTo(
     other:
       | {
@@ -91,59 +152,7 @@ export class Box<
         }
       | {}
   ) {
-    if (!(other instanceof Box)) {
-      return {
-        top: this.top,
-        left: this.left,
-        bottom: this.bottom,
-        right: this.right,
-        width: this.width,
-        height: this.height,
-      };
-    }
-
-    return {
-      top: this.top - other.top,
-      left: this.left - other.left,
-      bottom: this.bottom - other.top,
-      right: this.right - other.left,
-      width: this.width,
-      height: this.height,
-    };
-  }
-
-  set top(top: number) {
-    if (this.parent instanceof Ranges) {
-      this.relativeTopToParent = top - this.parent.top;
-      return;
-    }
-
-    this.relativeTopToParent = top;
-  }
-
-  set left(left: number) {
-    if (this.parent instanceof Ranges) {
-      this.relativeLeftToParent = left - this.parent.left;
-      return;
-    }
-
-    this.relativeLeftToParent = left;
-  }
-
-  get top(): number {
-    if (this.parent instanceof Ranges) {
-      return this.parent.top + this.relativeTopToParent;
-    }
-
-    return this.relativeTopToParent;
-  }
-
-  get left(): number {
-    if (this.parent instanceof Ranges) {
-      return this.parent.left + this.relativeLeftToParent;
-    }
-
-    return this.relativeLeftToParent;
+    return Box.calculateRelative(this, other);
   }
 
   set bottom(bottom: number) {
@@ -166,7 +175,7 @@ export class Box<
   }
 
   dispose() {
-    // noop
+    this.#disposers.forEach((dispose) => dispose());
   }
 }
 
@@ -177,7 +186,8 @@ export abstract class Ranges<
   U extends Ranges<any, any> | Stagger
 > extends Box<U> {
   #boxes: T[] = [];
-  #continuousChildNodes: readonly RangesChildNode[][] = [];
+  #childNodes: readonly RangesChildNode[] = [];
+  ranges: Range[] = [];
 
   /**
    * The text of *just* the childNodes that are ranges,
@@ -210,46 +220,21 @@ export abstract class Ranges<
     }
   }
 
-  continuousChildText: string[][] = [];
+  childText: string[] = [];
 
   set childNodes(childNodes: RangesChildNode[]) {
-    const continuousChildNodes = [];
-    let group = [];
+    this.#childNodes = Object.freeze([...childNodes]);
 
-    for (let i = 0; i < childNodes.length; i++) {
-      const item = childNodes[i];
-      const next = childNodes[i + 1];
+    this.childText = this.#childNodes.map((childNode) => childNode.toString());
+    this.innerText = this.childText.join("");
 
-      group.push(item);
-
-      if (typeof item !== "string" && next && typeof next !== "string") {
-        const range = item.cloneRange();
-        const separate = `${range}${next}`;
-
-        range.setEnd(next.endContainer, next.endOffset);
-
-        if (range.toString() !== separate) {
-          continuousChildNodes.push(group);
-          group = [];
-        }
-      }
-    }
-
-    if (group.length) {
-      continuousChildNodes.push(group);
-    }
-
-    this.#continuousChildNodes = Object.freeze(continuousChildNodes);
-
-    this.continuousChildText = this.continuousChildNodes.map((childNodes) =>
-      childNodes.map((childNode) => childNode.toString())
-    );
-
-    this.innerText = this.continuousChildText.flat().join("");
-
-    this.textContent = this.continuousChildText
-      .filter((_, i) => typeof this.#continuousChildNodes[i] !== "string")
+    this.textContent = this.childText
+      .filter((_, i) => typeof this.#childNodes[i] !== "string")
       .join("");
+
+    this.ranges = this.childNodes.filter(
+      (content) => typeof content !== "string"
+    );
 
     this.rescan();
   }
@@ -264,11 +249,7 @@ export abstract class Ranges<
   }
 
   get childNodes(): readonly RangesChildNode[] {
-    return this.#continuousChildNodes.flat();
-  }
-
-  get continuousChildNodes(): readonly RangesChildNode[][] {
-    return this.#continuousChildNodes;
+    return this.#childNodes;
   }
 
   updateBounds(rects?: DOMRect[][]) {
@@ -455,13 +436,6 @@ export abstract class Ranges<
       childNodeOffset += length;
       return offset;
     });
-  }
-
-  /**
-   * The filtered childNodes that are ranges
-   */
-  get ranges(): readonly Range[] {
-    return this.childNodes.filter((content) => typeof content !== "string");
   }
 
   toString() {

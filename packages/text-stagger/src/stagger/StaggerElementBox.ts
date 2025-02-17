@@ -24,7 +24,8 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   id = ++ID;
   className: string;
 
-  customAnimationElement?: HTMLElement & { initialStyle?: string };
+  customAnimationElement?: HTMLElement;
+  initialStyle?: string;
 
   constructor(
     parent: StaggerElement,
@@ -118,6 +119,25 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   updateCustomAnimation() {
     const styles = getCustomAnimationStyles(this);
 
+    const { closestCommonParent } = this.element.subtext || {};
+
+    if (closestCommonParent) {
+      this.initialStyle ??=
+        closestCommonParent.element.getAttribute("style") || "";
+
+      closestCommonParent.element.setAttribute("style", this.initialStyle);
+
+      if (!styles) {
+        return;
+      }
+
+      for (const [key, value] of Object.entries(styles)) {
+        (closestCommonParent.element.style as any)[key] = value;
+      }
+
+      return;
+    }
+
     if (!styles) {
       this.customAnimationElement?.remove();
       this.customAnimationElement = undefined;
@@ -150,20 +170,26 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
         this.customAnimationElement.style.display = "";
       }
 
-      this.customAnimationElement.initialStyle =
-        this.customAnimationElement.getAttribute("style")!;
+      this.initialStyle = undefined;
     }
 
-    this.customAnimationElement.setAttribute(
-      "style",
-      this.customAnimationElement.initialStyle!
-    );
+    this.initialStyle ??=
+      this.customAnimationElement.getAttribute("style") || "";
 
+    this.customAnimationElement.setAttribute("style", this.initialStyle);
+
+    this.customAnimationElement.style.boxSizing = "content-box";
     this.customAnimationElement.style.lineHeight = `${this.height}px`;
     this.customAnimationElement.style.height = `${this.height}px`;
     this.customAnimationElement.style.width = `${this.width}px`;
-    this.customAnimationElement.style.margin = "0px";
-    this.customAnimationElement.style.padding = "0px";
+
+    if (this.text.options.visualDebug) {
+      this.customAnimationElement.style.padding = "0";
+      this.customAnimationElement.style.margin = "0";
+    } else {
+      this.customAnimationElement.style.padding = `${this.height}px ${this.width}px`;
+      this.customAnimationElement.style.margin = `-${this.height}px -${this.width}px`;
+    }
 
     for (const [key, value] of Object.entries(styles)) {
       (this.customAnimationElement.style as any)[key] = value;

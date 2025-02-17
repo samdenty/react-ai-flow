@@ -1,4 +1,3 @@
-import type { ElementAnimation } from "../../stagger/StaggerElement.js";
 import { type SerializedText } from "../Text.js";
 import { paintWorkletRegistered } from "./paint-worklet.js";
 
@@ -23,7 +22,7 @@ export function doPaint(
   ctx.clearRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 
   const boxes = text.elements.flatMap((element) => {
-    const { animation } = element;
+    const { animation, subtext } = element;
 
     return element.boxes.map((box) => {
       const {
@@ -45,49 +44,9 @@ export function doPaint(
         timing,
         gradientWidth,
         isLast,
+        subtext,
       };
     });
-  });
-
-  boxes.push(
-    ...text.subtext.map((subtext): (typeof boxes)[0] => ({
-      ...subtext,
-      top: subtext.relativeToParentCanvas!.top,
-      left: subtext.relativeToParentCanvas!.left,
-      right: subtext.relativeToParentCanvas!.right,
-      bottom: subtext.relativeToParentCanvas!.bottom,
-      width: subtext.relativeToParentCanvas!.width,
-      height: subtext.relativeToParentCanvas!.height,
-      animation: "fade-in" as ElementAnimation,
-      isLast: false,
-      gradientWidth: 0,
-      timing: subtext.progress,
-    }))
-  );
-
-  boxes.sort((a, b) => {
-    // Changed overlap check to not count touching as overlap
-    const verticalOverlap = !(a.bottom <= b.top || b.bottom <= a.top);
-
-    if (verticalOverlap) {
-      const aContainsB = a.left <= b.left && a.right >= b.right;
-      const bContainsA = b.left <= a.left && b.right >= a.right;
-
-      if (aContainsB) return -1;
-      if (bContainsA) return 1;
-
-      if (a.left !== b.left) {
-        return a.left - b.left;
-      }
-    }
-
-    // Sort by top position for non-overlapping or same-left overlapping elements
-    if (a.top !== b.top) {
-      return a.top - b.top;
-    }
-
-    // If same top, sort by left
-    return a.left - b.left;
   });
 
   ctx.fillStyle = surroundingFill;
@@ -131,6 +90,7 @@ export function doPaint(
   // Second pass: Draw the regular boxes
   for (const {
     animation,
+    subtext,
     left,
     top,
     width,
@@ -138,6 +98,10 @@ export function doPaint(
     timing,
     gradientWidth,
   } of boxes) {
+    if (timing === 0) {
+      continue;
+    }
+
     ctx.fillStyle = fill;
     ctx.clearRect(left, top, width, height);
 
@@ -192,6 +156,9 @@ export function doPaint(
       gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
 
       ctx.fillStyle = gradient;
+      ctx.fillRect(left, top, width, height);
+    } else if (subtext) {
+      ctx.globalAlpha = 1;
       ctx.fillRect(left, top, width, height);
     }
   }

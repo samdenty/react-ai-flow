@@ -81,6 +81,9 @@ export class TextLine extends Ranges<Box, Text> {
     const textNodes: {
       textNode: globalThis.Text;
       blockParent: HTMLElement;
+      subtext: Text | null;
+      startOfSubtext: boolean;
+      endOfSubtext: boolean;
       startOfBlock: boolean;
       endOfBlock: boolean;
       textContent: string;
@@ -96,7 +99,7 @@ export class TextLine extends Ranges<Box, Text> {
         continue;
       }
 
-      const { isHidden, blockParent } = checkParents(textNode);
+      const { isHidden, subtext, blockParent } = checkParents(textNode);
 
       if (isHidden) {
         continue;
@@ -104,6 +107,10 @@ export class TextLine extends Ranges<Box, Text> {
 
       const lastTextNode = textNodes.at(-1);
       const startOfBlock = blockParent !== lastTextNode?.blockParent;
+
+      const startOfSubtext = !!subtext && lastTextNode?.subtext !== subtext;
+      const endOfSubtext =
+        !!lastTextNode?.subtext && lastTextNode.subtext !== subtext;
 
       if (lastTextNode) {
         lastTextNode.endOfBlock ||= startOfBlock;
@@ -113,14 +120,27 @@ export class TextLine extends Ranges<Box, Text> {
         blockParent,
         textNode,
         textContent,
+        subtext,
+        startOfSubtext,
+        endOfSubtext,
         startOfBlock,
         endOfBlock: false,
       });
     }
 
     textNodes.forEach(
-      ({ textNode, startOfBlock, endOfBlock, textContent, blockParent }) => {
+      ({
+        textNode,
+        startOfBlock,
+        startOfSubtext,
+        endOfSubtext,
+        endOfBlock,
+        textContent,
+        blockParent,
+      }) => {
         let start = textNode === lastNode ? lastOffset : 0;
+
+        let newRange = startOfSubtext || endOfSubtext;
 
         while (start < textContent.length) {
           const range = document.createRange();
@@ -186,26 +206,34 @@ export class TextLine extends Ranges<Box, Text> {
 
           if (existingLine) {
             const childNodes = [...existingLine.childNodes];
-            const rangeToExtendIndex = childNodes.findLastIndex(
-              (content) => typeof content !== "string"
-            );
-            const rangeToExtend = (
-              childNodes[rangeToExtendIndex] as Range | undefined
-            )?.cloneRange();
 
-            rangeToExtend?.setEnd(range.endContainer, range.endOffset);
+            if (!newRange) {
+              const rangeToExtendIndex = childNodes.findLastIndex(
+                (content) => typeof content !== "string"
+              );
+              const rangeToExtend = (
+                childNodes[rangeToExtendIndex] as Range | undefined
+              )?.cloneRange();
 
-            if (
-              rangeToExtend?.toString() ===
-              `${childNodes[rangeToExtendIndex]}${range}`
-            ) {
-              childNodes[rangeToExtendIndex] = rangeToExtend;
+              rangeToExtend?.setEnd(range.endContainer, range.endOffset);
+
+              if (
+                rangeToExtend?.toString() ===
+                `${childNodes[rangeToExtendIndex]}${range}`
+              ) {
+                childNodes[rangeToExtendIndex] = rangeToExtend;
+              } else {
+                childNodes.push(range);
+                newRange = false;
+              }
             } else {
               childNodes.push(range);
+              newRange = false;
             }
 
             existingLine.childNodes = childNodes;
           } else {
+            newRange = false;
             lines.push(newLine);
           }
 
@@ -216,7 +244,7 @@ export class TextLine extends Ranges<Box, Text> {
     );
 
     // Sort lines by vertical position
-    lines.sort(Box.comparePositions);
+    lines.sort((a, b) => a.top - b.top);
 
     lines.forEach((line, i) => {
       line.startOfText = i === 0;
@@ -234,6 +262,7 @@ function createParentChecker(text: Text) {
   return function checkNodeParents(node: Node) {
     let blockParent: HTMLElement | null = null;
     let parent = node.parentElement;
+    let subtext: Text | null = null;
 
     while (parent) {
       // Check if parent is hidden
@@ -254,11 +283,12 @@ function createParentChecker(text: Text) {
         (text) => text.customAnimationContainer === parent
       );
 
-      hidden ||= text.nextTexts.some((text) => text.container === parent);
-
       if (hidden) {
-        return { isHidden: true, blockParent: null } as const;
+        return { isHidden: true, subtext, blockParent: null } as const;
       }
+
+      subtext =
+        text.nextTexts.find((text) => text.container === parent) ?? subtext;
 
       const parentText = text.previousTexts.find(
         (text) => text.container === parent
@@ -286,6 +316,6 @@ function createParentChecker(text: Text) {
 
     blockParent ??= document.body;
 
-    return { isHidden: false, blockParent } as const;
+    return { isHidden: false, subtext, blockParent } as const;
   };
 }

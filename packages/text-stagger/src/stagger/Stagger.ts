@@ -1,5 +1,4 @@
 import {
-  Box,
   mergeTextSplitter,
   type ParsedTextOptions,
   resolveTextSplitter,
@@ -28,7 +27,7 @@ export class Stagger {
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
   #recreationProgresses = new Map<number, number>();
-  #invalidatePositions = true;
+  #invalidateTexts = true;
 
   #texts: Text[] = [];
   #elements?: StaggerElement[];
@@ -90,10 +89,16 @@ export class Stagger {
   }
 
   get texts() {
-    if (this.#invalidatePositions) {
-      this.#texts.sort((a, b) => a.comparePosition(b));
+    if (this.#invalidateTexts) {
+      this.#texts.sort((a, b) => {
+        if (a.top !== b.top) {
+          return a.top - b.top;
+        }
 
-      this.#invalidatePositions = false;
+        return a.left - b.left;
+      });
+
+      this.#invalidateTexts = false;
     }
 
     return this.#texts;
@@ -102,14 +107,20 @@ export class Stagger {
   get elements() {
     if (!this.#elements) {
       this.#elements = this.texts.flatMap((text) => text.elements);
-      this.#elements.sort(Box.comparePositions);
+      this.#elements.sort((a, b) => {
+        if (a.top !== b.top) {
+          return a.top - b.top;
+        }
+
+        return a.left - b.left;
+      });
     }
 
     return this.#elements;
   }
 
   invalidatePositions() {
-    this.#invalidatePositions = true;
+    this.#invalidateTexts = true;
     this.#elements = undefined;
   }
 
@@ -121,10 +132,6 @@ export class Stagger {
   }
 
   paint(texts: Text[] = []) {
-    for (const text of this.texts) {
-      text.updateBounds();
-    }
-
     const now = Date.now();
 
     const paintQueue = new Set([...this.#paintQueue, ...texts]);
@@ -149,11 +156,19 @@ export class Stagger {
 
       if (oldProgress !== element.progress) {
         paintQueue.add(element.text);
+
+        if (element.text.updateBoundsOnPaint) {
+          element.text.updateBounds();
+        }
       }
     }
 
     if (paintQueue.size) {
       for (const text of paintQueue) {
+        if (text.parent instanceof Text) {
+          text.parent.paint();
+        }
+
         text.paint();
       }
 
@@ -171,8 +186,6 @@ export class Stagger {
     }
 
     this.#painter ??= requestAnimationFrame(() => {
-      console.groupEnd();
-      console.group("paint");
       this.batchId++;
       this.#painter = undefined;
 

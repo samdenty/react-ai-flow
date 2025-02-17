@@ -1,9 +1,12 @@
-import { ElementAnimation } from "../../stagger/StaggerElement.js";
+import {
+  ElementAnimation,
+  type CustomStyles,
+} from "../../stagger/StaggerElement.js";
 import type { StaggerElementBox } from "../../stagger/StaggerElementBox.js";
 
 export function getCustomAnimationStyles(
   box: StaggerElementBox
-): Partial<Record<keyof CSSStyleDeclaration, string>> | null {
+): CustomStyles | null {
   let { animation, blurAmount = 8, customStyles: customStyles } = box.options;
 
   if (box.timing === 1) {

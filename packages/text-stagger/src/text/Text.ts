@@ -90,6 +90,9 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
   #mutationCache = new WeakMap<Node, number>();
   #ignoredNodes = new WeakSet<Node>();
   #maxFps?: number;
+  #closestCommonParent?: { rect: DOMRect; element: HTMLElement };
+  #parents: EventTarget[] = [];
+  updateBoundsOnPaint = false;
 
   lines: TextLine[] = [];
   elements: StaggerElement[] = [];
@@ -155,10 +158,17 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
       rect.height
     );
 
+    this.#closestCommonParent = undefined;
+
     return [[rect]];
   }
 
+  private handleScroll = () => {
+    this.updateBoundsOnPaint = true;
+  };
+
   updateBounds(rects?: DOMRect[][]) {
+    this.updateBoundsOnPaint = false;
     super.updateBounds(rects);
 
     this.updateCustomAnimationPosition();
@@ -293,11 +303,17 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
     if (!container) {
       this.canvas?.remove();
-      // this.customAnimationContainer.remove();
+      this.customAnimationContainer.remove();
       delete this.container.text;
 
       this.#mutationObserver?.disconnect();
       this.#resizeObserver?.disconnect();
+
+      this.#parents.forEach((parent) => {
+        parent.removeEventListener("scroll", this.handleScroll, true);
+      });
+
+      this.#parents = [];
 
       return;
     }
@@ -308,6 +324,19 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
     this.container.text = this;
     this.container.classList.add("ai-flow", this.className);
+
+    this.#parents = [];
+
+    let currentNode = this.container.parentNode;
+    while (currentNode && currentNode !== document.documentElement) {
+      this.#parents.push(currentNode);
+
+      currentNode.addEventListener("scroll", this.handleScroll, true);
+      currentNode = currentNode.parentNode;
+    }
+
+    this.#parents.push(window);
+    window.addEventListener("scroll", this.handleScroll, true);
 
     updateProperty(this.customAnimationClassName, "position", "absolute");
 
@@ -439,7 +468,8 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
     // childNodes can be empty if a mutation has occurred in meantime
     if (childNodes.length) {
-      new StaggerElement(this, childNodes, this.trailingSplit);
+      const element = new StaggerElement(this, childNodes, this.trailingSplit);
+      element.restartAnimation();
     }
 
     this.trailingSplit = null;
@@ -518,36 +548,118 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
     return this.stagger.texts.filter((text) => text.parent === this);
   }
 
-  get relativeToParentCanvas() {
+  get continuousChildNodes(): {
+    nodes: readonly RangesChildNode[];
+    subtext: Text | null;
+  }[] {
+    if (!this.subtext.length) {
+      return [{ nodes: this.childNodes, subtext: null }];
+    }
+
+    const continuousChildNodes: {
+      nodes: RangesChildNode[];
+      subtext: Text | null;
+    }[] = [{ nodes: [], subtext: null }];
+
+    for (const childNode of this.childNodes) {
+      const segment = continuousChildNodes.at(-1)!;
+
+      if (typeof childNode === "string") {
+        segment.nodes.push(childNode);
+        continue;
+      }
+
+      const range = childNode;
+
+      const start = this.subtext.find((subtext) => {
+        const firstRange = subtext.ranges[0];
+
+        return (
+          firstRange?.compareBoundaryPoints(Range.START_TO_START, range) === 0
+        );
+      });
+
+      if (start && segment.nodes.length) {
+        continuousChildNodes.push({ nodes: [range], subtext: start });
+      } else {
+        segment.nodes.push(range);
+
+        if (start) {
+          segment.subtext = start;
+        }
+      }
+
+      const end = this.subtext.find((subtext) => {
+        const lastRange = subtext.ranges.at(-1);
+
+        return lastRange?.compareBoundaryPoints(Range.END_TO_END, range) === 0;
+      });
+
+      if (end) {
+        continuousChildNodes.push({ nodes: [], subtext: null });
+      }
+    }
+
+    if (continuousChildNodes.at(-1)?.nodes?.length === 0) {
+      continuousChildNodes.pop();
+    }
+
+    return continuousChildNodes;
+  }
+
+  get continuousChildNodesOffsets() {
+    let childNodeOffset = 0;
+
+    return this.continuousChildNodes.map(({ nodes, subtext }) => {
+      return {
+        nodes: nodes.map((childNode) => {
+          const length = childNode.toString().length;
+          const offset = {
+            childNode,
+            start: childNodeOffset,
+            end: childNodeOffset + length,
+          };
+          childNodeOffset += length;
+          return offset;
+        }),
+        subtext,
+      };
+    });
+  }
+
+  get closestCommonParent() {
     if (!(this.parent instanceof Text)) {
       return null;
     }
 
-    const { left, top, right, bottom, width, height } = this.relativeTo(
-      this.parent
+    if (this.#closestCommonParent) {
+      return this.#closestCommonParent;
+    }
+
+    const element = getSafeContainer(
+      this.parent.container,
+      this.container,
+      this.#ignoredNodes
     );
 
-    const marginLeft = this.parent.text.left - this.parent.text.canvasRect.left;
+    const rect = element.getBoundingClientRect();
 
-    return {
-      left: left + marginLeft,
-      right: right + marginLeft,
-      top,
-      bottom,
-      width,
-      height,
-    };
+    return (this.#closestCommonParent = { element, rect });
   }
 
   toJSON() {
     return {
-      relativeToParentCanvas: this.relativeToParentCanvas,
       canvasRect: {
         width: this.canvasRect.width,
         height: this.canvasRect.height,
       },
+      id: this.id,
+      innerText: this.innerText,
+      progress: this.progress,
       subtext: this.subtext,
-      elements: this.elements as SerializedStaggerElement[],
+      elements: this.elements.filter(
+        (element) => element.progress !== 0
+      ) as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
     };
@@ -600,7 +712,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
           let currentStart = textSplit.start;
           let remainingLength = textSplit.end - textSplit.start;
 
-          for (const text of element.continuousChildText) {
+          for (const text of element.childText) {
             if (remainingLength <= 0) break;
 
             const length = Math.min(text.length, remainingLength);
@@ -652,7 +764,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
         text.revealTrailing();
       }
 
-      splits.forEach((split, i) => {
+      const newElements = splits.flatMap((split, i) => {
         const isLastElement =
           this === (this.stagger.elements.at(-1)?.text ?? this) &&
           isLastDiff &&
@@ -664,11 +776,29 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
           this.stagger.streaming === true
         ) {
           this.trailingSplit = split;
-          return;
+          return [];
         }
 
-        new StaggerElement(this, trimChildNodes(split.start, split.end), split);
+        return new StaggerElement(
+          this,
+          trimChildNodes(split.start, split.end),
+          split
+        );
       });
+
+      const indexes = new Set(
+        newElements.map((element) => this.stagger.elements.indexOf(element))
+      );
+
+      if (!indexes.size) {
+        return;
+      }
+
+      const restartFromIndex = Math.min(...indexes);
+
+      for (let i = restartFromIndex; i < this.stagger.elements.length; i++) {
+        this.stagger.elements[i].restartAnimation();
+      }
     });
   }
 
@@ -987,4 +1117,51 @@ function hasBlockElement(element: Element, ignored: WeakSet<Node>) {
   }
 
   return false;
+}
+
+function getSafeContainer(
+  root: HTMLElement,
+  element: HTMLElement,
+  ignoredNodes: WeakSet<Node>
+) {
+  let current = element;
+  let lastElement = element;
+
+  while (true) {
+    // Store current before moving to parent
+    lastElement = current;
+
+    // Move to parent first
+    if (current.parentElement) {
+      current = current.parentElement;
+    } else {
+      return lastElement;
+    }
+
+    const looseText = hasLooseText(
+      current,
+      (node) => !ignoredNodes.has(node) && node !== lastElement
+    );
+
+    if (looseText) {
+      return lastElement;
+    }
+
+    if (current === root) {
+      return lastElement;
+    }
+  }
+}
+
+function hasLooseText(
+  node: Node,
+  acceptNode: (node: Node) => boolean
+): boolean {
+  return [...node.childNodes].some((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node.textContent?.trim();
+    }
+
+    return acceptNode(node) && hasLooseText(node, acceptNode);
+  });
 }

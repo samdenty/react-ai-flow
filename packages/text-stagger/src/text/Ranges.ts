@@ -13,8 +13,9 @@ export class Box<
 
   stagger: Stagger;
 
-  #parentLeft: number;
-  #parentTop: number;
+  #parentRanges?: Ranges<any, any>;
+  #parentLeft = 0;
+  #parentTop = 0;
   #rectListeners = new Set<() => void>();
 
   get container() {
@@ -23,6 +24,20 @@ export class Box<
 
   set container(container: HTMLElement) {
     this.#container = container;
+  }
+
+  private updateParentCoords = () => {
+    this.#parentLeft = this.#parentRanges?.left ?? 0;
+    this.#parentTop = this.#parentRanges?.top ?? 0;
+  };
+
+  containedWithin(other: Box<any>) {
+    return (
+      this.top >= other.top &&
+      this.bottom <= other.bottom &&
+      this.left >= other.left &&
+      this.right <= other.right
+    );
   }
 
   constructor(
@@ -35,23 +50,17 @@ export class Box<
     public height = 0
   ) {
     if (parent instanceof Ranges) {
+      this.#parentRanges = parent;
       this.stagger = parent.stagger;
-      this.#parentLeft = parent.left;
-      this.#parentTop = parent.top;
-
-      const listener = () => {
-        this.#parentLeft = parent.left;
-        this.#parentTop = parent.top;
-      };
 
       let parentRanges = parent;
 
       do {
         const parent = parentRanges;
-        parent.#rectListeners.add(listener);
+        parent.#rectListeners.add(this.updateParentCoords);
 
         this.#disposers.add(() => {
-          parent.#rectListeners.delete(listener);
+          parent.#rectListeners.delete(this.updateParentCoords);
         });
       } while (
         (parentRanges = parentRanges.parent) &&
@@ -59,9 +68,9 @@ export class Box<
       );
     } else {
       this.stagger = parent;
-      this.#parentTop = 0;
-      this.#parentLeft = 0;
     }
+
+    this.updateParentCoords();
 
     this.container = element;
   }
@@ -118,7 +127,8 @@ export class Box<
 
   set top(top: number) {
     const oldRelativeTop = this.relativeTopToParent;
-    this.relativeTopToParent = top - (this.#parentTop ?? 0);
+    this.updateParentCoords();
+    this.relativeTopToParent = top - this.#parentTop;
 
     if (oldRelativeTop !== this.relativeTopToParent) {
       this.#rectListeners.forEach((listener) => listener());
@@ -127,7 +137,8 @@ export class Box<
 
   set left(left: number) {
     const oldRelativeLeft = this.relativeLeftToParent;
-    this.relativeLeftToParent = left - (this.#parentLeft ?? 0);
+    this.updateParentCoords();
+    this.relativeLeftToParent = left - this.#parentLeft;
 
     if (oldRelativeLeft !== this.relativeLeftToParent) {
       this.#rectListeners.forEach((listener) => listener());
@@ -165,9 +176,6 @@ export class Box<
 
   set right(right: number) {
     this.width = right - this.left;
-    if (this.width === 11531.6325) {
-      debugger;
-    }
   }
 
   get right() {
@@ -187,6 +195,10 @@ export abstract class Ranges<
 > extends Box<U> {
   #boxes: T[] = [];
   #childNodes: readonly RangesChildNode[] = [];
+  #boundaryPointsCheck = new WeakMap<
+    Node,
+    Map<number, WeakMap<Node, Map<number, number>>>
+  >();
   ranges: Range[] = [];
 
   /**
@@ -218,6 +230,132 @@ export abstract class Ranges<
     if (childNodes) {
       this.childNodes = childNodes;
     }
+  }
+
+  comparePosition(other: Ranges<any, any>) {
+    if (this.top === other.top && this.left !== other.left) {
+      return this.left - other.left;
+    }
+
+    let range = this.ranges.at(0);
+    if (this.ranges.length > 1) {
+      range = range?.cloneRange();
+      const lastRange = this.ranges.at(-1)!;
+      range?.setEnd(lastRange.endContainer, lastRange.endOffset);
+    }
+
+    let otherRange = other.ranges.at(0);
+    if (other.ranges.length > 1) {
+      otherRange = otherRange?.cloneRange();
+      const lastRange = other.ranges.at(-1)!;
+      otherRange?.setEnd(lastRange.endContainer, lastRange.endOffset);
+    }
+
+    if (!range || !otherRange) {
+      return 0;
+    }
+
+    let startPositions = this.#boundaryPointsCheck.get(
+      otherRange.startContainer
+    );
+
+    if (!startPositions) {
+      startPositions = new Map();
+      this.#boundaryPointsCheck.set(otherRange.startContainer, startPositions);
+    }
+
+    let endContainers = startPositions.get(otherRange.startOffset);
+    if (!endContainers) {
+      endContainers = new Map();
+      startPositions.set(otherRange.startOffset, endContainers);
+    }
+
+    let endPositions = endContainers.get(otherRange.endContainer);
+    if (!endPositions) {
+      endPositions = new Map();
+      endContainers.set(otherRange.endContainer, endPositions);
+    }
+
+    let result = endPositions.get(otherRange.endOffset);
+
+    if (result != null) {
+      return result;
+    }
+
+    const overlapping = !(
+      this.right <= other.left ||
+      this.left >= other.right ||
+      this.bottom <= other.top ||
+      this.top >= other.bottom
+    );
+
+    if (
+      range.startContainer === otherRange.startContainer &&
+      range.endContainer === otherRange.endContainer &&
+      range.startOffset === otherRange.startOffset &&
+      range.endOffset === otherRange.endOffset
+    ) {
+      const pos = this.container.compareDocumentPosition(other.container);
+
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
+        result = -1;
+      } else if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
+        result = 1;
+      } else {
+        result = 0;
+      }
+    } else {
+      const containedWithin = this.containedWithin(other);
+      const otherContainedWithin = other.containedWithin(this);
+
+      if (containedWithin && !otherContainedWithin) {
+        return 1;
+      } else if (otherContainedWithin && !containedWithin) {
+        return -1;
+      }
+
+      if (!overlapping) {
+        if (this.top !== other.top) {
+          return this.top - other.top;
+        }
+
+        return this.left - other.left;
+      } else {
+        const startPointRange = range.cloneRange();
+        startPointRange.setEnd(range.startContainer, range.startOffset);
+
+        const otherStartPointRange = otherRange.cloneRange();
+        otherStartPointRange.setEnd(
+          otherRange.startContainer,
+          otherRange.startOffset
+        );
+
+        result = startPointRange.compareBoundaryPoints(
+          Range.START_TO_START,
+          otherStartPointRange
+        );
+
+        if (result === 0) {
+          const endPointRange = range.cloneRange();
+          endPointRange.setStart(range.endContainer, range.endOffset);
+
+          const otherEndPointRange = otherRange.cloneRange();
+          otherEndPointRange.setStart(
+            otherRange.endContainer,
+            otherRange.endOffset
+          );
+
+          result = endPointRange.compareBoundaryPoints(
+            Range.START_TO_START,
+            otherEndPointRange
+          );
+        }
+      }
+    }
+
+    endPositions.set(otherRange.endOffset, result);
+
+    return result;
   }
 
   childText: string[] = [];

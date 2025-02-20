@@ -244,7 +244,7 @@ export class TextLine extends Ranges<Box, Text> {
     );
 
     // Sort lines by vertical position
-    lines.sort((a, b) => a.top - b.top);
+    lines.sort((a, b) => a.comparePosition(b));
 
     lines.forEach((line, i) => {
       line.startOfText = i === 0;
@@ -294,7 +294,13 @@ function createParentChecker(text: Text) {
         (text) => text.container === parent
       );
 
-      if (parentText && parentText.parent !== text) {
+      if (parentText) {
+        if (parentText.parent === text) {
+          // infinite loop detected, this is bad
+          debugger;
+          throw new Error("Infinite loop detected");
+        }
+
         parentText.createIgnoredElement(text.container);
         parentText.createIgnoredElement(text.customAnimationContainer);
         text.parent = parentText;

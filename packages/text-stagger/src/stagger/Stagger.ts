@@ -91,11 +91,7 @@ export class Stagger {
   get texts() {
     if (this.#invalidateTexts) {
       this.#texts.sort((a, b) => {
-        if (a.top !== b.top) {
-          return a.top - b.top;
-        }
-
-        return a.left - b.left;
+        return a.comparePosition(b);
       });
 
       this.#invalidateTexts = false;
@@ -108,11 +104,7 @@ export class Stagger {
     if (!this.#elements) {
       this.#elements = this.texts.flatMap((text) => text.elements);
       this.#elements.sort((a, b) => {
-        if (a.top !== b.top) {
-          return a.top - b.top;
-        }
-
-        return a.left - b.left;
+        return a.comparePosition(b);
       });
     }
 
@@ -137,7 +129,7 @@ export class Stagger {
     const paintQueue = new Set([...this.#paintQueue, ...texts]);
     this.#paintQueue.clear();
 
-    let skippedFrame = false;
+    const skippedFrames = new Set<Text>();
 
     for (const element of this.elements) {
       const elapsed = now - element.startTime - element.delay;
@@ -147,7 +139,7 @@ export class Stagger {
       }
 
       if (element.text.shouldSkipFrame) {
-        skippedFrame = true;
+        skippedFrames.add(element.text);
         continue;
       }
 
@@ -156,10 +148,12 @@ export class Stagger {
 
       if (oldProgress !== element.progress) {
         paintQueue.add(element.text);
+      }
+    }
 
-        if (element.text.updateBoundsOnPaint) {
-          element.text.updateBounds();
-        }
+    for (const text of this.texts) {
+      if (text.updateBoundsOnPaint && !skippedFrames.has(text)) {
+        text.updateBounds();
       }
     }
 
@@ -176,7 +170,8 @@ export class Stagger {
     }
 
     return (
-      skippedFrame || this.elements.some((element) => element.progress !== 1)
+      skippedFrames.size ||
+      this.elements.some((element) => element.progress !== 1)
     );
   }
 

@@ -1,11 +1,10 @@
 import {
-  StaggerElementBox,
   type StaggerElementBoxOptions,
   StaggerElement,
   type SerializedStaggerElement,
   type ElementOptions,
 } from "../stagger/index.js";
-import { Ranges, type RangesChildNode } from "./Ranges.js";
+import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { type ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
 import { TextLine } from "./TextLine.js";
 import {
@@ -86,7 +85,7 @@ export interface TextOptions extends TextSplitterOptions {
   delayTrailing?: boolean;
 }
 
-export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
+export class Text extends Ranges<Box<Text>, Stagger | Text> {
   #mutationCache = new WeakMap<Node, number>();
   #ignoredNodes = new WeakSet<Node>();
   #maxFps?: number;
@@ -252,21 +251,32 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
     );
   }
 
-  scanBoxes() {
-    return this.boxes;
+  scanBoxes(rects: DOMRect[][]) {
+    return rects.flat().map((rect) => {
+      return new Box(
+        this,
+        this.options,
+        this.container,
+        rect.top,
+        rect.left,
+        rect.width,
+        rect.height
+      );
+    });
   }
 
-  override get boxes() {
+  get elementBoxes() {
     return this.elements.flatMap((element) => element.boxes);
   }
 
   get progress(): number {
-    if (!this.boxes.length) {
+    if (!this.elementBoxes.length) {
       return 1;
     }
 
     return (
-      this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
+      this.elementBoxes.reduce((acc, box) => acc + box.progress, 0) /
+      this.boxes.length
     );
   }
 
@@ -321,6 +331,23 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
     this.container &&= undefined;
 
     super.container = container;
+
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+
+    const firstNode = walker.nextNode();
+    walker.currentNode = container;
+    const lastNode = walker.lastChild();
+
+    if (firstNode && lastNode?.textContent != null) {
+      const range = document.createRange();
+
+      range.setStart(firstNode, 0);
+      range.setEnd(lastNode, lastNode.textContent.length);
+
+      this.childNodes = [range];
+    }
+
+    this.stagger.invalidatePositions();
 
     this.container.text = this;
     this.container.classList.add("ai-flow", this.className);
@@ -407,7 +434,9 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
         return;
       }
 
-      const mutated = mutations.some((mutation) => {
+      mutations.push(...entries);
+
+      mutations = mutations.filter((mutation) => {
         let currentElement: Node | null = mutation.target;
 
         while (currentElement) {
@@ -418,20 +447,20 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
           currentElement = currentElement.parentElement;
         }
 
-        if (!mutation.addedNodes.length) {
+        const nodes = mutation.addedNodes.length
+          ? [...mutation.addedNodes]
+          : [...mutation.removedNodes];
+
+        if (!nodes.length) {
           return true;
         }
 
-        return [...mutation.addedNodes].some(
-          (node) => !this.#ignoredNodes.has(node)
-        );
+        return nodes.some((node) => !this.#ignoredNodes.has(node));
       });
 
-      if (!mutated) {
+      if (!mutations.length) {
         return;
       }
-
-      mutations.push(...entries);
 
       mutationScanner ??= requestAnimationFrame(() => {
         this.scanElementLines({
@@ -468,11 +497,14 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
 
     // childNodes can be empty if a mutation has occurred in meantime
     if (childNodes.length) {
+      this.updateBounds();
       const element = new StaggerElement(this, childNodes, this.trailingSplit);
       element.restartAnimation();
     }
 
     this.trailingSplit = null;
+
+    this.paint();
   }
 
   constructor(
@@ -657,9 +689,7 @@ export class Text extends Ranges<StaggerElementBox, Stagger | Text> {
       innerText: this.innerText,
       progress: this.progress,
       subtext: this.subtext,
-      elements: this.elements.filter(
-        (element) => element.progress !== 0
-      ) as SerializedStaggerElement[],
+      elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
     };

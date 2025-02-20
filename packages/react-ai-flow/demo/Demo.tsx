@@ -32,7 +32,7 @@ function MessagesContent({
   return (
     <>
       <div className="relative w-full flex flex-col overflow-hidden">
-        <StickToBottom.Content className="flex flex-col gap-4 p-6">
+        {/* <StickToBottom.Content className="flex flex-col gap-4 p-6"> */}
           {[...Array(1)].map((_, i) => (
             <Message key={i}>
               <h1 style={{ paddingLeft: 20 }}>
@@ -50,8 +50,8 @@ function MessagesContent({
           {messages.map((message, i) => (
             <Message key={i}>{message}</Message>
           ))}
-        </StickToBottom.Content>
-        <ScrollToBottom />
+        {/* </StickToBottom.Content> */}
+        {/* <ScrollToBottom /> */}
       </div>
 
       <div className="flex justify-center pt-4">
@@ -74,7 +74,7 @@ function Messages({ speed }: { speed: number }) {
   return (
     <StaggerProvider streaming>
       <div className="prose flex flex-col gap-2 w-full overflow-hidden">
-        <StickToBottom className="h-[50vh] flex flex-col" initial={false}>
+        {/* <StickToBottom className="h-[50vh] flex flex-col" initial={false}> */}
           <MessagesContent
             messages={paused || messages}
             paused={!!paused}
@@ -82,7 +82,7 @@ function Messages({ speed }: { speed: number }) {
               paused ? setPaused(false) : setPaused(messages)
             }
           />
-        </StickToBottom>
+        {/* </StickToBottom> */}
       </div>
     </StaggerProvider>
   );

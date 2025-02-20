@@ -95,18 +95,19 @@ function Message({ children }: { children: React.ReactNode }) {
         splitter="word"
         visualDebug
         delayTrailing
+        animation="gradient-reveal"
+        // animation="blur-in"
+        // animation="bounce-in"
         duration={(element) => {
           return (element.width / element.text.width) * 1000;
         }}
-        // stagger={(element, prev) => {
-        //   return prev ? prev.duration * 0.1 : 0;
-        // }}
-        // delay={(item) => item.index * 1000}
+        // stagger={60}
+
+        // animation="gradient-reveal"
         gradientWidth={(box) => {
           // return box.progress * box.width;
           return "100%";
         }}
-        animation="gradient-reveal"
       >
         {children}
       </StaggeredText>

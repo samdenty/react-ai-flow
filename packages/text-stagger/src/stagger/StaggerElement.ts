@@ -44,6 +44,8 @@ export type MaskAnimation = GradientAnimation | ElementAnimation.FadeIn;
 export interface CustomStyles
   extends Partial<Record<keyof CSSStyleDeclaration, string>> {}
 
+export type RelativeTimePeriod = number | `${number}%`;
+
 export interface ElementOptions {
   animation?: ElementAnimation | `${ElementAnimation}`;
 
@@ -73,14 +75,22 @@ export interface ElementOptions {
   /**
    * @example
    * For half the duration of the animation:
-   * delay: (_, prevElement) => prevElement.duration / 2
+   * stagger: '50%'
    */
   stagger?:
-    | number
+    | RelativeTimePeriod
     | ((
         element: StaggerElement,
         previousElement: StaggerElement | null
-      ) => number);
+      ) => RelativeTimePeriod);
+
+  vibration?:
+    | RelativeTimePeriod
+    | RelativeTimePeriod[]
+    | false
+    | ((
+        element: StaggerElement
+      ) => RelativeTimePeriod | RelativeTimePeriod[] | false);
 
   delay?: (element: StaggerElement) => number;
 }
@@ -95,6 +105,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
   startTime!: number;
   duration!: number;
+  vibration!: number[] | null;
   #delay: number | null = null;
   staggerDelay: number | null = null;
 
@@ -157,18 +168,28 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     }
 
     this.duration = this.calculateDuration();
+    this.vibration = this.calculateVibration();
 
     if (typeof this.options.delay === "number") {
       this.#delay = this.options.delay;
     }
 
+    const previousElement = latestElementInBatch ?? lastActiveElement ?? null;
+
     if (typeof this.options.stagger === "number") {
       this.staggerDelay = this.options.stagger;
+    } else if (typeof this.options.stagger === "string") {
+      const percent = parseFloat(this.options.stagger) ?? 0;
+      this.staggerDelay = (percent / 100) * (previousElement?.duration ?? 0);
     } else {
-      this.staggerDelay = this.options.stagger(
-        this,
-        latestElementInBatch ?? lastActiveElement ?? null
-      );
+      const staggerDelay = this.options.stagger(this, previousElement);
+
+      if (typeof staggerDelay === "number") {
+        this.staggerDelay = staggerDelay;
+      } else {
+        const percent = parseFloat(staggerDelay) ?? 0;
+        this.staggerDelay = (percent / 100) * (previousElement?.duration ?? 0);
+      }
     }
 
     if (latestElementInBatch) {
@@ -195,6 +216,44 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   get nextElements() {
     const index = this.stagger.elements.indexOf(this);
     return this.stagger.elements.slice(index + 1);
+  }
+
+  private calculateVibration() {
+    let vibration: RelativeTimePeriod | RelativeTimePeriod[];
+
+    if (typeof this.options.vibration === "function") {
+      vibration = this.options.vibration(this) || 0;
+    } else {
+      vibration = this.options.vibration || 0;
+    }
+
+    if (!vibration) {
+      return null;
+    }
+
+    if (typeof vibration === "number" || typeof vibration === "string") {
+      vibration = [vibration];
+    }
+
+    const relativeTo = this.duration - (this.staggerDelay ?? 0);
+
+    const vibrationTimes = vibration.map((time) => {
+      if (typeof time === "number") {
+        return time;
+      }
+
+      const percent = parseFloat(time) || 0;
+
+      return (relativeTo / 100) * percent;
+    });
+
+    const totalTime = vibrationTimes.reduce((a, b) => a + b, 0);
+
+    if (totalTime <= 0) {
+      return null;
+    }
+
+    return vibrationTimes;
   }
 
   private calculateDuration() {

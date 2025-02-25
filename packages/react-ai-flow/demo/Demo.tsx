@@ -93,15 +93,15 @@ function Message({ children }: { children: React.ReactNode }) {
     <div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
       <StaggeredText
         splitter="word"
-        visualDebug
+        // visualDebug
         delayTrailing
-        animation="gradient-reveal"
+        animation="blur-in"
         // animation="blur-in"
         // animation="bounce-in"
         duration={(element) => {
-          return (element.width / element.text.width) * 1000;
+          return 200;
         }}
-        // stagger={60}
+        stagger="100%"
 
         // animation="gradient-reveal"
         gradientWidth={(box) => {

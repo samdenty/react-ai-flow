@@ -3,6 +3,7 @@ import {
   StaggerElement,
   type SerializedStaggerElement,
   type ElementOptions,
+  type RelativeTimePeriod,
 } from "../stagger/index.js";
 import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { type ScanEvent, ScanReason, Stagger } from "../stagger/Stagger.js";
@@ -42,6 +43,13 @@ export interface ParsedTextOptions
     StaggerElementBoxOptions {
   visualDebug: boolean;
   maxFps: number | null | ((text: Text) => boolean | number | null);
+  vibration:
+    | RelativeTimePeriod
+    | RelativeTimePeriod[]
+    | false
+    | ((
+        element: StaggerElement
+      ) => RelativeTimePeriod | RelativeTimePeriod[] | false);
   disabled: boolean;
   classNamePrefix: string;
   delayTrailing: boolean;
@@ -418,6 +426,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     this.#resizeObserver = new ResizeObserver((entries) => {
       if (!mounted) {
         this.scanElementLines({ reason: ScanReason.Mounted });
+
+        if (this.stagger.streaming === false) {
+          this.progress = 1;
+        }
       } else {
         this.scanElementLines({ reason: ScanReason.Resize, entries });
       }
@@ -431,6 +443,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     this.#mutationObserver = new MutationObserver((entries) => {
       if (this.#ignoreNextMutation) {
         this.#ignoreNextMutation = false;
+
         return;
       }
 

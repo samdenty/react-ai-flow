@@ -17,8 +17,7 @@ export interface StaggerProvider extends Stagger {
 const StaggerProviderContext = createContext<StaggerProvider | null>(null);
 
 export interface StaggerProviderProps
-  extends StaggerOptions,
-    Pick<Stagger, "streaming"> {
+  extends StaggerOptions {
   children: React.ReactNode;
 
   targetScrollTop?: GetTargetScrollTop;
@@ -36,7 +35,7 @@ export function StaggerProvider({
   const [stagger, setStagger] = useState<StaggerProvider | null>(null);
 
   useEffect(() => {
-    const stagger = new Stagger(options) as StaggerProvider;
+    const stagger = new Stagger({...options, streaming}) as StaggerProvider;
     stagger.stickToBottom = new Map();
     setStagger(stagger);
     return () => stagger.dispose();

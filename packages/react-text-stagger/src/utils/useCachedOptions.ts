@@ -36,6 +36,7 @@ export function useCachedOptions({
   delay: currentDelay,
   duration: currentDuration,
   stagger: currentStagger,
+  vibration: currentVibration,
   gradientWidth: currentGradientWidth,
   customStyles: currentCustomStyles,
   blurAmount: currentBlurAmount,
@@ -49,6 +50,7 @@ export function useCachedOptions({
 }: StaggerOptions): StaggerOptions {
   const maxFps = useCachedFunctionLike(currentMaxFps);
   const duration = useCachedFunctionLike(currentDuration);
+  const vibration = useCachedFunctionLike(currentVibration);
   const delay = useCachedFunctionLike(currentDelay);
   const stagger = useCachedFunctionLike(currentStagger);
   const splitter = useCachedFunctionLike(currentSplitter);
@@ -62,6 +64,7 @@ export function useCachedOptions({
       animation,
       delay,
       duration,
+      vibration,
       splitter,
       stagger,
       gradientWidth,
@@ -78,6 +81,7 @@ export function useCachedOptions({
       animation,
       delay,
       duration,
+      vibration,
       splitter,
       stagger,
       gradientWidth,
@@ -106,6 +110,15 @@ export function useCachedFunctionLike<T extends any>(value: T): T {
 
     return value;
   }, []);
+
+  const cachedArrayLike = useMemo(
+    () => (Array.isArray(value) ? value : null),
+    Array.isArray(value) ? value : []
+  );
+
+  if (cachedArrayLike !== null) {
+    return cachedArrayLike as T;
+  }
 
   if (typeof value === "function") {
     return cachedValue as T;

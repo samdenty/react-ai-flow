@@ -1,3 +1,4 @@
+import { mergeVibrations, type Vibration } from "ios-vibrator-pro-max";
 import {
   mergeTextSplitter,
   type ParsedTextOptions,
@@ -8,7 +9,10 @@ import {
 } from "../text/index.js";
 import type { StaggerElement } from "./StaggerElement.js";
 
-export interface StaggerOptions extends TextOptions {}
+export interface StaggerOptions extends TextOptions {
+  streaming?: boolean | null;
+}
+
 export interface ParsedStaggerOptions extends ParsedTextOptions {}
 
 declare global {
@@ -26,8 +30,8 @@ export class Stagger {
   #textsListeners = new Set<() => void>();
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
-  #recreationProgresses = new Map<number, number>();
   #invalidateTexts = true;
+  #vibration?: Vibration;
 
   #texts: Text[] = [];
   #elements?: StaggerElement[];
@@ -36,8 +40,9 @@ export class Stagger {
   id = ++ID;
   lastPaint?: number;
 
-  constructor(options?: StaggerOptions) {
+  constructor({ streaming, ...options }: StaggerOptions = {}) {
     this.options = options;
+    this.streaming = streaming ?? null;
 
     globalThis.staggers ??= [];
     globalThis.staggers.push(this);
@@ -53,6 +58,10 @@ export class Stagger {
         (stagger) => stagger !== this
       );
     }
+  }
+
+  get width() {
+    return Math.max(...this.texts.map((text) => text.width));
   }
 
   /**
@@ -123,6 +132,20 @@ export class Stagger {
     }
   }
 
+  vibrate(vibrations: number[]) {
+    if (!isTouchDevice()) {
+      return;
+    }
+
+    if (this.#vibration) {
+      vibrations = mergeVibrations([Date.now(), vibrations], this.#vibration);
+    }
+
+    this.#vibration = [Date.now(), vibrations];
+
+    navigator.vibrate(vibrations);
+  }
+
   paint(texts: Text[] = []) {
     const now = Date.now();
 
@@ -147,6 +170,10 @@ export class Stagger {
       element.progress = Math.min(1, elapsed / element.duration);
 
       if (oldProgress !== element.progress) {
+        if (oldProgress === 0 && element.vibration) {
+          this.vibrate(element.vibration);
+        }
+
         paintQueue.add(element.text);
       }
     }
@@ -204,7 +231,8 @@ export class Stagger {
         disabled: false,
         classNamePrefix: Stagger.classNamePrefix,
         delayTrailing: false,
-        stagger: (_, prevElement) => prevElement?.duration ?? 0,
+        vibration: [0, "70%", 10],
+        stagger: "100%",
       },
       options
     );
@@ -248,7 +276,6 @@ export class Stagger {
 
     text.dispose();
 
-    this.#recreationProgresses.set(id, text.progress);
     this.texts.splice(this.texts.indexOf(text), 1);
     this.#textsListeners.forEach((listener) => listener());
   }
@@ -275,12 +302,6 @@ export class Stagger {
       element,
       mergeTextSplitter<ParsedTextOptions>(this.options, textOptions)
     );
-
-    const recreatedProgress = this.#recreationProgresses.get(id);
-
-    if (recreatedProgress) {
-      text.progress = recreatedProgress;
-    }
 
     this.texts.push(text);
     this.#textsListeners.forEach((listener) => listener());
@@ -321,3 +342,11 @@ export type ScanEvent =
   | MutationScanEvent
   | ResizeScanEvent
   | ForcedScanEvent;
+
+function isTouchDevice() {
+  return (
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0 ||
+    (navigator as any).msMaxTouchPoints > 0
+  );
+}

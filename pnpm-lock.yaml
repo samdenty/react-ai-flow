@@ -111,6 +111,9 @@ importers:
       fast-myers-diff:
         specifier: ^3.2.0
         version: 3.2.0
+      ios-vibrator-pro-max:
+        specifier: ^1.0.2
+        version: 1.0.2
 
 packages:
 
@@ -1080,6 +1083,9 @@ packages:
   import-lazy@4.0.0:
     resolution: {integrity: sha512-rKtvo6a868b5Hu3heneU+L4yEQ4jYKLtjpnPeUdK7h0yzXGmyBTypknlkCvHFBqfX9YlorEiMM6Dnq/5atfHkw==}
     engines: {node: '>=8'}
+
+  ios-vibrator-pro-max@1.0.2:
+    resolution: {integrity: sha512-MhPcaymV44Ckan9ZOKfWTvRu+hPOElLDYFLs+oLKV/qWP7WIwgZvO/2VtZXcFALOlCq7J5o0JcYGvfUJc5TqTg==}
 
   is-binary-path@2.1.0:
     resolution: {integrity: sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==}
@@ -2747,6 +2753,8 @@ snapshots:
   headers-polyfill@4.0.3: {}
 
   import-lazy@4.0.0: {}
+
+  ios-vibrator-pro-max@1.0.2: {}
 
   is-binary-path@2.1.0:
     dependencies:

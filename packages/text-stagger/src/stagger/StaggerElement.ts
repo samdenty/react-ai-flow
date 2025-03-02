@@ -1,4 +1,5 @@
 import {
+  optimizeRects,
   type ParsedTextOptions,
   type ParsedTextSplit,
   Ranges,
@@ -271,32 +272,34 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return (this.#delay ?? 0) + (this.staggerDelay ?? 0);
   }
 
-  scanRects() {
+  scanBoxes(rects: DOMRect[][]) {
     const { closestCommonParent } = this.subtext || {};
 
     if (closestCommonParent) {
-      return [[closestCommonParent.rect]];
+      const box = new StaggerElementBox(
+        this,
+        this.options,
+        this.container,
+        this.ranges,
+        closestCommonParent.rect
+      );
+
+      return rects.map((rects) => rects.map((_) => box));
     }
 
-    return super.scanRects();
-  }
-
-  scanBoxes(rects: DOMRect[][]) {
-    return rects.flatMap((rects, i) => {
-      return rects.map((rect) => {
-        return new StaggerElementBox(
-          this,
-          this.options,
-          this.container,
-          this.ranges[i],
-          rect
-        );
-      });
+    return optimizeRects(rects, (rect, indexes) => {
+      return new StaggerElementBox(
+        this,
+        this.options,
+        this.container,
+        [...new Set(indexes.map(([i]) => this.ranges[i]))],
+        rect
+      );
     });
   }
 
   get lines() {
-    const lines = new Set(this.boxes.map((box) => box.line));
+    const lines = new Set(this.boxes.map(([box]) => box.line));
     return [...lines].filter((line) => !!line);
   }
 
@@ -305,25 +308,25 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   }
 
   override rescan() {
-    const oldBoxCount = this.boxes.length;
-    const oldProgresses = this.boxes.map((box) => box.progress);
+    const oldBoxCount = this.uniqueBoxes.length;
+    const oldProgresses = this.uniqueBoxes.map((box) => box.progress);
 
     super.rescan();
 
     const now = Date.now();
 
-    if (oldBoxCount && this.boxes.length !== oldBoxCount) {
+    if (oldBoxCount && this.uniqueBoxes.length !== oldBoxCount) {
       this.duration = this.calculateDuration();
 
       const progresses =
-        this.boxes.length > oldBoxCount
+        this.uniqueBoxes.length > oldBoxCount
           ? oldProgresses
-          : this.boxes.map((_, i) => oldProgresses[i]);
+          : this.uniqueBoxes.map((_, i) => oldProgresses[i]);
 
       // Calculate total elapsed time from old progress values
       const totalElapsedTime = progresses.reduce(
         (current, progress) =>
-          current + progress * (this.duration / this.boxes.length),
+          current + progress * (this.duration / this.uniqueBoxes.length),
         0
       );
 
@@ -333,30 +336,31 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     }
 
     // Restore progress to existing boxes, new boxes start at 0
-    this.boxes.forEach((box, i) => {
+    this.uniqueBoxes.forEach((box, i) => {
       box.progress = i < oldBoxCount ? oldProgresses[i] : 0;
     });
   }
 
   get progress(): number {
-    if (!this.boxes.length) {
+    if (!this.uniqueBoxes.length) {
       return 1;
     }
 
     return (
-      this.boxes.reduce((acc, box) => acc + box.progress, 0) / this.boxes.length
+      this.uniqueBoxes.reduce((acc, box) => acc + box.progress, 0) /
+      this.uniqueBoxes.length
     );
   }
 
   set progress(progress: number) {
-    if (!this.boxes.length) {
+    if (!this.uniqueBoxes.length) {
       return;
     }
 
-    const boxCount = this.boxes.length;
+    const boxCount = this.uniqueBoxes.length;
     const progressPerBox = 1 / boxCount;
 
-    this.boxes.forEach((box, i) => {
+    this.uniqueBoxes.forEach((box, i) => {
       if (this.animation === ElementAnimation.FadeIn) {
         box.progress = progress;
         return;
@@ -388,7 +392,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       delay: this.delay,
       textContent: this.textContent,
       animation: this.animation,
-      boxes: this.boxes as SerializedStaggerElementBox[],
+      uniqueBoxes: this.uniqueBoxes as SerializedStaggerElementBox[],
       isLast: this.isLast,
     };
   }

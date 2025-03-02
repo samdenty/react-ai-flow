@@ -31,6 +31,31 @@ export class Box<
     this.#parentTop = this.#parentRanges?.top ?? 0;
   };
 
+  static getBounds(
+    boxes: { top: number; left: number; bottom: number; right: number }[]
+  ) {
+    return boxes.reduce(
+      (bounds, rect, i) => {
+        if (i === 0) {
+          return {
+            top: rect.top,
+            left: rect.left,
+            bottom: rect.bottom,
+            right: rect.right,
+          };
+        }
+
+        return {
+          top: Math.min(rect.top, bounds.top),
+          left: Math.min(rect.left, bounds.left),
+          bottom: Math.max(rect.bottom, bounds.bottom),
+          right: Math.max(rect.right, bounds.right),
+        };
+      },
+      { top: 0, left: 0, bottom: 0, right: 0 }
+    );
+  }
+
   containedWithin(other: Box<any>) {
     return (
       this.top >= other.top &&
@@ -193,7 +218,7 @@ export abstract class Ranges<
   T extends Box<any>,
   U extends Ranges<any, any> | Stagger
 > extends Box<U> {
-  #boxes: T[] = [];
+  #boxes: T[][] = [];
   #childNodes: readonly RangesChildNode[] = [];
   #boundaryPointsCheck = new WeakMap<
     Node,
@@ -218,6 +243,8 @@ export abstract class Ranges<
   get boxes() {
     return this.#boxes;
   }
+
+  uniqueBoxes: T[] = [];
 
   constructor(
     parent: U,
@@ -255,6 +282,23 @@ export abstract class Ranges<
       return 0;
     }
 
+    if (
+      range.startContainer === otherRange.startContainer &&
+      range.endContainer === otherRange.endContainer &&
+      range.startOffset === otherRange.startOffset &&
+      range.endOffset === otherRange.endOffset
+    ) {
+      const pos = this.container.compareDocumentPosition(other.container);
+
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
+        return -1;
+      } else if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
+        return 1;
+      } else {
+        return 0;
+      }
+    }
+
     let startPositions = this.#boundaryPointsCheck.get(
       otherRange.startContainer
     );
@@ -289,68 +333,51 @@ export abstract class Ranges<
       this.top >= other.bottom
     );
 
-    if (
-      range.startContainer === otherRange.startContainer &&
-      range.endContainer === otherRange.endContainer &&
-      range.startOffset === otherRange.startOffset &&
-      range.endOffset === otherRange.endOffset
-    ) {
-      const pos = this.container.compareDocumentPosition(other.container);
+    const containedWithin = this.containedWithin(other);
+    const otherContainedWithin = other.containedWithin(this);
 
-      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
-        result = -1;
-      } else if (pos & Node.DOCUMENT_POSITION_PRECEDING) {
-        result = 1;
-      } else {
-        result = 0;
-      }
-    } else {
-      const containedWithin = this.containedWithin(other);
-      const otherContainedWithin = other.containedWithin(this);
+    if (containedWithin && !otherContainedWithin) {
+      return 1;
+    } else if (otherContainedWithin && !containedWithin) {
+      return -1;
+    }
 
-      if (containedWithin && !otherContainedWithin) {
-        return 1;
-      } else if (otherContainedWithin && !containedWithin) {
-        return -1;
+    if (!overlapping) {
+      if (this.top !== other.top) {
+        return this.top - other.top;
       }
 
-      if (!overlapping) {
-        if (this.top !== other.top) {
-          return this.top - other.top;
-        }
+      return this.left - other.left;
+    }
 
-        return this.left - other.left;
-      } else {
-        const startPointRange = range.cloneRange();
-        startPointRange.setEnd(range.startContainer, range.startOffset);
+    const startPointRange = range.cloneRange();
+    startPointRange.setEnd(range.startContainer, range.startOffset);
 
-        const otherStartPointRange = otherRange.cloneRange();
-        otherStartPointRange.setEnd(
-          otherRange.startContainer,
-          otherRange.startOffset
-        );
+    const otherStartPointRange = otherRange.cloneRange();
+    otherStartPointRange.setEnd(
+      otherRange.startContainer,
+      otherRange.startOffset
+    );
 
-        result = startPointRange.compareBoundaryPoints(
-          Range.START_TO_START,
-          otherStartPointRange
-        );
+    result = startPointRange.compareBoundaryPoints(
+      Range.START_TO_START,
+      otherStartPointRange
+    );
 
-        if (result === 0) {
-          const endPointRange = range.cloneRange();
-          endPointRange.setStart(range.endContainer, range.endOffset);
+    if (result === 0) {
+      const endPointRange = range.cloneRange();
+      endPointRange.setStart(range.endContainer, range.endOffset);
 
-          const otherEndPointRange = otherRange.cloneRange();
-          otherEndPointRange.setStart(
-            otherRange.endContainer,
-            otherRange.endOffset
-          );
+      const otherEndPointRange = otherRange.cloneRange();
+      otherEndPointRange.setStart(
+        otherRange.endContainer,
+        otherRange.endOffset
+      );
 
-          result = endPointRange.compareBoundaryPoints(
-            Range.START_TO_START,
-            otherEndPointRange
-          );
-        }
-      }
+      result = endPointRange.compareBoundaryPoints(
+        Range.START_TO_START,
+        otherEndPointRange
+      );
     }
 
     endPositions.set(otherRange.endOffset, result);
@@ -378,49 +405,29 @@ export abstract class Ranges<
   }
 
   rescan() {
-    const rects = this.scanRects();
+    const rects = this.scanRanges();
 
     this.updateBounds(rects);
 
-    this.#boxes.forEach((box) => box.dispose());
+    this.uniqueBoxes.forEach((box) => box.dispose());
     this.#boxes = this.scanBoxes(rects);
+    this.uniqueBoxes = [...new Set(this.boxes.flat())];
   }
 
   get childNodes(): readonly RangesChildNode[] {
     return this.#childNodes;
   }
 
-  updateBounds(rects?: DOMRect[][]) {
-    let scanned = false;
+  updateBounds(rects?: DOMRect[][]): boolean {
     if (!rects) {
-      rects = this.scanRects();
-      scanned = true;
+      rects = this.scanRanges();
+
+      if ((this as any) !== this.text) {
+        this.text.updateBounds();
+      }
     }
 
-    const bounds = rects.flat().reduce(
-      (bounds, rect, i) => {
-        if ((this as any) !== this.text && scanned) {
-          this.text.updateBounds();
-        }
-
-        if (i === 0) {
-          return {
-            top: rect.top,
-            left: rect.left,
-            bottom: rect.bottom,
-            right: rect.right,
-          };
-        }
-
-        return {
-          top: Math.min(rect.top, bounds.top),
-          left: Math.min(rect.left, bounds.left),
-          bottom: Math.max(rect.bottom, bounds.bottom),
-          right: Math.max(rect.right, bounds.right),
-        };
-      },
-      { top: 0, left: 0, bottom: 0, right: 0 }
-    );
+    const bounds = this.scanBounds(rects);
 
     const changed =
       bounds.top !== this.top ||
@@ -433,15 +440,21 @@ export abstract class Ranges<
     if (changed) {
       this.stagger.invalidatePositions();
     }
+
+    return changed;
   }
 
-  scanRects() {
+  scanBounds(rects: DOMRect[][]) {
+    return Box.getBounds(rects.flat());
+  }
+
+  scanRanges(): DOMRect[][] {
     return this.ranges.map((range) => {
-      return optimizeRects([...range.getClientRects()]);
+      return optimizeUniqueRects([...range.getClientRects()]);
     });
   }
 
-  abstract scanBoxes(rects: DOMRect[][]): T[];
+  abstract scanBoxes(rects: DOMRect[][]): T[][];
 
   createChildNodeTrimmer() {
     const childNodeOffsets = this.childNodesOffsets;
@@ -581,43 +594,57 @@ export abstract class Ranges<
   }
 }
 
-function optimizeRects(rects: DOMRect[]) {
-  const TOLERANCE = 1; // 1px tolerance for position matching
+export function optimizeRects<
+  U extends DOMRect[] | DOMRect[][],
+  T = DOMRect,
+  R = U extends DOMRect[] ? T[] : T[][]
+>(
+  rects: U,
+  create?: (
+    rect: DOMRect,
+    indexes: U extends DOMRect[] ? number[] : [number, number][]
+  ) => T
+): R {
+  const rectsArray = (Array.isArray(rects[0]) ? rects : [rects]) as DOMRect[][];
+  const isFlat = !Array.isArray(rects[0]);
 
-  return rects.reduce<DOMRect[]>((merged, currentRect) => {
-    // If merged is empty, start with current rect
-    if (merged.length === 0) {
-      return [currentRect];
-    }
+  const TOLERANCE = 1;
 
-    // Try to find a rectangle to merge with
-    const mergeIndex = merged.findIndex((existingRect) => {
-      // Check if same height and vertical alignment
+  const inputRectsIndexes = new Map(
+    rectsArray.flatMap((rectGroup, groupIndex) => {
+      return rectGroup.map((rect, rectIndex) => {
+        return [
+          rect,
+          isFlat ? rectIndex : ([groupIndex, rectIndex] as const),
+        ] as const;
+      });
+    })
+  );
+
+  const optimizedRects = new Map<DOMRect, Set<DOMRect>>();
+
+  for (const inputRect of inputRectsIndexes.keys()) {
+    // Try to find existing rectangle to merge with
+    const mergeWith = [...optimizedRects.entries()].find(([existingRect]) => {
       const sameHeight =
-        Math.abs(existingRect.height - currentRect.height) <= TOLERANCE;
-      const sameTop = Math.abs(existingRect.top - currentRect.top) <= TOLERANCE;
-
-      // Check horizontal relationships
+        Math.abs(existingRect.height - inputRect.height) <= TOLERANCE;
+      const sameTop = Math.abs(existingRect.top - inputRect.top) <= TOLERANCE;
       const isAdjacent =
-        Math.abs(existingRect.left - currentRect.right) <= TOLERANCE ||
-        Math.abs(existingRect.right - currentRect.left) <= TOLERANCE;
-
+        Math.abs(existingRect.left - inputRect.right) <= TOLERANCE ||
+        Math.abs(existingRect.right - inputRect.left) <= TOLERANCE;
       const isOverlapping =
-        existingRect.left <= currentRect.right + TOLERANCE &&
-        currentRect.left <= existingRect.right + TOLERANCE;
-
-      // Check containment
+        existingRect.left <= inputRect.right + TOLERANCE &&
+        inputRect.left <= existingRect.right + TOLERANCE;
       const rect1ContainsRect2 =
-        existingRect.left <= currentRect.left + TOLERANCE &&
-        existingRect.right >= currentRect.right - TOLERANCE &&
-        existingRect.top <= currentRect.top + TOLERANCE &&
-        existingRect.bottom >= currentRect.bottom - TOLERANCE;
-
+        existingRect.left <= inputRect.left + TOLERANCE &&
+        existingRect.right >= inputRect.right - TOLERANCE &&
+        existingRect.top <= inputRect.top + TOLERANCE &&
+        existingRect.bottom >= inputRect.bottom - TOLERANCE;
       const rect2ContainsRect1 =
-        currentRect.left <= existingRect.left + TOLERANCE &&
-        currentRect.right >= existingRect.right - TOLERANCE &&
-        currentRect.top <= existingRect.top + TOLERANCE &&
-        currentRect.bottom >= existingRect.bottom - TOLERANCE;
+        inputRect.left <= existingRect.left + TOLERANCE &&
+        inputRect.right >= existingRect.right - TOLERANCE &&
+        inputRect.top <= existingRect.top + TOLERANCE &&
+        inputRect.bottom >= existingRect.bottom - TOLERANCE;
 
       return (
         (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
@@ -626,23 +653,69 @@ function optimizeRects(rects: DOMRect[]) {
       );
     });
 
-    if (mergeIndex === -1) {
-      // No merge possible, add as new rectangle
-      return [...merged, currentRect];
+    if (!mergeWith) {
+      optimizedRects.set(inputRect, new Set([inputRect]));
+      continue;
     }
 
-    // Create merged rectangle
-    const existingRect = merged[mergeIndex];
-    const newRect = new DOMRect(
-      Math.min(existingRect.left, currentRect.left),
-      Math.min(existingRect.top, currentRect.top),
-      Math.max(existingRect.right, currentRect.right) -
-        Math.min(existingRect.left, currentRect.left),
-      Math.max(existingRect.bottom, currentRect.bottom) -
-        Math.min(existingRect.top, currentRect.top)
-    );
+    // Create merged rectangle and replace existing one
+    const [mergeWithRect, mergedRects] = mergeWith;
+    mergedRects.add(inputRect);
 
-    // Update merged array with new rectangle
-    return merged.map((rect, i) => (i === mergeIndex ? newRect : rect));
-  }, []);
+    const top = Math.min(mergeWithRect.top, inputRect.top);
+    const left = Math.min(mergeWithRect.left, inputRect.left);
+    const bottom = Math.max(mergeWithRect.bottom, inputRect.bottom);
+    const right = Math.max(mergeWithRect.right, inputRect.right);
+
+    const newMergedRect = new DOMRect(left, top, right - left, bottom - top);
+
+    optimizedRects.delete(mergeWithRect);
+    optimizedRects.set(newMergedRect, mergedRects);
+  }
+
+  // Transform the optimized rects if a creator function is provided
+  const transformed = new Map(
+    [...optimizedRects.entries()].flatMap(([optimized, [...inputRects]]) => {
+      let transformed = optimized as T;
+      if (create) {
+        const indexes = inputRects.map(
+          (inputRect) => inputRectsIndexes.get(inputRect)! as any
+        );
+
+        transformed = create(optimized, indexes);
+      }
+
+      return inputRects.map((inputRect) => {
+        return [inputRect, transformed] as const;
+      });
+    })
+  );
+
+  // Reconstruct the original array structure with optimized/transformed rects
+  const result = rectsArray.map((rectGroup) =>
+    rectGroup.map((rect) => transformed.get(rect)!)
+  );
+
+  return isFlat ? (result[0] as R) : (result as R);
+}
+
+export function optimizeUniqueRects<
+  U extends DOMRect[] | DOMRect[][],
+  T = DOMRect
+>(
+  rects: U,
+  create?: (
+    rect: DOMRect,
+    indexes: U extends DOMRect[] ? number[] : [number, number][]
+  ) => T
+): T[] {
+  const optimized = optimizeRects(rects, create);
+
+  return [
+    ...new Set(
+      Array.isArray(optimized[0])
+        ? (optimized as T[][]).flat()
+        : (optimized as T[])
+    ),
+  ];
 }

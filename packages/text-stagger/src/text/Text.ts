@@ -144,7 +144,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     return this;
   }
 
-  scanRects() {
+  scanBounds() {
     updateProperty(this.className, "padding", "0px");
     updateProperty(this.className, "margin", "0px");
 
@@ -167,7 +167,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     this.#closestCommonParent = undefined;
 
-    return [[rect]];
+    return {
+      top: rect.top,
+      left: rect.left,
+      bottom: rect.bottom,
+      right: rect.right,
+    };
   }
 
   private handleScroll = () => {
@@ -176,9 +181,13 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
   updateBounds(rects?: DOMRect[][]) {
     this.updateBoundsOnPaint = false;
-    super.updateBounds(rects);
 
-    this.updateCustomAnimationPosition();
+    const changed = super.updateBounds(rects);
+    if (changed) {
+      this.updateCustomAnimationPosition();
+    }
+
+    return changed;
   }
 
   insertCustomAnimationContainer() {
@@ -260,21 +269,25 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    return rects.flat().map((rect) => {
-      return new Box(
-        this,
-        this.options,
-        this.container,
-        rect.top,
-        rect.left,
-        rect.width,
-        rect.height
-      );
+    return rects.map((rects) => {
+      return rects.map((rect) => {
+        const { top, left } = Box.calculateRelative(rect, this);
+
+        return new Box(
+          this,
+          this.options,
+          this.container,
+          top,
+          left,
+          rect.width,
+          rect.height
+        );
+      });
     });
   }
 
   get elementBoxes() {
-    return this.elements.flatMap((element) => element.boxes);
+    return this.elements.flatMap((element) => element.uniqueBoxes);
   }
 
   get progress(): number {
@@ -284,7 +297,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     return (
       this.elementBoxes.reduce((acc, box) => acc + box.progress, 0) /
-      this.boxes.length
+      this.elementBoxes.length
     );
   }
 
@@ -427,9 +440,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       if (!mounted) {
         this.scanElementLines({ reason: ScanReason.Mounted });
 
-        if (this.stagger.streaming === false) {
-          this.progress = 1;
-        }
+        // if (this.stagger.streaming === false) {
+        //   this.progress = 1;
+        // }
       } else {
         this.scanElementLines({ reason: ScanReason.Resize, entries });
       }
@@ -559,64 +572,68 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     this.lastPaint = Date.now();
     this.stagger.lastPaint = this.lastPaint;
 
-    if (
-      !this.visualDebug &&
-      maskRenderMode === CanvasMaskRenderMode.PaintWorklet
-    ) {
-      updateProperty(
-        this.className,
-        "mask-image",
-        `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`
-      );
-    }
-
     if (this.canvasContext) {
       doPaint(this.canvasContext, this);
     }
 
-    if (
-      this.canvas &&
-      !this.visualDebug &&
-      maskRenderMode === CanvasMaskRenderMode.DataUri
-    ) {
-      updateProperty(
-        this.className,
-        "mask-image",
-        `url(${this.canvas.toDataURL("image/png", 0)})`
-      );
-    }
-
+    updateProperty(this.className, "mask-image", this.mask);
     updateProperty(this.className, "opacity", null);
   }
 
-  get subtext() {
+  get mask() {
+    if (this.visualDebug || !this.elements.length) {
+      return null;
+    }
+
+    if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
+      return `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`;
+    }
+
+    if (this.canvas && maskRenderMode === CanvasMaskRenderMode.DataUri) {
+      return `url(${this.canvas.toDataURL("image/png", 0)})`;
+    }
+
+    return null;
+  }
+
+  get subtexts() {
     return this.stagger.texts.filter((text) => text.parent === this);
   }
 
   get continuousChildNodes(): {
     nodes: readonly RangesChildNode[];
+    boxes: Box<Text>[];
     subtext: Text | null;
   }[] {
-    if (!this.subtext.length) {
-      return [{ nodes: this.childNodes, subtext: null }];
+    if (!this.subtexts.length || !this.childNodes.length) {
+      return [
+        { nodes: this.childNodes, boxes: this.uniqueBoxes, subtext: null },
+      ];
     }
 
     const continuousChildNodes: {
       nodes: RangesChildNode[];
+      boxes: Box<Text>[];
       subtext: Text | null;
-    }[] = [{ nodes: [], subtext: null }];
+    }[] = [{ nodes: [], boxes: [], subtext: null }];
+
+    const boxes = this.boxes;
+    let currentBoxIndex = 0;
 
     for (const childNode of this.childNodes) {
-      const segment = continuousChildNodes.at(-1)!;
+      const lastSegment = continuousChildNodes.at(-1)!;
+      const lastRangeBox = lastSegment.boxes.at(-1);
 
       if (typeof childNode === "string") {
-        segment.nodes.push(childNode);
+        lastSegment.nodes.push(childNode);
         continue;
       }
 
+      const rangeBoxes = boxes[currentBoxIndex++];
+      const nextRangeBoxes = boxes[currentBoxIndex] as Box<Text>[] | undefined;
       const range = childNode;
 
-      const start = this.subtext.find((subtext) => {
+      const startSubtext = this.subtexts.find((subtext) => {
         const firstRange = subtext.ranges[0];
 
         return (
@@ -624,29 +641,56 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
         );
       });
 
-      if (start && segment.nodes.length) {
-        continuousChildNodes.push({ nodes: [range], subtext: start });
-      } else {
-        segment.nodes.push(range);
+      let newStartOfSubtext = startSubtext ?? null;
 
-        if (start) {
-          segment.subtext = start;
+      if (!newStartOfSubtext || !lastRangeBox) {
+        newStartOfSubtext = null;
+      } else if (
+        // if the last range right equals the start text left (no gap)
+        lastRangeBox.right === newStartOfSubtext.left &&
+        // and there's no padding to left of the start text
+        Box.getBounds(rangeBoxes).left - newStartOfSubtext.left === 0
+      ) {
+        newStartOfSubtext = null;
+      }
+
+      if (newStartOfSubtext) {
+        continuousChildNodes.push({
+          nodes: [range],
+          boxes: rangeBoxes,
+          subtext: newStartOfSubtext,
+        });
+      } else {
+        lastSegment.nodes.push(range);
+        lastSegment.boxes.push(...rangeBoxes);
+
+        if (startSubtext && !lastRangeBox) {
+          lastSegment.subtext = startSubtext;
         }
       }
 
-      const end = this.subtext.find((subtext) => {
+      const endSubtext = this.subtexts.find((subtext) => {
         const lastRange = subtext.ranges.at(-1);
 
         return lastRange?.compareBoundaryPoints(Range.END_TO_END, range) === 0;
       });
 
-      if (end) {
-        continuousChildNodes.push({ nodes: [], subtext: null });
-      }
-    }
+      let newEndOfSubtext = endSubtext ?? null;
 
-    if (continuousChildNodes.at(-1)?.nodes?.length === 0) {
-      continuousChildNodes.pop();
+      if (!nextRangeBoxes || !newEndOfSubtext || !rangeBoxes) {
+        newEndOfSubtext = null;
+      } else if (
+        // if the current range right equals the end text right (no gap)
+        newEndOfSubtext.right === Box.getBounds(nextRangeBoxes).left &&
+        // and there's no padding to right of the end text
+        Box.getBounds(rangeBoxes).right - newEndOfSubtext.right === 0
+      ) {
+        newEndOfSubtext = null;
+      }
+
+      if (newEndOfSubtext) {
+        continuousChildNodes.push({ nodes: [], boxes: [], subtext: null });
+      }
     }
 
     return continuousChildNodes;
@@ -655,7 +699,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   get continuousChildNodesOffsets() {
     let childNodeOffset = 0;
 
-    return this.continuousChildNodes.map(({ nodes, subtext }) => {
+    return this.continuousChildNodes.map(({ nodes, boxes, subtext }) => {
       return {
         nodes: nodes.map((childNode) => {
           const length = childNode.toString().length;
@@ -667,6 +711,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
           childNodeOffset += length;
           return offset;
         }),
+        boxes,
         subtext,
       };
     });
@@ -701,7 +746,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       id: this.id,
       innerText: this.innerText,
       progress: this.progress,
-      subtext: this.subtext,
+      subtexts: this.subtexts,
       elements: this.elements as SerializedStaggerElement[],
       visualDebug: this.visualDebug,
       streaming: this.streaming,
@@ -712,6 +757,17 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     event: ScanEvent = { reason: ScanReason.Force },
     resized?: boolean
   ) {
+    if (this.parent instanceof Text) {
+      const missingSplit = this.parent.continuousChildNodes.every(
+        (continuous) => continuous.subtext !== this
+      );
+
+      if (missingSplit) {
+        this.elements = [];
+        return;
+      }
+    }
+
     const trimChildNodes = this.createChildNodeTrimmer();
     const forceReset = event.reason === ScanReason.Force && event.reset;
 

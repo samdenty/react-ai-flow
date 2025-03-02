@@ -1,4 +1,10 @@
-import { Box, Ranges, TextLine, type SplitterImpl } from "../text/index.js";
+import {
+  Box,
+  optimizeRects,
+  Ranges,
+  TextLine,
+  type SplitterImpl,
+} from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
 import {
@@ -31,11 +37,11 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     parent: StaggerElement,
     public options: StaggerElementBoxOptions,
     element: HTMLElement,
-    public range: Range,
+    ranges: Range[],
     private rect: DOMRect
   ) {
     super(parent, options, element);
-    this.childNodes = [range];
+    this.childNodes = ranges;
 
     this.className = `${this.text.options.classNamePrefix}-box-${this.id}`;
   }
@@ -46,18 +52,20 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     this.customAnimationElement?.remove();
   }
 
-  scanRects() {
+  scanRanges() {
     return [[this.rect]];
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    return rects.flat().map((rect) => {
+    return optimizeRects(rects, (rect) => {
+      const { top, left } = Box.calculateRelative(rect, this);
+
       return new Box(
         this,
         this.options,
         this.container,
-        rect.top - this.parent.top,
-        rect.left - this.parent.left,
+        top,
+        left,
         rect.width,
         rect.height
       );
@@ -156,15 +164,13 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
       this.text.insertCustomAnimationContainer();
       this.text.customAnimationContainer.append(this.customAnimationElement);
 
-      cloneRangeWithStyles(
-        this.range,
-        this.customAnimationElement,
-        (element) => {
+      for (const range of this.ranges) {
+        cloneRangeWithStyles(range, this.customAnimationElement, (element) => {
           if (!this.text.options.visualDebug) {
             element.style.pointerEvents = "none";
           }
-        }
-      );
+        });
+      }
 
       if (this.customAnimationElement.style.display === "list-item") {
         this.customAnimationElement.style.display = "";
@@ -222,7 +228,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   }
 
   get isLast() {
-    return this.element.boxes.at(-1) === this;
+    return this.element.uniqueBoxes.at(-1) === this;
   }
 
   get isGradient() {

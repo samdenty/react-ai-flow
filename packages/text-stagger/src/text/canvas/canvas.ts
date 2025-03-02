@@ -19,12 +19,18 @@ export function doPaint(
     ? `rgba(0, 0, 255, 0.4)`
     : `rgba(0, 0, 0, 1)`;
 
+  if (!text.elements.length) {
+    ctx.fillStyle = surroundingFill;
+    ctx.fillRect(0, 0, text.canvasRect.width, text.canvasRect.height);
+    return;
+  }
+
   ctx.clearRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 
   const boxes = text.elements.flatMap((element) => {
     const { animation, subtext } = element;
 
-    return element.boxes.map((box) => {
+    return element.uniqueBoxes.map((box) => {
       const {
         relativeToCanvas: { left, top, bottom, right, width, height },
         timing,

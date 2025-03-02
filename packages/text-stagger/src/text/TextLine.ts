@@ -1,6 +1,6 @@
-import { type ElementOptions } from "../stagger/index.js";
+import { Stagger, type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
+import { Box, optimizeRects, Ranges, type RangesChildNode } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<Box, Text> {
@@ -24,13 +24,15 @@ export class TextLine extends Ranges<Box, Text> {
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    return rects.flat().map((rect) => {
+    return optimizeRects(rects, (rect) => {
+      const { top, left } = Box.calculateRelative(rect, this);
+
       return new Box(
         this,
         this.options,
         this.container,
-        rect.top - this.parent.top,
-        rect.left - this.parent.left,
+        top,
+        left,
         rect.width,
         rect.height
       );
@@ -159,7 +161,7 @@ export class TextLine extends Ranges<Box, Text> {
             text.options
           );
 
-          const [firstBox, secondBox] = newLine.boxes;
+          const [firstBox, secondBox] = newLine.uniqueBoxes;
 
           // Handle the case where the node has no content
           if (!firstBox) {
@@ -181,7 +183,8 @@ export class TextLine extends Ranges<Box, Text> {
               newLine.childNodes = [range];
 
               const isWrapped =
-                newLine.boxes[0].top > top || newLine.boxes.length > 1;
+                newLine.uniqueBoxes[0].top > top ||
+                newLine.uniqueBoxes.length > 1;
 
               if (isWrapped) {
                 wrapEnd = mid - 1;
@@ -205,33 +208,26 @@ export class TextLine extends Ranges<Box, Text> {
           );
 
           if (existingLine) {
-            const childNodes = [...existingLine.childNodes];
+            const ranges = [...existingLine.ranges];
 
             if (!newRange) {
-              const rangeToExtendIndex = childNodes.findLastIndex(
-                (content) => typeof content !== "string"
-              );
-              const rangeToExtend = (
-                childNodes[rangeToExtendIndex] as Range | undefined
-              )?.cloneRange();
+              const lastRange = ranges.at(-1);
+              const rangeToExtend = lastRange?.cloneRange();
 
               rangeToExtend?.setEnd(range.endContainer, range.endOffset);
 
-              if (
-                rangeToExtend?.toString() ===
-                `${childNodes[rangeToExtendIndex]}${range}`
-              ) {
-                childNodes[rangeToExtendIndex] = rangeToExtend;
+              if (rangeToExtend?.toString() === `${lastRange}${range}`) {
+                ranges[ranges.length - 1] = rangeToExtend;
               } else {
-                childNodes.push(range);
+                ranges.push(range);
                 newRange = false;
               }
             } else {
-              childNodes.push(range);
+              ranges.push(range);
               newRange = false;
             }
 
-            existingLine.childNodes = childNodes;
+            existingLine.childNodes = ranges;
           } else {
             newRange = false;
             lines.push(newLine);
@@ -290,11 +286,12 @@ function createParentChecker(text: Text) {
       subtext =
         text.nextTexts.find((text) => text.container === parent) ?? subtext;
 
-      const parentText = text.previousTexts.find(
-        (text) => text.container === parent
-      );
+      const parentText =
+        text.parent instanceof Stagger
+          ? text.previousTexts.find((text) => text.container === parent)
+          : text.parent;
 
-      if (parentText) {
+      if (parentText && parentText !== text.parent) {
         if (parentText.parent === text) {
           // infinite loop detected, this is bad
           debugger;

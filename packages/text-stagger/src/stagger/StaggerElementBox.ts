@@ -51,8 +51,8 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
         typeof childNode !== "string" && ranges.includes(childNode)
     );
 
-    this.start = childNodesOffsets.at(0)?.start ?? 0;
-    this.end = childNodesOffsets.at(-1)?.end ?? 0;
+    this.start = (childNodesOffsets.at(0)?.start ?? 0) + parent.start;
+    this.end = (childNodesOffsets.at(-1)?.end ?? 0) + parent.start;
 
     this.className = `${this.text.options.classNamePrefix}-box-${this.id}`;
   }

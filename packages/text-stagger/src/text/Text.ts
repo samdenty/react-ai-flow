@@ -101,7 +101,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   #parents: EventTarget[] = [];
   updateBoundsOnPaint = false;
 
-  lines: TextLine[] = [];
+  #lines: TextLine[] = [];
   elements: StaggerElement[] = [];
   trailingSplit: ParsedTextSplit | null = null;
 
@@ -136,12 +136,16 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     return element;
   }
 
-  get root(): Text {
-    if (this.parent instanceof Text) {
-      return this.parent.root;
-    }
+  get lines(): TextLine[] {
+    return this.#lines;
+  }
 
-    return this;
+  get root(): Text {
+    return this.parentText?.root ?? this;
+  }
+
+  get parentText(): Text | undefined {
+    return this.parent instanceof Text ? this.parent : undefined;
   }
 
   scanBounds() {
@@ -150,10 +154,18 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     const rect = this.container.getBoundingClientRect();
 
-    const { left, right } = getAvailableSpace(this.container, rect);
+    let left = 0;
+    let right = 0;
 
-    updateProperty(this.className, "padding", `0px ${right}px 0 ${left}px`);
-    updateProperty(this.className, "margin", `0px ${-right}px 0 ${-left}px`);
+    if (this.parentText) {
+      updateProperty(this.className, "padding", null);
+      updateProperty(this.className, "margin", null);
+    } else {
+      ({ left, right } = getAvailableSpace(this.container, rect));
+
+      updateProperty(this.className, "padding", `0px ${right}px 0 ${left}px`);
+      updateProperty(this.className, "margin", `0px ${-right}px 0 ${-left}px`);
+    }
 
     updateProperty(this.customAnimationClassName, "height", `${rect.height}px`);
     updateProperty(this.customAnimationClassName, "width", `${rect.width}px`);
@@ -578,6 +590,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     updateProperty(this.className, "mask-image", this.mask);
     updateProperty(this.className, "opacity", null);
+
+    this.parentText?.paint();
   }
 
   get mask() {
@@ -718,7 +732,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   }
 
   get closestCommonParent() {
-    if (!(this.parent instanceof Text)) {
+    if (!this.parentText) {
       return null;
     }
 
@@ -727,7 +741,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     }
 
     const element = getSafeContainer(
-      this.parent.container,
+      this.parentText.container,
       this.container,
       this.#ignoredNodes
     );
@@ -743,6 +757,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
         width: this.canvasRect.width,
         height: this.canvasRect.height,
       },
+      parentText: this.parentText && {
+        id: this.parentText.id,
+      },
       id: this.id,
       innerText: this.innerText,
       progress: this.progress,
@@ -757,8 +774,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     event: ScanEvent = { reason: ScanReason.Force },
     resized?: boolean
   ) {
-    if (this.parent instanceof Text) {
-      const missingSplit = this.parent.continuousChildNodes.every(
+    if (this.parentText) {
+      const missingSplit = this.parentText.continuousChildNodes.every(
         (continuous) => continuous.subtext !== this
       );
 
@@ -916,9 +933,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       const impacts = this.analyzeMutationImpact(event.entries);
 
       if (impacts.requiresFullRescan) {
-        this.lines = [];
+        this.#lines = [];
       } else {
-        this.lines = this.lines.slice(0, impacts.firstAffectedLine);
+        this.#lines = this.lines.slice(0, impacts.firstAffectedLine);
         // todo handle subtext
       }
     }
@@ -961,7 +978,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       oldDimensions.height !== this.height;
 
     if (resized || (event.reason === ScanReason.Force && event.reset)) {
-      this.lines = [];
+      this.#lines = [];
 
       for (const text of this.nextTexts) {
         text.updateBounds();
@@ -976,7 +993,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
         : "inline-block"
     );
 
-    this.lines = TextLine.scanLines(this);
+    this.#lines = TextLine.scanLines(this);
     this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
     this.diffElements(event, resized);
@@ -1041,7 +1058,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       switch (mutation.type) {
         // Text content changed
         case "characterData": {
-          if (mutation.target instanceof Text) {
+          if (mutation.target instanceof globalThis.Text) {
             const lineIndex = this.findLineContainingNode(mutation.target);
 
             if (lineIndex === -1) {

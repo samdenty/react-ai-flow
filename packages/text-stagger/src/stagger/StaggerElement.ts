@@ -1,5 +1,5 @@
 import {
-  optimizeRects,
+  preserveOptimizeRects,
   type ParsedTextOptions,
   type ParsedTextSplit,
   Ranges,
@@ -140,6 +140,44 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
     this.childNodes = childNodes;
     text.elements.push(this);
+  }
+
+  comparePosition(other: StaggerElement) {
+    if (this.text !== other.text) {
+      return super.comparePosition(other);
+    }
+
+    const pos = this.lines[0].comparePosition(other.lines[0]);
+
+    if (pos) {
+      return pos;
+    }
+
+    return super.comparePosition(other);
+  }
+
+  scanBounds(rects: DOMRect[][]) {
+    if (this.text.parentText) {
+      const bounds = super.scanBounds(rects);
+
+      return {
+        top: Math.min(bounds.top, this.text.parentText.top),
+        bottom: Math.max(bounds.bottom, this.text.parentText.bottom),
+        left: bounds.left,
+        right: bounds.right,
+      };
+    }
+
+    if (this.subtext) {
+      return {
+        top: this.subtext.top,
+        left: this.subtext.left,
+        bottom: this.subtext.bottom,
+        right: this.subtext.right,
+      };
+    }
+
+    return super.scanBounds(rects);
   }
 
   restartAnimation() {
@@ -287,19 +325,21 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       return rects.map((rects) => rects.map((_) => box));
     }
 
-    return optimizeRects(rects, (rect, indexes) => {
+    return preserveOptimizeRects(rects, (rect, indexes) => {
+      const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]))];
+
       return new StaggerElementBox(
         this,
         this.options,
         this.container,
-        [...new Set(indexes.map(([i]) => this.ranges[i]))],
+        ranges,
         rect
       );
     });
   }
 
   get lines() {
-    const lines = new Set(this.boxes.map(([box]) => box.line));
+    const lines = new Set(this.boxes.flatMap(([box]) => box.lines));
     return [...lines].filter((line) => !!line);
   }
 

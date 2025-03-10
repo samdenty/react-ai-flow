@@ -1,6 +1,11 @@
-import { Stagger, type ElementOptions } from "../stagger/index.js";
+import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import { Box, optimizeRects, Ranges, type RangesChildNode } from "./Ranges.js";
+import {
+  Box,
+  preserveOptimizeRects,
+  Ranges,
+  type RangesChildNode,
+} from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<Box, Text> {
@@ -23,8 +28,26 @@ export class TextLine extends Ranges<Box, Text> {
     this.id = `${this.text.id}:${index}`;
   }
 
+  static getLines(range: Ranges<any, any>) {
+    return (
+      ("lines" in range &&
+        Array.isArray(range.lines) &&
+        range.lines.every((line) => line instanceof TextLine) &&
+        range.lines) ||
+      null
+    );
+  }
+
+  comparePosition(other: TextLine): number {
+    if (this.text !== other.text) {
+      return super.comparePosition(other);
+    }
+
+    return this.index - other.index;
+  }
+
   scanBoxes(rects: DOMRect[][]) {
-    return optimizeRects(rects, (rect) => {
+    return preserveOptimizeRects(rects, (rect) => {
       const { top, left } = Box.calculateRelative(rect, this);
 
       return new Box(
@@ -58,20 +81,23 @@ export class TextLine extends Ranges<Box, Text> {
   static scanLines(text: Text): TextLine[] {
     const lines: TextLine[] = [...text.lines];
     const lastRange = lines.at(-1)?.ranges.at(-1);
-    const lastNode = lastRange?.endContainer;
-    const lastOffset = lastRange?.endOffset ?? 0;
+    const lastScannedNode = lastRange?.endContainer;
+    const lastScannedOffset = lastRange?.endOffset ?? 0;
+
+    let foundFollowing = false;
 
     const walker = document.createTreeWalker(
       text.container,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: (node) => {
-          if (!lastNode || lastNode === node) {
+          if (!lastScannedNode || lastScannedNode === node || foundFollowing) {
             return NodeFilter.FILTER_ACCEPT;
           }
 
-          const position = lastNode.compareDocumentPosition(node);
+          const position = lastScannedNode.compareDocumentPosition(node);
           if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+            foundFollowing = true;
             return NodeFilter.FILTER_ACCEPT;
           }
 
@@ -82,6 +108,7 @@ export class TextLine extends Ranges<Box, Text> {
 
     const textNodes: {
       textNode: globalThis.Text;
+      style: CSSStyleDeclaration;
       blockParent: HTMLElement;
       subtext: Text | null;
       startOfSubtext: boolean;
@@ -101,7 +128,7 @@ export class TextLine extends Ranges<Box, Text> {
         continue;
       }
 
-      const { isHidden, subtext, blockParent } = checkParents(textNode);
+      const { isHidden, subtext, style, blockParent } = checkParents(textNode);
 
       if (isHidden) {
         continue;
@@ -123,12 +150,21 @@ export class TextLine extends Ranges<Box, Text> {
         textNode,
         textContent,
         subtext,
+        style,
         startOfSubtext,
         endOfSubtext,
         startOfBlock,
         endOfBlock: false,
       });
     }
+
+    const lastTextNode = textNodes.at(-1);
+    if (!lastTextNode) {
+      return [];
+    }
+
+    lastTextNode.endOfBlock = true;
+    lastTextNode.endOfSubtext = !!lastTextNode.subtext;
 
     textNodes.forEach(
       ({
@@ -140,7 +176,7 @@ export class TextLine extends Ranges<Box, Text> {
         textContent,
         blockParent,
       }) => {
-        let start = textNode === lastNode ? lastOffset : 0;
+        let start = textNode === lastScannedNode ? lastScannedOffset : 0;
 
         let newRange = startOfSubtext || endOfSubtext;
 
@@ -200,12 +236,29 @@ export class TextLine extends Ranges<Box, Text> {
             newLine.childNodes = [range];
           }
 
-          // Find existing line with same vertical position
-          const existingLine = lines.find(
-            (line) =>
-              Math.abs(line.top - newLine.top) <= 1 &&
-              Math.abs(line.bottom - newLine.bottom) <= 1
-          );
+          const existingLine = lines.findLast((existingLine) => {
+            const lineBoxes = existingLine.uniqueBoxes;
+            const newBoxes = newLine.uniqueBoxes;
+
+            const aroundSameLine = lineBoxes.some((box) =>
+              newBoxes.some(
+                (newBox) => newBox.top < box.bottom && newBox.bottom > box.top
+              )
+            );
+
+            if (aroundSameLine && newLine.left >= existingLine.right) {
+              return true;
+            }
+
+            if (existingLine.blockParent === newLine.blockParent) {
+              return (
+                Math.abs(existingLine.top - newLine.top) <= 1 &&
+                Math.abs(existingLine.bottom - newLine.bottom) <= 1
+              );
+            }
+
+            return aroundSameLine;
+          });
 
           if (existingLine) {
             const ranges = [...existingLine.ranges];
@@ -255,22 +308,27 @@ function createParentChecker(text: Text) {
   const styleCache = new WeakMap<HTMLElement, CSSStyleDeclaration>();
   const blockParentCache = new WeakMap<Element, HTMLElement | null>();
 
-  return function checkNodeParents(node: Node) {
+  return function checkNodeParents(textNode: globalThis.Text) {
+    const element = textNode.parentElement ?? document.body;
+
     let blockParent: HTMLElement | null = null;
-    let parent = node.parentElement;
+    let parent: HTMLElement = element;
+    let style: CSSStyleDeclaration;
     let subtext: Text | null = null;
 
-    while (parent) {
+    do {
       // Check if parent is hidden
-      let style = styleCache.get(parent);
-      if (style == null) {
-        style = getComputedStyle(parent);
-        styleCache.set(parent, style);
+      let parentStyle = styleCache.get(parent);
+      if (parentStyle == null) {
+        parentStyle = getComputedStyle(parent);
+        styleCache.set(parent, parentStyle);
       }
 
+      style ??= parentStyle;
+
       let hidden =
-        style.display === "none" ||
-        style.visibility === "hidden" ||
+        parentStyle.display === "none" ||
+        parentStyle.visibility === "hidden" ||
         (parent.offsetParent === null &&
           parent !== document.body &&
           parent !== document.documentElement);
@@ -280,16 +338,21 @@ function createParentChecker(text: Text) {
       );
 
       if (hidden) {
-        return { isHidden: true, subtext, blockParent: null } as const;
+        return {
+          isHidden: true,
+          subtext,
+          blockParent: null,
+          style: null,
+          parent: null,
+        } as const;
       }
 
       subtext =
         text.nextTexts.find((text) => text.container === parent) ?? subtext;
 
       const parentText =
-        text.parent instanceof Stagger
-          ? text.previousTexts.find((text) => text.container === parent)
-          : text.parent;
+        text.parentText ??
+        text.previousTexts.find((text) => text.container === parent);
 
       if (parentText && parentText !== text.parent) {
         if (parentText.parent === text) {
@@ -305,20 +368,24 @@ function createParentChecker(text: Text) {
 
       // Check if it's a block parent (if we haven't found one yet)
       if (
-        (!blockParent && style.display === "block") ||
-        style.display === "list-item" ||
-        style.display === "table"
+        (!blockParent && parentStyle.display === "block") ||
+        parentStyle.display === "list-item" ||
+        parentStyle.display === "table"
       ) {
         blockParent = parent;
       }
 
       blockParentCache.set(parent, blockParent);
-
-      parent = parent.parentElement;
-    }
+    } while (parent.parentElement && (parent = parent.parentElement));
 
     blockParent ??= document.body;
 
-    return { isHidden: false, subtext, blockParent } as const;
+    return {
+      isHidden: false,
+      subtext,
+      blockParent,
+      style,
+      element,
+    } as const;
   };
 }

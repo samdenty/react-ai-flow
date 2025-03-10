@@ -20,6 +20,10 @@ export function doPaint(
     : `rgba(0, 0, 0, 1)`;
 
   if (!text.elements.length) {
+    if (text.parentText) {
+      return;
+    }
+
     ctx.fillStyle = surroundingFill;
     ctx.fillRect(0, 0, text.canvasRect.width, text.canvasRect.height);
     return;
@@ -35,12 +39,14 @@ export function doPaint(
         relativeToCanvas: { left, top, bottom, right, width, height },
         timing,
         gradientWidth,
+        text: { parentText },
       } = box;
 
       const isLast = element.isLast && box.isLast;
 
       return {
         animation,
+        parentText,
         left,
         top,
         bottom,
@@ -57,7 +63,20 @@ export function doPaint(
 
   ctx.fillStyle = surroundingFill;
 
-  for (const { left, width, top, height, timing, isLast, animation } of boxes) {
+  for (const {
+    left,
+    width,
+    top,
+    height,
+    timing,
+    isLast,
+    animation,
+    parentText,
+  } of boxes) {
+    if (parentText) {
+      continue;
+    }
+
     ctx.globalAlpha =
       animation === "fade-in" ? timing : Math.min(1, timing / 0.4);
 

@@ -60,6 +60,10 @@ export class Stagger {
     }
   }
 
+  get innerText() {
+    return this.elements.join("");
+  }
+
   get width() {
     return Math.max(...this.texts.map((text) => text.width));
   }
@@ -186,10 +190,6 @@ export class Stagger {
 
     if (paintQueue.size) {
       for (const text of paintQueue) {
-        if (text.parent instanceof Text) {
-          text.parent.paint();
-        }
-
         text.paint();
       }
 

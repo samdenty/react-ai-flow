@@ -1,6 +1,6 @@
 import {
   Box,
-  optimizeRects,
+  preserveOptimizeRects,
   Ranges,
   TextLine,
   type SplitterImpl,
@@ -24,7 +24,7 @@ let ID = 0;
 export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   static DEFAULT_GRADIENT_WIDTH = 100;
 
-  #line?: TextLine;
+  #lines?: TextLine[];
   #progress = 0;
 
   id = ++ID;
@@ -32,6 +32,9 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
   customAnimationElement?: HTMLElement;
   initialStyle?: string;
+
+  start: number;
+  end: number;
 
   constructor(
     parent: StaggerElement,
@@ -42,6 +45,14 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   ) {
     super(parent, options, element);
     this.childNodes = ranges;
+
+    const childNodesOffsets = parent.childNodesOffsets.filter(
+      ({ childNode }) =>
+        typeof childNode !== "string" && ranges.includes(childNode)
+    );
+
+    this.start = childNodesOffsets.at(0)?.start ?? 0;
+    this.end = childNodesOffsets.at(-1)?.end ?? 0;
 
     this.className = `${this.text.options.classNamePrefix}-box-${this.id}`;
   }
@@ -57,7 +68,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    return optimizeRects(rects, (rect) => {
+    return preserveOptimizeRects(rects, (rect) => {
       const { top, left } = Box.calculateRelative(rect, this);
 
       return new Box(
@@ -214,16 +225,20 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     return this.element.text;
   }
 
-  get line() {
-    const TOLERANCE = 1;
+  get lines() {
+    if (this.#lines) {
+      return this.#lines;
+    }
 
-    return (this.#line ??= this.text.lines.find((line) => {
-      return (
-        line.top <= this.top + TOLERANCE &&
-        line.bottom >= this.bottom - TOLERANCE &&
-        line.left <= this.left + TOLERANCE &&
-        line.right >= this.right - TOLERANCE
-      );
+    let offset = 0;
+
+    return (this.#lines = this.text.lines.filter((line) => {
+      const start = (line.childNodesOffsets.at(0)?.start ?? 0) + offset;
+      const end = (line.childNodesOffsets.at(-1)?.end ?? 0) + offset;
+
+      offset = end;
+
+      return this.start >= start && this.end <= end;
     }));
   }
 
@@ -233,6 +248,20 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
   get isGradient() {
     return isGradient(this.options.animation);
+  }
+
+  comparePosition(other: StaggerElement) {
+    if (this.text !== other.text) {
+      return super.comparePosition(other);
+    }
+
+    const pos = this.element.comparePosition(other);
+
+    if (pos) {
+      return pos;
+    }
+
+    return super.comparePosition(other);
   }
 
   get gradientWidth() {
@@ -282,6 +311,11 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
       progress: this.progress,
       timing: this.timing,
       gradientWidth: this.gradientWidth,
+      text: {
+        parentText: this.text.parentText && {
+          id: this.text.parentText.id,
+        },
+      },
       isLast: this.isLast,
     };
   }

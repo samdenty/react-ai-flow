@@ -1,9 +1,10 @@
-import type {
-  Stagger,
-  StaggerElementBoxOptions,
-  ElementOptions,
+import {
+  type Stagger,
+  type StaggerElementBoxOptions,
+  type ElementOptions,
 } from "../stagger/index.js";
 import type { Text } from "./Text.js";
+import type { TextLine } from "./TextLine.js";
 
 export class Box<
   T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger
@@ -63,6 +64,18 @@ export class Box<
       this.left >= other.left &&
       this.right <= other.right
     );
+  }
+
+  drawDebugBox() {
+    const element = document.createElement("div");
+    element.style.position = "fixed";
+    element.style.top = `${this.top}px`;
+    element.style.left = `${this.left}px`;
+    element.style.width = `${this.width}px`;
+    element.style.height = `${this.height}px`;
+    element.style.backgroundColor = "red";
+    element.style.zIndex = "1000";
+    document.body.appendChild(element);
   }
 
   constructor(
@@ -246,6 +259,10 @@ export abstract class Ranges<
 
   uniqueBoxes: T[] = [];
 
+  get lines(): TextLine[] | void {
+    return;
+  }
+
   constructor(
     parent: U,
     public options: StaggerElementBoxOptions,
@@ -259,7 +276,7 @@ export abstract class Ranges<
     }
   }
 
-  comparePosition(other: Ranges<any, any>) {
+  comparePosition(other: Ranges<any, any>): number {
     if (this.top === other.top && this.left !== other.left) {
       return this.left - other.left;
     }
@@ -326,13 +343,6 @@ export abstract class Ranges<
       return result;
     }
 
-    const overlapping = !(
-      this.right <= other.left ||
-      this.left >= other.right ||
-      this.bottom <= other.top ||
-      this.top >= other.bottom
-    );
-
     const containedWithin = this.containedWithin(other);
     const otherContainedWithin = other.containedWithin(this);
 
@@ -342,9 +352,23 @@ export abstract class Ranges<
       return -1;
     }
 
+    const overlapping = !(this.bottom <= other.top || this.top >= other.bottom);
+
     if (!overlapping) {
       if (this.top !== other.top) {
-        return this.top - other.top;
+        const line = this.lines?.[0];
+        const otherLine = other.lines?.[0];
+
+        // if both have lines, compare the lines else compare the boxes
+        if (!line || !otherLine) {
+          return this.top - other.top;
+        }
+
+        const pos = line.comparePosition(otherLine);
+
+        if (pos) {
+          return pos;
+        }
       }
 
       return this.left - other.left;
@@ -450,7 +474,7 @@ export abstract class Ranges<
 
   scanRanges(): DOMRect[][] {
     return this.ranges.map((range) => {
-      return optimizeUniqueRects([...range.getClientRects()]);
+      return optimizeRects([...range.getClientRects()]);
     });
   }
 
@@ -594,7 +618,7 @@ export abstract class Ranges<
   }
 }
 
-export function optimizeRects<
+export function preserveOptimizeRects<
   U extends DOMRect[] | DOMRect[][],
   T = DOMRect,
   R = U extends DOMRect[] ? T[] : T[][]
@@ -699,17 +723,14 @@ export function optimizeRects<
   return isFlat ? (result[0] as R) : (result as R);
 }
 
-export function optimizeUniqueRects<
-  U extends DOMRect[] | DOMRect[][],
-  T = DOMRect
->(
+export function optimizeRects<U extends DOMRect[] | DOMRect[][], T = DOMRect>(
   rects: U,
   create?: (
     rect: DOMRect,
     indexes: U extends DOMRect[] ? number[] : [number, number][]
   ) => T
 ): T[] {
-  const optimized = optimizeRects(rects, create);
+  const optimized = preserveOptimizeRects(rects, create);
 
   return [
     ...new Set(

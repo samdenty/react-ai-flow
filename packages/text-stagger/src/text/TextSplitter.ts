@@ -274,45 +274,71 @@ export function splitText(
   } = splitOptions as SplitOptions & { animation?: ElementAnimation };
 
   if (typeof textLike !== "string") {
-    const splits: ParsedTextSplit[] = [];
+    const fullSplits = splitText(textLike.innerText, splitter, splitOptions);
 
-    let texts: { text: string; subtext: Text | null }[];
-
-    if (textLike instanceof Text) {
-      texts = textLike.continuousChildNodes.map(({ nodes, subtext }) => ({
-        text: nodes.join(""),
-        subtext,
-      }));
-    } else {
-      texts = [{ text: textLike.innerText, subtext: null }];
+    if (!(textLike instanceof Text)) {
+      return fullSplits;
     }
 
-    for (const { text, subtext } of texts) {
-      const lastEnd = splits.at(-1)?.end ?? 0;
+    const continuousSplits: ParsedTextSplit[] = [];
 
-      if (subtext) {
-        splits.push({
-          text,
-          start: lastEnd,
-          end: lastEnd + text.length,
-          animation,
-          ...options,
-        });
+    const [continuousNode, secondContinuousNode] =
+      textLike.continuousChildNodes;
+
+    if (continuousNode.subtext && !secondContinuousNode) {
+      const text = continuousNode.nodes.join("");
+      const split: ParsedTextSplit = {
+        text: text,
+        start: 0,
+        end: text.length,
+        animation,
+        ...options,
+      };
+
+      return [split];
+    }
+
+    for (const { nodes, start, end } of textLike.continuousChildNodesOffsets) {
+      const text = nodes.map(({ childNode }) => childNode.toString()).join("");
+
+      const lastEnd = [...continuousSplits].at(-1)?.end ?? 0;
+
+      const [split, nextSplit] = fullSplits.filter((split) => {
+        return split.end > start && split.start <= end;
+      });
+
+      if (!split) {
+        continue;
+      }
+
+      if (!nextSplit) {
+        if (continuousSplits.includes(split)) {
+          continue;
+        }
+
+        split.end = split.end - split.start + lastEnd;
+        split.start = lastEnd;
+
+        continuousSplits.push(split);
 
         continue;
       }
 
-      const relativeSplits = splitText(text, splitter, splitOptions);
+      const relativeSplits = splitText(
+        text.slice(lastEnd - start),
+        splitter,
+        splitOptions
+      );
 
       for (const split of relativeSplits) {
         split.start += lastEnd;
         split.end += lastEnd;
 
-        splits.push(split);
+        continuousSplits.push(split);
       }
     }
 
-    return splits;
+    return continuousSplits;
   }
 
   const text = textLike;

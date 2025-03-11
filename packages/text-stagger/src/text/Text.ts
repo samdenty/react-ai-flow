@@ -20,6 +20,7 @@ import {
   maskRenderMode,
 } from "./canvas/index.js";
 import { updateProperty } from "./styles/index.js";
+import PositionObserver from "../utils/positionObserver.js";
 
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
   "style",
@@ -98,8 +99,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   #ignoredNodes = new WeakSet<Node>();
   #maxFps?: number;
   #closestCommonParent?: { rect: DOMRect; element: HTMLElement };
-  #parents: EventTarget[] = [];
-  updateBoundsOnPaint = false;
 
   #lines: TextLine[] = [];
   elements: StaggerElement[] = [];
@@ -136,6 +135,24 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     return element;
   }
 
+  isIgnoredNode(node: Node, recursive: boolean) {
+    if (!recursive) {
+      return this.#ignoredNodes.has(node);
+    }
+
+    let currentElement: Node | null = node;
+
+    while (currentElement) {
+      if (this.#ignoredNodes.has(currentElement)) {
+        return true;
+      }
+
+      currentElement = currentElement.parentElement;
+    }
+
+    return false;
+  }
+
   get lines(): TextLine[] {
     return this.#lines;
   }
@@ -152,51 +169,85 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     updateProperty(this.className, "padding", "0px");
     updateProperty(this.className, "margin", "0px");
 
-    const rect = this.container.getBoundingClientRect();
+    const { top, bottom, left, right, height, width } =
+      this.container.getBoundingClientRect();
 
-    let left = 0;
-    let right = 0;
+    let marginLeft = 0;
+    let marginRight = 0;
 
     if (this.parentText) {
       updateProperty(this.className, "padding", null);
       updateProperty(this.className, "margin", null);
     } else {
-      ({ left, right } = getAvailableSpace(this.container, rect));
+      ({ left: marginLeft, right: marginRight } = getAvailableSpace(
+        this.container,
+        { left, right }
+      ));
 
-      updateProperty(this.className, "padding", `0px ${right}px 0 ${left}px`);
-      updateProperty(this.className, "margin", `0px ${-right}px 0 ${-left}px`);
+      updateProperty(
+        this.className,
+        "padding",
+        `0px ${marginRight}px 0 ${marginLeft}px`
+      );
+      updateProperty(
+        this.className,
+        "margin",
+        `0px ${-marginRight}px 0 ${-marginLeft}px`
+      );
     }
 
-    updateProperty(this.customAnimationClassName, "height", `${rect.height}px`);
-    updateProperty(this.customAnimationClassName, "width", `${rect.width}px`);
+    updateProperty(this.customAnimationClassName, "height", `${height}px`);
+    updateProperty(this.customAnimationClassName, "width", `${width}px`);
 
     this.canvasRect = new DOMRect(
-      rect.left - left,
-      rect.top,
-      rect.width + left + right,
-      rect.height
+      left - marginLeft,
+      top,
+      width + marginLeft + marginRight,
+      height
     );
 
     this.#closestCommonParent = undefined;
 
-    return {
-      top: rect.top,
-      left: rect.left,
-      bottom: rect.bottom,
-      right: rect.right,
-    };
+    return { top, left, bottom, right };
   }
 
-  private handleScroll = () => {
-    this.updateBoundsOnPaint = true;
-  };
+  updateBounds(rects?: [[DOMRect]]) {
+    let changed = super.updateBounds(rects);
 
-  updateBounds(rects?: DOMRect[][]) {
-    this.updateBoundsOnPaint = false;
-
-    const changed = super.updateBounds(rects);
     if (changed) {
       this.updateCustomAnimationPosition();
+    }
+
+    const changedLines = new Set<TextLine>();
+
+    for (let i = this.lines.length - 1; i >= 0; i--) {
+      const line = this.lines[i];
+      const lineChanged = line.updateBounds();
+
+      if (!lineChanged) {
+        continue;
+      }
+
+      changed = true;
+      changedLines.add(line);
+    }
+
+    for (const element of this.elements) {
+      const [line] = element.lines;
+
+      if (!changedLines.has(line)) {
+        continue;
+      }
+
+      const bounds = new DOMRect(
+        element.left,
+        line.top,
+        element.width,
+        element.height
+      );
+
+      const changedElement = element.updateBounds([[bounds]]);
+      changed ||= changedElement;
     }
 
     return changed;
@@ -333,6 +384,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
   #resizeObserver?: ResizeObserver;
   #mutationObserver?: MutationObserver;
+  #positionObserver?: PositionObserver;
   #ignoreNextMutation = false;
 
   get container(): HTMLElement & { text?: Text } {
@@ -351,12 +403,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
       this.#mutationObserver?.disconnect();
       this.#resizeObserver?.disconnect();
-
-      this.#parents.forEach((parent) => {
-        parent.removeEventListener("scroll", this.handleScroll, true);
-      });
-
-      this.#parents = [];
+      this.#positionObserver?.disconnect();
 
       return;
     }
@@ -384,19 +431,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     this.container.text = this;
     this.container.classList.add("ai-flow", this.className);
-
-    this.#parents = [];
-
-    let currentNode = this.container.parentNode;
-    while (currentNode && currentNode !== document.documentElement) {
-      this.#parents.push(currentNode);
-
-      currentNode.addEventListener("scroll", this.handleScroll, true);
-      currentNode = currentNode.parentNode;
-    }
-
-    this.#parents.push(window);
-    window.addEventListener("scroll", this.handleScroll, true);
 
     updateProperty(this.customAnimationClassName, "position", "absolute");
 
@@ -448,8 +482,13 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     let mounted = false;
 
+    this.#positionObserver = new PositionObserver(() => {
+      this.updateBounds();
+    });
+
     this.#resizeObserver = new ResizeObserver((entries) => {
       if (!mounted) {
+        this.updateBounds();
         this.scanElementLines({ reason: ScanReason.Mounted });
 
         // if (this.stagger.streaming === false) {
@@ -475,14 +514,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       mutations.push(...entries);
 
       mutations = mutations.filter((mutation) => {
-        let currentElement: Node | null = mutation.target;
-
-        while (currentElement) {
-          if (this.#ignoredNodes.has(currentElement)) {
-            return false;
-          }
-
-          currentElement = currentElement.parentElement;
+        if (this.isIgnoredNode(mutation.target, true)) {
+          return false;
         }
 
         const nodes = mutation.addedNodes.length
@@ -493,7 +526,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
           return true;
         }
 
-        return nodes.some((node) => !this.#ignoredNodes.has(node));
+        return nodes.some((node) => !this.isIgnoredNode(node, false));
       });
 
       if (!mutations.length) {
@@ -511,6 +544,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       });
     });
 
+    this.#positionObserver.observe(this.container);
     this.#resizeObserver.observe(this.container);
 
     this.#mutationObserver.observe(this.container, {
@@ -535,7 +569,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     // childNodes can be empty if a mutation has occurred in meantime
     if (childNodes.length) {
-      this.updateBounds();
       const element = new StaggerElement(this, childNodes, this.trailingSplit);
       element.restartAnimation();
     }
@@ -713,9 +746,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   get continuousChildNodesOffsets() {
     let childNodeOffset = 0;
 
-    return this.continuousChildNodes.map(({ nodes, boxes, subtext }) => {
-      return {
-        nodes: nodes.map((childNode) => {
+    return this.continuousChildNodes.map(
+      ({ nodes: childNodes, boxes, subtext }) => {
+        const nodes = childNodes.map((childNode) => {
           const length = childNode.toString().length;
           const offset = {
             childNode,
@@ -724,11 +757,20 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
           };
           childNodeOffset += length;
           return offset;
-        }),
-        boxes,
-        subtext,
-      };
-    });
+        });
+
+        const start = nodes.at(0)!.start;
+        const end = nodes.at(-1)!.end;
+
+        return {
+          nodes,
+          start,
+          end,
+          boxes,
+          subtext,
+        };
+      }
+    );
   }
 
   get closestCommonParent() {
@@ -743,7 +785,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     const element = getSafeContainer(
       this.parentText.container,
       this.container,
-      this.#ignoredNodes
+      (node) => !this.isIgnoredNode(node, false)
     );
 
     const rect = element.getBoundingClientRect();
@@ -805,11 +847,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
           const element = oldElements[elementIndex];
           const textSplit = newSplitElements[splitIndex];
 
-          if (!forceReset && element.childNodes.join("") === textSplit.text) {
-            return true;
-          }
-
-          return element.updateTextSplit(textSplit, trimChildNodes);
+          return element.updateTextSplit(textSplit, trimChildNodes, forceReset);
         }
       ),
     ];
@@ -901,8 +939,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     const oldDimensions = this.#scannedDimensions;
 
-    this.updateBounds();
-
     this.#scannedDimensions = {
       width: this.width,
       height: this.height,
@@ -938,18 +974,17 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
     if (resized || (event.reason === ScanReason.Force && event.reset)) {
       this.#lines = [];
-
-      for (const text of this.nextTexts) {
-        text.updateBounds();
-      }
     }
+
+    const isBlock = hasBlockElement(
+      this.container,
+      (node) => !this.isIgnoredNode(node, false)
+    );
 
     updateProperty(
       this.className,
       "display",
-      hasBlockElement(this.container, this.#ignoredNodes)
-        ? "block"
-        : "inline-block"
+      isBlock ? "block" : "inline-block"
     );
 
     this.#lines = TextLine.scanLines(this);
@@ -1105,7 +1140,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 export type SerializedText = ReturnType<Text["toJSON"]>;
 
-function getAvailableSpace(element: HTMLElement, elementRect: DOMRect) {
+function getAvailableSpace(
+  element: HTMLElement,
+  elementRect: { left: number; right: number }
+) {
   // Initialize variables to store the nearest overflow container's bounds
   let overflowContainer: HTMLElement | null = null;
   let overflowContainerRect: {
@@ -1168,10 +1206,13 @@ function getAvailableSpace(element: HTMLElement, elementRect: DOMRect) {
   };
 }
 
-function hasBlockElement(element: Element, ignored: WeakSet<Node>) {
+function hasBlockElement(
+  element: Element,
+  acceptNode?: (node: Node) => boolean
+) {
   // Get computed style for direct children
   for (const child of element.children) {
-    if (ignored.has(child)) continue;
+    if (acceptNode && !acceptNode(child)) continue;
 
     const display = window.getComputedStyle(child).display;
 
@@ -1186,7 +1227,7 @@ function hasBlockElement(element: Element, ignored: WeakSet<Node>) {
     }
 
     // Recursively check children
-    if (hasBlockElement(child, ignored)) {
+    if (hasBlockElement(child, acceptNode)) {
       return true;
     }
   }
@@ -1197,7 +1238,7 @@ function hasBlockElement(element: Element, ignored: WeakSet<Node>) {
 function getSafeContainer(
   root: HTMLElement,
   element: HTMLElement,
-  ignoredNodes: WeakSet<Node>
+  acceptNode?: (node: Node) => boolean
 ) {
   let current = element;
   let lastElement = element;
@@ -1215,7 +1256,7 @@ function getSafeContainer(
 
     const looseText = hasLooseText(
       current,
-      (node) => !ignoredNodes.has(node) && node !== lastElement
+      (node) => node !== lastElement && (!acceptNode || acceptNode(node))
     );
 
     if (looseText) {

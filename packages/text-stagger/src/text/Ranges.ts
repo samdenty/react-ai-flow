@@ -277,8 +277,11 @@ export abstract class Ranges<
   }
 
   comparePosition(other: Ranges<any, any>): number {
-    if (this.top === other.top && this.left !== other.left) {
-      return this.left - other.left;
+    const firstBox = this.uniqueBoxes[0];
+    const otherFirstBox = other.uniqueBoxes[0];
+
+    if (this.top === other.top && firstBox.left !== otherFirstBox.left) {
+      return firstBox.left - otherFirstBox.left;
     }
 
     let range = this.ranges.at(0);
@@ -371,7 +374,7 @@ export abstract class Ranges<
         }
       }
 
-      return this.left - other.left;
+      return firstBox.left - otherFirstBox.left;
     }
 
     const startPointRange = range.cloneRange();
@@ -445,10 +448,6 @@ export abstract class Ranges<
   updateBounds(rects?: DOMRect[][]): boolean {
     if (!rects) {
       rects = this.scanRanges();
-
-      if ((this as any) !== this.text) {
-        this.text.updateBounds();
-      }
     }
 
     const bounds = this.scanBounds(rects);
@@ -613,22 +612,42 @@ export abstract class Ranges<
     });
   }
 
+  getRangeOffsets(ranges: Range[] | Range, startPosition = 0) {
+    const nodes = new Set(Array.isArray(ranges) ? ranges : [ranges]);
+
+    const childNodesOffsets = this.childNodesOffsets.filter(
+      ({ childNode }) => typeof childNode !== "string" && nodes.has(childNode)
+    );
+
+    const start = (childNodesOffsets.at(0)?.start ?? 0) + startPosition;
+    const end = (childNodesOffsets.at(-1)?.end ?? 0) + startPosition;
+
+    return { start, end };
+  }
+
   toString() {
     return this.innerText;
   }
 }
 
-export function preserveOptimizeRects<
-  U extends DOMRect[] | DOMRect[][],
-  T = DOMRect,
-  R = U extends DOMRect[] ? T[] : T[][]
->(
-  rects: U,
+export function preserveOptimizeRects<T = DOMRect, K = number>(
+  rects: DOMRect[],
+  create?: (rect: DOMRect, indexes: [index: number, key: K][]) => T,
+  getKey?: (rect: DOMRect, index: number) => K | null
+): T[];
+export function preserveOptimizeRects<T = DOMRect, K = number>(
+  rects: DOMRect[][],
   create?: (
     rect: DOMRect,
-    indexes: U extends DOMRect[] ? number[] : [number, number][]
-  ) => T
-): R {
+    indexes: [index1: number, index2: number, key: K][]
+  ) => T,
+  getKey?: (rect: DOMRect, index1: number, index2: number) => K | null
+): T[][];
+export function preserveOptimizeRects(
+  rects: DOMRect[] | DOMRect[][],
+  create?: (rect: DOMRect, ...args: any[]) => any,
+  getKey?: (rect: DOMRect, ...args: any[]) => any
+): any[] {
   const rectsArray = (Array.isArray(rects[0]) ? rects : [rects]) as DOMRect[][];
   const isFlat = !Array.isArray(rects[0]);
 
@@ -639,43 +658,62 @@ export function preserveOptimizeRects<
       return rectGroup.map((rect, rectIndex) => {
         return [
           rect,
-          isFlat ? rectIndex : ([groupIndex, rectIndex] as const),
+          isFlat ? ([rectIndex] as const) : ([groupIndex, rectIndex] as const),
         ] as const;
       });
     })
   );
 
+  const keys = new Map<DOMRect, any>();
+
+  if (getKey) {
+    for (const rect of rectsArray.flat()) {
+      const indexes = inputRectsIndexes.get(rect)!;
+      const key = getKey(rect, ...indexes);
+
+      if (key != null) {
+        keys.set(rect, key);
+      }
+    }
+  }
+
   const optimizedRects = new Map<DOMRect, Set<DOMRect>>();
 
   for (const inputRect of inputRectsIndexes.keys()) {
     // Try to find existing rectangle to merge with
-    const mergeWith = [...optimizedRects.entries()].find(([existingRect]) => {
-      const sameHeight =
-        Math.abs(existingRect.height - inputRect.height) <= TOLERANCE;
-      const sameTop = Math.abs(existingRect.top - inputRect.top) <= TOLERANCE;
-      const isAdjacent =
-        Math.abs(existingRect.left - inputRect.right) <= TOLERANCE ||
-        Math.abs(existingRect.right - inputRect.left) <= TOLERANCE;
-      const isOverlapping =
-        existingRect.left <= inputRect.right + TOLERANCE &&
-        inputRect.left <= existingRect.right + TOLERANCE;
-      const rect1ContainsRect2 =
-        existingRect.left <= inputRect.left + TOLERANCE &&
-        existingRect.right >= inputRect.right - TOLERANCE &&
-        existingRect.top <= inputRect.top + TOLERANCE &&
-        existingRect.bottom >= inputRect.bottom - TOLERANCE;
-      const rect2ContainsRect1 =
-        inputRect.left <= existingRect.left + TOLERANCE &&
-        inputRect.right >= existingRect.right - TOLERANCE &&
-        inputRect.top <= existingRect.top + TOLERANCE &&
-        inputRect.bottom >= existingRect.bottom - TOLERANCE;
+    const mergeWith = [...optimizedRects.entries()].find(
+      ([existingRect, [existingInputRect]]) => {
+        if (keys.has(inputRect)) {
+          return keys.get(inputRect) === keys.get(existingInputRect);
+        }
 
-      return (
-        (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
-        rect1ContainsRect2 ||
-        rect2ContainsRect1
-      );
-    });
+        const sameHeight =
+          Math.abs(existingRect.height - inputRect.height) <= TOLERANCE;
+        const sameTop = Math.abs(existingRect.top - inputRect.top) <= TOLERANCE;
+        const isAdjacent =
+          Math.abs(existingRect.left - inputRect.right) <= TOLERANCE ||
+          Math.abs(existingRect.right - inputRect.left) <= TOLERANCE;
+        const isOverlapping =
+          existingRect.left <= inputRect.right + TOLERANCE &&
+          inputRect.left <= existingRect.right + TOLERANCE;
+        const rect1ContainsRect2 =
+          existingRect.left <= inputRect.left + TOLERANCE &&
+          existingRect.right >= inputRect.right - TOLERANCE &&
+          existingRect.top <= inputRect.top + TOLERANCE &&
+          existingRect.bottom >= inputRect.bottom - TOLERANCE;
+        const rect2ContainsRect1 =
+          inputRect.left <= existingRect.left + TOLERANCE &&
+          inputRect.right >= existingRect.right - TOLERANCE &&
+          inputRect.top <= existingRect.top + TOLERANCE &&
+          inputRect.bottom >= existingRect.bottom - TOLERANCE;
+
+        return (
+          (sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
+          rect1ContainsRect2 ||
+          rect2ContainsRect1
+        );
+      }
+    );
 
     if (!mergeWith) {
       optimizedRects.set(inputRect, new Set([inputRect]));
@@ -700,11 +738,18 @@ export function preserveOptimizeRects<
   // Transform the optimized rects if a creator function is provided
   const transformed = new Map(
     [...optimizedRects.entries()].flatMap(([optimized, [...inputRects]]) => {
-      let transformed = optimized as T;
+      let transformed = optimized;
       if (create) {
-        const indexes = inputRects.map(
-          (inputRect) => inputRectsIndexes.get(inputRect)! as any
-        );
+        const indexes = inputRects.map((inputRect) => {
+          const key = keys.get(inputRect);
+          const indexes = inputRectsIndexes.get(inputRect)!;
+
+          if (key != null) {
+            return [...indexes, key];
+          }
+
+          return indexes;
+        });
 
         transformed = create(optimized, indexes);
       }
@@ -720,23 +765,34 @@ export function preserveOptimizeRects<
     rectGroup.map((rect) => transformed.get(rect)!)
   );
 
-  return isFlat ? (result[0] as R) : (result as R);
+  return isFlat ? result[0] : result;
 }
 
-export function optimizeRects<U extends DOMRect[] | DOMRect[][], T = DOMRect>(
-  rects: U,
+export function optimizeRects<T = DOMRect, K = any>(
+  rects: DOMRect[],
+  create?: (rect: DOMRect, indexes: [index: number, key: K][]) => T,
+  getKey?: (rect: DOMRect, index: number) => K | null
+): T[];
+export function optimizeRects<T = DOMRect, K = any>(
+  rects: DOMRect[][],
   create?: (
     rect: DOMRect,
-    indexes: U extends DOMRect[] ? number[] : [number, number][]
-  ) => T
-): T[] {
-  const optimized = preserveOptimizeRects(rects, create);
+    indexes: [index1: number, index2: number, key: K][]
+  ) => T,
+  getKey?: (rect: DOMRect, index1: number, index2: number) => K | null
+): T[];
+export function optimizeRects(
+  rects: DOMRect[] | DOMRect[][],
+  create?: (rect: DOMRect, ...args: any[]) => any,
+  getKey?: (rect: DOMRect, ...args: any[]) => any
+): any[] {
+  const optimized = preserveOptimizeRects(rects as any, create, getKey);
 
   return [
     ...new Set(
       Array.isArray(optimized[0])
-        ? (optimized as T[][]).flat()
-        : (optimized as T[])
+        ? (optimized as any[][]).flat()
+        : (optimized as any[])
     ),
   ];
 }

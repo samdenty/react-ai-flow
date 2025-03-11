@@ -14,6 +14,9 @@ export class TextLine extends Ranges<Box, Text> {
 
   id: string;
 
+  start = 0;
+  end = 0;
+
   private constructor(
     public text: Text,
     public index: number,
@@ -28,14 +31,31 @@ export class TextLine extends Ranges<Box, Text> {
     this.id = `${this.text.id}:${index}`;
   }
 
-  static getLines(range: Ranges<any, any>) {
-    return (
-      ("lines" in range &&
-        Array.isArray(range.lines) &&
-        range.lines.every((line) => line instanceof TextLine) &&
-        range.lines) ||
-      null
-    );
+  static getLines<T extends Ranges<any, any>>(
+    range: T,
+    position?: { start?: number; end?: number }
+  ): T extends { lines: TextLine[] } ? TextLine[] : null {
+    if (
+      !("lines" in range) ||
+      !Array.isArray(range.lines) ||
+      !range.lines.every((line) => line instanceof TextLine)
+    ) {
+      return null as T extends { lines: TextLine[] } ? never : null;
+    }
+
+    let offset = 0;
+
+    return range.lines.filter((line) => {
+      const lineStart = (line.childNodesOffsets.at(0)?.start ?? 0) + offset;
+      const lineEnd = (line.childNodesOffsets.at(-1)?.end ?? 0) + offset;
+
+      offset = lineEnd;
+
+      return (
+        (typeof position?.start !== "number" || position.start >= lineStart) &&
+        (typeof position?.end !== "number" || position.end <= lineEnd)
+      );
+    }) as T extends { lines: TextLine[] } ? TextLine[] : never;
   }
 
   comparePosition(other: TextLine): number {
@@ -163,7 +183,6 @@ export class TextLine extends Ranges<Box, Text> {
       return [];
     }
 
-    lastTextNode.endOfBlock = true;
     lastTextNode.endOfSubtext = !!lastTextNode.subtext;
 
     textNodes.forEach(
@@ -295,7 +314,13 @@ export class TextLine extends Ranges<Box, Text> {
     // Sort lines by vertical position
     lines.sort((a, b) => a.comparePosition(b));
 
+    let offset = 0;
+
     lines.forEach((line, i) => {
+      line.start = offset;
+      line.end = offset + line.innerText.length;
+      offset = line.end;
+
       line.startOfText = i === 0;
       line.endOfText = i === lines.length - 1;
     });
@@ -310,6 +335,16 @@ function createParentChecker(text: Text) {
 
   return function checkNodeParents(textNode: globalThis.Text) {
     const element = textNode.parentElement ?? document.body;
+
+    if (text.isIgnoredNode(element, true)) {
+      return {
+        isHidden: true,
+        subtext: null,
+        blockParent: null,
+        style: null,
+        parent: null,
+      } as const;
+    }
 
     let blockParent: HTMLElement | null = null;
     let parent: HTMLElement = element;
@@ -326,16 +361,12 @@ function createParentChecker(text: Text) {
 
       style ??= parentStyle;
 
-      let hidden =
+      const hidden =
         parentStyle.display === "none" ||
         parentStyle.visibility === "hidden" ||
         (parent.offsetParent === null &&
           parent !== document.body &&
           parent !== document.documentElement);
-
-      hidden ||= text.previousTexts.some(
-        (text) => text.customAnimationContainer === parent
-      );
 
       if (hidden) {
         return {

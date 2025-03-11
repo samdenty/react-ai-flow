@@ -182,12 +182,6 @@ export class Stagger {
       }
     }
 
-    for (const text of this.texts) {
-      if (text.updateBoundsOnPaint && !skippedFrames.has(text)) {
-        text.updateBounds();
-      }
-    }
-
     if (paintQueue.size) {
       for (const text of paintQueue) {
         text.paint();

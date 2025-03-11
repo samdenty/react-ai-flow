@@ -5,6 +5,7 @@ import {
   Ranges,
   type RangesChildNode,
   Text,
+  TextLine,
 } from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import {
@@ -110,6 +111,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   #delay: number | null = null;
   staggerDelay: number | null = null;
 
+  #lines?: TextLine[];
   batchId!: number;
   index!: number;
 
@@ -142,10 +144,29 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     text.elements.push(this);
   }
 
+  set childNodes(childNodes: RangesChildNode[]) {
+    this.#lines = undefined;
+    super.childNodes = childNodes;
+  }
+
+  get childNodes(): readonly RangesChildNode[] {
+    return super.childNodes;
+  }
+
   updateTextSplit(
     textSplit: ParsedTextSplit,
-    trimChildNodes = this.text.createChildNodeTrimmer()
+    trimChildNodes: ReturnType<Text["createChildNodeTrimmer"]>,
+    forceReset = false
   ) {
+    if (!forceReset && this.childNodes.join("") === textSplit.text) {
+      if (textSplit.start !== this.start || textSplit.end !== this.end) {
+        this.start = textSplit.start;
+        this.end = textSplit.end;
+        this.childNodes = [...this.childNodes];
+      }
+      return true;
+    }
+
     const oldText = this.innerText.trim();
     const currentText = textSplit.text.trim();
 
@@ -195,6 +216,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       return super.comparePosition(other);
     }
 
+    if (!this.lines[0] || !other.lines[0]) {
+      debugger;
+    }
     const pos = this.lines[0].comparePosition(other.lines[0]);
 
     if (pos) {
@@ -373,22 +397,37 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       return rects.map((rects) => rects.map((_) => box));
     }
 
-    return preserveOptimizeRects(rects, (rect, indexes) => {
-      const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]))];
+    return preserveOptimizeRects<StaggerElementBox, TextLine>(
+      rects,
+      (rect, indexes) => {
+        const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]))];
 
-      return new StaggerElementBox(
-        this,
-        this.options,
-        this.container,
-        ranges,
-        rect
-      );
-    });
+        return new StaggerElementBox(
+          this,
+          this.options,
+          this.container,
+          ranges,
+          rect
+        );
+      },
+      (_, index) => {
+        const position = this.getRangeOffsets(this.ranges[index], this.start);
+        const [line] = TextLine.getLines(this.text, position);
+
+        return line;
+      }
+    );
   }
 
   get lines() {
-    const lines = new Set(this.boxes.flatMap(([box]) => box.lines));
-    return [...lines].filter((line) => !!line);
+    if (this.#lines) {
+      return this.#lines;
+    }
+
+    const uniqueLines = new Set(this.boxes.flatMap(([box]) => box.lines));
+    this.#lines = [...uniqueLines].filter((line) => !!line);
+
+    return this.#lines;
   }
 
   get isLast() {

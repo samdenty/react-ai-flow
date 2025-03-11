@@ -36,23 +36,23 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   start: number;
   end: number;
 
+  #rect?: DOMRect;
+
   constructor(
     parent: StaggerElement,
     public options: StaggerElementBoxOptions,
     element: HTMLElement,
     ranges: Range[],
-    private rect: DOMRect
+    rect: DOMRect
   ) {
     super(parent, options, element);
+    this.#rect = rect;
     this.childNodes = ranges;
 
-    const childNodesOffsets = parent.childNodesOffsets.filter(
-      ({ childNode }) =>
-        typeof childNode !== "string" && ranges.includes(childNode)
-    );
+    const { start, end } = parent.getRangeOffsets(ranges, parent.start);
 
-    this.start = (childNodesOffsets.at(0)?.start ?? 0) + parent.start;
-    this.end = (childNodesOffsets.at(-1)?.end ?? 0) + parent.start;
+    this.start = start;
+    this.end = end;
 
     this.className = `${this.text.options.classNamePrefix}-box-${this.id}`;
   }
@@ -64,7 +64,14 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   }
 
   scanRanges() {
-    return [[this.rect]];
+    const rect = this.#rect;
+
+    if (rect) {
+      this.#rect = undefined;
+      return [[rect]];
+    }
+
+    return super.scanRanges();
   }
 
   scanBoxes(rects: DOMRect[][]) {
@@ -230,16 +237,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
       return this.#lines;
     }
 
-    let offset = 0;
-
-    return (this.#lines = this.text.lines.filter((line) => {
-      const start = (line.childNodesOffsets.at(0)?.start ?? 0) + offset;
-      const end = (line.childNodesOffsets.at(-1)?.end ?? 0) + offset;
-
-      offset = end;
-
-      return this.start >= start && this.end <= end;
-    }));
+    return (this.#lines = TextLine.getLines(this.text, this));
   }
 
   get isLast() {

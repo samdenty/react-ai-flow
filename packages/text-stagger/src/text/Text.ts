@@ -809,48 +809,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
             return true;
           }
 
-          const oldText = element.innerText.trim();
-          const currentText = textSplit.text.trim();
-
-          const startsWithPrevious = currentText.startsWith(oldText);
-          const startsWithCurrent = oldText.startsWith(currentText);
-
-          if (!startsWithPrevious && !startsWithCurrent) {
-            return false;
-          }
-
-          if (!element.progress) {
-            element.childNodes = trimChildNodes(textSplit.start, textSplit.end);
-            return true;
-          }
-
-          let newNodes: RangesChildNode[] = [];
-          let currentStart = textSplit.start;
-          let remainingLength = textSplit.end - textSplit.start;
-
-          for (const text of element.childText) {
-            if (remainingLength <= 0) break;
-
-            const length = Math.min(text.length, remainingLength);
-            const boxNodes = trimChildNodes(
-              currentStart,
-              currentStart + length
-            );
-            newNodes.push(...boxNodes);
-
-            currentStart += length;
-            remainingLength -= length;
-          }
-
-          if (textSplit.text !== element.innerText && startsWithPrevious) {
-            newNodes.push(
-              ...trimChildNodes(textSplit.start + oldText.length, textSplit.end)
-            );
-          }
-
-          element.childNodes = newNodes;
-
-          return true;
+          return element.updateTextSplit(textSplit, trimChildNodes);
         }
       ),
     ];

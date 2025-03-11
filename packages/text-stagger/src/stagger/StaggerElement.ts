@@ -142,6 +142,54 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     text.elements.push(this);
   }
 
+  updateTextSplit(
+    textSplit: ParsedTextSplit,
+    trimChildNodes = this.text.createChildNodeTrimmer()
+  ) {
+    const oldText = this.innerText.trim();
+    const currentText = textSplit.text.trim();
+
+    const startsWithPrevious = currentText.startsWith(oldText);
+    const startsWithCurrent = oldText.startsWith(currentText);
+
+    if (!startsWithPrevious && !startsWithCurrent) {
+      return false;
+    }
+
+    this.start = textSplit.start;
+    this.end = textSplit.end;
+
+    if (!this.progress) {
+      this.childNodes = trimChildNodes(textSplit.start, textSplit.end);
+      return true;
+    }
+
+    let newNodes: RangesChildNode[] = [];
+    let currentStart = textSplit.start;
+    let remainingLength = textSplit.end - textSplit.start;
+
+    for (const text of this.childText) {
+      if (remainingLength <= 0) break;
+
+      const length = Math.min(text.length, remainingLength);
+      const boxNodes = trimChildNodes(currentStart, currentStart + length);
+      newNodes.push(...boxNodes);
+
+      currentStart += length;
+      remainingLength -= length;
+    }
+
+    if (textSplit.text !== this.innerText && startsWithPrevious) {
+      newNodes.push(
+        ...trimChildNodes(textSplit.start + oldText.length, textSplit.end)
+      );
+    }
+
+    this.childNodes = newNodes;
+
+    return true;
+  }
+
   comparePosition(other: StaggerElement) {
     if (this.text !== other.text) {
       return super.comparePosition(other);

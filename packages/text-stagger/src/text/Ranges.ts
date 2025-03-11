@@ -1,7 +1,7 @@
-import {
-  type Stagger,
-  type StaggerElementBoxOptions,
-  type ElementOptions,
+import type {
+  Stagger,
+  StaggerElementBoxOptions,
+  ElementOptions,
 } from "../stagger/index.js";
 import type { Text } from "./Text.js";
 import type { TextLine } from "./TextLine.js";

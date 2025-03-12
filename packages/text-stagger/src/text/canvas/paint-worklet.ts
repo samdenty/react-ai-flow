@@ -39,7 +39,7 @@ function paintWorklet(paint: typeof doPaint) {
       ) {
         let text: SerializedText;
         try {
-          text = JSON.parse(JSON.parse(stateStyleValue.toString()));
+          text = JSON.parse(JSON.parse(stateStyleValue?.toString() ?? ""));
         } catch {
           return;
         }

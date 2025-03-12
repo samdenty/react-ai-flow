@@ -285,7 +285,7 @@ export function splitText(
     const [continuousNode, secondContinuousNode] =
       textLike.continuousChildNodes;
 
-    if (continuousNode.subtext && !secondContinuousNode) {
+    if (continuousNode?.subtext && !secondContinuousNode) {
       const text = continuousNode.nodes.join("");
       const split: ParsedTextSplit = {
         text: text,
@@ -390,8 +390,10 @@ export function splitText(
       if (!segment.trim()) {
         if (splits.length > 0) {
           const previousSplit = splits[splits.length - 1];
-          previousSplit.end = end;
-          previousSplit.text = text.slice(previousSplit.start, end);
+          if (previousSplit) {
+            previousSplit.end = end;
+            previousSplit.text = text.slice(previousSplit.start, end);
+          }
         }
       } else {
         splits.push({

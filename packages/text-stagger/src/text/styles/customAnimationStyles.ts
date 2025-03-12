@@ -55,12 +55,12 @@ export function getCustomAnimationStyles(
     ];
 
     // Find current keyframe segment
-    let startFrame = keyframes[0];
-    let endFrame = keyframes[1];
+    let startFrame = keyframes[0]!;
+    let endFrame = keyframes[1]!;
     for (let i = 1; i < keyframes.length; i++) {
-      if (clampedProgress <= keyframes[i].time) {
-        startFrame = keyframes[i - 1];
-        endFrame = keyframes[i];
+      if (clampedProgress <= keyframes[i]!.time) {
+        startFrame = keyframes[i - 1]!;
+        endFrame = keyframes[i]!;
         break;
       }
     }

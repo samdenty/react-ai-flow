@@ -6,6 +6,7 @@
     "useDefineForClassFields": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext"],
     "types": ["vite/client"],
+    "noUncheckedIndexedAccess": true,
     "module": "NodeNext",
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,

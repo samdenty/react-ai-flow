@@ -276,11 +276,16 @@ export abstract class Ranges<
     }
   }
 
-  comparePosition(other: Ranges<any, any>): number {
+  comparePosition(other: this): number {
     const firstBox = this.uniqueBoxes[0];
     const otherFirstBox = other.uniqueBoxes[0];
 
-    if (this.top === other.top && firstBox.left !== otherFirstBox.left) {
+    if (
+      firstBox &&
+      otherFirstBox &&
+      this.top === other.top &&
+      firstBox.left !== otherFirstBox.left
+    ) {
       return firstBox.left - otherFirstBox.left;
     }
 
@@ -374,7 +379,9 @@ export abstract class Ranges<
         }
       }
 
-      return firstBox.left - otherFirstBox.left;
+      if (firstBox && otherFirstBox) {
+        return firstBox.left - otherFirstBox.left;
+      }
     }
 
     const startPointRange = range.cloneRange();
@@ -684,7 +691,7 @@ export function preserveOptimizeRects(
     const mergeWith = [...optimizedRects.entries()].find(
       ([existingRect, [existingInputRect]]) => {
         if (keys.has(inputRect)) {
-          return keys.get(inputRect) === keys.get(existingInputRect);
+          return keys.get(inputRect) === keys.get(existingInputRect!);
         }
 
         const sameHeight =
@@ -765,7 +772,7 @@ export function preserveOptimizeRects(
     rectGroup.map((rect) => transformed.get(rect)!)
   );
 
-  return isFlat ? result[0] : result;
+  return isFlat ? result[0] ?? [] : result;
 }
 
 export function optimizeRects<T = DOMRect, K = any>(

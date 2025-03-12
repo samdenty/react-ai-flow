@@ -58,7 +58,7 @@ export class TextLine extends Ranges<Box, Text> {
     }) as T extends { lines: TextLine[] } ? TextLine[] : never;
   }
 
-  comparePosition(other: TextLine): number {
+  comparePosition(other: this): number {
     if (this.text !== other.text) {
       return super.comparePosition(other);
     }
@@ -126,190 +126,178 @@ export class TextLine extends Ranges<Box, Text> {
       }
     );
 
-    const textNodes: {
-      textNode: globalThis.Text;
-      style: CSSStyleDeclaration;
-      blockParent: HTMLElement;
-      subtext: Text | null;
-      startOfSubtext: boolean;
-      endOfSubtext: boolean;
-      startOfBlock: boolean;
-      endOfBlock: boolean;
-      textContent: string;
-    }[] = [];
+    const nodes: globalThis.Text[] = [];
+    while (walker.nextNode()) {
+      nodes.push(walker.currentNode as globalThis.Text);
+    }
 
     const checkParents = createParentChecker(text);
 
-    while (walker.nextNode()) {
-      const textNode = walker.currentNode as globalThis.Text;
+    const textNodes = nodes
+      .flatMap((textNode) => {
+        const { textContent } = textNode;
+        if (!textContent) {
+          return [];
+        }
 
-      const { textContent } = textNode;
-      if (!textContent) {
-        continue;
-      }
+        const { isHidden, subtext, style, blockParent } =
+          checkParents(textNode);
 
-      const { isHidden, subtext, style, blockParent } = checkParents(textNode);
+        if (isHidden) {
+          return [];
+        }
 
-      if (isHidden) {
-        continue;
-      }
+        return { blockParent, textNode, textContent, subtext, style };
+      })
+      .map((node, i, textNodes) => {
+        const prev = textNodes[i - 1];
+        const next = textNodes[i + 1];
+        const { subtext, blockParent } = node;
 
-      const lastTextNode = textNodes.at(-1);
-      const startOfBlock = blockParent !== lastTextNode?.blockParent;
+        const newNode = Object.assign(node, {
+          startOfBlock: blockParent && blockParent !== prev?.blockParent,
+          endOfBlock: blockParent && blockParent !== next?.blockParent,
+          startOfSubtext: subtext && subtext !== prev?.subtext,
+          endOfSubtext: subtext && subtext !== next?.subtext,
+        });
 
-      const startOfSubtext = !!subtext && lastTextNode?.subtext !== subtext;
-      const endOfSubtext =
-        !!lastTextNode?.subtext && lastTextNode.subtext !== subtext;
-
-      if (lastTextNode) {
-        lastTextNode.endOfBlock ||= startOfBlock;
-      }
-
-      textNodes.push({
-        blockParent,
-        textNode,
-        textContent,
-        subtext,
-        style,
-        startOfSubtext,
-        endOfSubtext,
-        startOfBlock,
-        endOfBlock: false,
+        return Object.assign(newNode, {
+          prev: prev as typeof newNode,
+          next: next as typeof newNode,
+        });
+      })
+      .map((node) => {
+        const newRange = node.startOfSubtext || node.prev?.endOfSubtext;
+        return Object.assign(node, { newRange });
       });
-    }
 
     const lastTextNode = textNodes.at(-1);
     if (!lastTextNode) {
       return [];
     }
 
-    lastTextNode.endOfSubtext = !!lastTextNode.subtext;
-
-    textNodes.forEach(
-      ({
+    textNodes.forEach((node) => {
+      let {
         textNode,
         startOfBlock,
-        startOfSubtext,
-        endOfSubtext,
+        newRange,
         endOfBlock,
         textContent,
         blockParent,
-      }) => {
-        let start = textNode === lastScannedNode ? lastScannedOffset : 0;
+      } = node;
 
-        let newRange = startOfSubtext || endOfSubtext;
+      let start = textNode === lastScannedNode ? lastScannedOffset : 0;
 
-        while (start < textContent.length) {
-          const range = document.createRange();
+      while (start < textContent.length) {
+        const range = document.createRange();
 
-          // Start with maximum possible range
+        // Start with maximum possible range
+        range.setStart(textNode, start);
+        range.setEnd(textNode, textContent.length);
+
+        let newLine = new TextLine(
+          text,
+          lines.length,
+          blockParent,
+          startOfBlock,
+          endOfBlock,
+          [range],
+          text.options
+        );
+
+        const [firstBox, secondBox] = newLine.uniqueBoxes;
+
+        // Handle the case where the node has no content
+        if (!firstBox) {
+          return;
+        }
+
+        const { top } = firstBox;
+
+        if (secondBox) {
+          let wrapStart = start;
+          let wrapEnd = textContent.length;
+
+          // Binary search for the break point
+          while (wrapStart <= wrapEnd) {
+            const mid = Math.ceil((wrapStart + wrapEnd) / 2);
+
+            range.setStart(textNode, start);
+            range.setEnd(textNode, mid);
+            newLine.childNodes = [range];
+
+            const isWrapped =
+              newLine.uniqueBoxes[0]!.top > top ||
+              newLine.uniqueBoxes.length > 1;
+
+            if (isWrapped) {
+              wrapEnd = mid - 1;
+            } else {
+              wrapStart = mid + 1;
+            }
+          }
+
+          // After the loop, wrapEnd will be at the last position that doesn't cause wrapping
           range.setStart(textNode, start);
-          range.setEnd(textNode, textContent.length);
+          range.setEnd(textNode, wrapEnd);
 
-          let newLine = new TextLine(
-            text,
-            lines.length,
-            blockParent,
-            startOfBlock,
-            endOfBlock,
-            [range],
-            text.options
+          newLine.childNodes = [range];
+        }
+
+        const existingLine = lines.findLast((existingLine) => {
+          const lineBoxes = existingLine.uniqueBoxes;
+          const newBoxes = newLine.uniqueBoxes;
+
+          const aroundSameLine = lineBoxes.some((box) =>
+            newBoxes.some(
+              (newBox) => newBox.top < box.bottom && newBox.bottom > box.top
+            )
           );
 
-          const [firstBox, secondBox] = newLine.uniqueBoxes;
-
-          // Handle the case where the node has no content
-          if (!firstBox) {
-            return;
+          if (aroundSameLine && newLine.left >= existingLine.right) {
+            return true;
           }
 
-          const { top } = firstBox;
-
-          if (secondBox) {
-            let wrapStart = start;
-            let wrapEnd = textContent.length;
-
-            // Binary search for the break point
-            while (wrapStart <= wrapEnd) {
-              const mid = Math.ceil((wrapStart + wrapEnd) / 2);
-
-              range.setStart(textNode, start);
-              range.setEnd(textNode, mid);
-              newLine.childNodes = [range];
-
-              const isWrapped =
-                newLine.uniqueBoxes[0].top > top ||
-                newLine.uniqueBoxes.length > 1;
-
-              if (isWrapped) {
-                wrapEnd = mid - 1;
-              } else {
-                wrapStart = mid + 1;
-              }
-            }
-
-            // After the loop, wrapEnd will be at the last position that doesn't cause wrapping
-            range.setStart(textNode, start);
-            range.setEnd(textNode, wrapEnd);
-
-            newLine.childNodes = [range];
-          }
-
-          const existingLine = lines.findLast((existingLine) => {
-            const lineBoxes = existingLine.uniqueBoxes;
-            const newBoxes = newLine.uniqueBoxes;
-
-            const aroundSameLine = lineBoxes.some((box) =>
-              newBoxes.some(
-                (newBox) => newBox.top < box.bottom && newBox.bottom > box.top
-              )
+          if (existingLine.blockParent === newLine.blockParent) {
+            return (
+              Math.abs(existingLine.top - newLine.top) <= 1 &&
+              Math.abs(existingLine.bottom - newLine.bottom) <= 1
             );
+          }
 
-            if (aroundSameLine && newLine.left >= existingLine.right) {
-              return true;
-            }
+          return aroundSameLine;
+        });
 
-            if (existingLine.blockParent === newLine.blockParent) {
-              return (
-                Math.abs(existingLine.top - newLine.top) <= 1 &&
-                Math.abs(existingLine.bottom - newLine.bottom) <= 1
-              );
-            }
+        if (existingLine) {
+          const ranges = [...existingLine.ranges];
 
-            return aroundSameLine;
-          });
+          if (!newRange) {
+            const lastRange = ranges.at(-1);
+            const rangeToExtend = lastRange?.cloneRange();
 
-          if (existingLine) {
-            const ranges = [...existingLine.ranges];
+            rangeToExtend?.setEnd(range.endContainer, range.endOffset);
 
-            if (!newRange) {
-              const lastRange = ranges.at(-1);
-              const rangeToExtend = lastRange?.cloneRange();
-
-              rangeToExtend?.setEnd(range.endContainer, range.endOffset);
-
-              if (rangeToExtend?.toString() === `${lastRange}${range}`) {
-                ranges[ranges.length - 1] = rangeToExtend;
-              } else {
-                ranges.push(range);
-                newRange = false;
-              }
+            if (rangeToExtend?.toString() === `${lastRange}${range}`) {
+              ranges[ranges.length - 1] = rangeToExtend;
             } else {
               ranges.push(range);
               newRange = false;
             }
-
-            existingLine.childNodes = ranges;
           } else {
+            ranges.push(range);
             newRange = false;
-            lines.push(newLine);
           }
 
-          // Move to next position
-          start = range.endOffset;
+          existingLine.childNodes = ranges;
+        } else {
+          newRange = false;
+          lines.push(newLine);
         }
+
+        // Move to next position
+        start = range.endOffset;
       }
-    );
+    });
 
     // Sort lines by vertical position
     lines.sort((a, b) => a.comparePosition(b));
@@ -336,7 +324,23 @@ function createParentChecker(text: Text) {
   return function checkNodeParents(textNode: globalThis.Text) {
     const element = textNode.parentElement ?? document.body;
 
-    if (text.isIgnoredNode(element, true)) {
+    const previousTexts = text.previousTexts;
+    const excludeContainers = new Set<Node>(
+      previousTexts.map((text) => {
+        return text.container;
+      })
+    );
+    excludeContainers.add(text.container);
+
+    const ignored = previousTexts.some((text) => {
+      return text.isIgnoredNode(
+        element,
+        true,
+        (node) => !excludeContainers.has(node)
+      );
+    });
+
+    if (ignored) {
       return {
         isHidden: true,
         subtext: null,

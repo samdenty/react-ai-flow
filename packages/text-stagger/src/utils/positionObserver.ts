@@ -151,7 +151,7 @@ export default class PositionObserver {
       const intersectionObserver = new IntersectionObserver(([entry], ob) => {
         ob.disconnect();
 
-        resolve(entry);
+        resolve(entry!);
       });
 
       intersectionObserver.observe(target);

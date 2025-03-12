@@ -211,7 +211,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return true;
   }
 
-  comparePosition(other: StaggerElement) {
+  comparePosition(other: this) {
     if (this.text !== other.text) {
       return super.comparePosition(other);
     }
@@ -219,7 +219,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     if (!this.lines[0] || !other.lines[0]) {
       debugger;
     }
-    const pos = this.lines[0].comparePosition(other.lines[0]);
+
+    const pos =
+      other.lines[0] && this.lines[0]?.comparePosition(other.lines[0]);
 
     if (pos) {
       return pos;
@@ -400,7 +402,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return preserveOptimizeRects<StaggerElementBox, TextLine>(
       rects,
       (rect, indexes) => {
-        const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]))];
+        const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]!))];
 
         return new StaggerElementBox(
           this,
@@ -411,10 +413,10 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
         );
       },
       (_, index) => {
-        const position = this.getRangeOffsets(this.ranges[index], this.start);
+        const position = this.getRangeOffsets(this.ranges[index]!, this.start);
         const [line] = TextLine.getLines(this.text, position);
 
-        return line;
+        return line!;
       }
     );
   }
@@ -424,7 +426,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       return this.#lines;
     }
 
-    const uniqueLines = new Set(this.boxes.flatMap(([box]) => box.lines));
+    const uniqueLines = new Set(
+      this.boxes.flatMap(([box]) => box?.lines ?? [])
+    );
     this.#lines = [...uniqueLines].filter((line) => !!line);
 
     return this.#lines;
@@ -448,7 +452,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       const progresses =
         this.uniqueBoxes.length > oldBoxCount
           ? oldProgresses
-          : this.uniqueBoxes.map((_, i) => oldProgresses[i]);
+          : this.uniqueBoxes.map((_, i) => oldProgresses[i]!);
 
       // Calculate total elapsed time from old progress values
       const totalElapsedTime = progresses.reduce(
@@ -464,7 +468,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
     // Restore progress to existing boxes, new boxes start at 0
     this.uniqueBoxes.forEach((box, i) => {
-      box.progress = i < oldBoxCount ? oldProgresses[i] : 0;
+      box.progress = i < oldBoxCount ? oldProgresses[i]! : 0;
     });
   }
 
@@ -480,27 +484,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   }
 
   set progress(progress: number) {
-    if (!this.uniqueBoxes.length) {
-      return;
+    for (const box of this.uniqueBoxes) {
+      box.progress = progress;
     }
-
-    const boxCount = this.uniqueBoxes.length;
-    const progressPerBox = 1 / boxCount;
-
-    this.uniqueBoxes.forEach((box, i) => {
-      if (this.animation === ElementAnimation.FadeIn) {
-        box.progress = progress;
-        return;
-      }
-
-      const boxStartProgress = i * progressPerBox;
-      let boxProgress = Math.min(
-        1,
-        Math.max(0, (progress - boxStartProgress) / progressPerBox)
-      );
-
-      box.progress = boxProgress;
-    });
   }
 
   get animation() {

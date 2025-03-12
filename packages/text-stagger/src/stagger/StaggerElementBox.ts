@@ -248,12 +248,12 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     return isGradient(this.options.animation);
   }
 
-  comparePosition(other: StaggerElement) {
+  comparePosition(other: this) {
     if (this.text !== other.text) {
       return super.comparePosition(other);
     }
 
-    const pos = this.element.comparePosition(other);
+    const pos = this.element.comparePosition(other.element);
 
     if (pos) {
       return pos;

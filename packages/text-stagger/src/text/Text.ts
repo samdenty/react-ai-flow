@@ -135,16 +135,22 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     return element;
   }
 
-  isIgnoredNode(node: Node, recursive: boolean) {
-    if (!recursive) {
-      return this.#ignoredNodes.has(node);
-    }
-
+  isIgnoredNode(
+    node: Node,
+    recursive: boolean,
+    acceptNode?: (node: Node) => boolean
+  ) {
     let currentElement: Node | null = node;
 
     while (currentElement) {
-      if (this.#ignoredNodes.has(currentElement)) {
-        return true;
+      let ignored = this.#ignoredNodes.has(currentElement);
+
+      if (acceptNode) {
+        ignored &&= acceptNode(currentElement);
+      }
+
+      if (ignored || !recursive) {
+        return ignored;
       }
 
       currentElement = currentElement.parentElement;
@@ -221,7 +227,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     const changedLines = new Set<TextLine>();
 
     for (let i = this.lines.length - 1; i >= 0; i--) {
-      const line = this.lines[i];
+      const line = this.lines[i]!;
       const lineChanged = line.updateBounds();
 
       if (!lineChanged) {
@@ -235,7 +241,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     for (const element of this.elements) {
       const [line] = element.lines;
 
-      if (!changedLines.has(line)) {
+      if (!line || !changedLines.has(line)) {
         continue;
       }
 
@@ -652,7 +658,11 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     boxes: Box<Text>[];
     subtext: Text | null;
   }[] {
-    if (!this.subtexts.length || !this.childNodes.length) {
+    if (!this.childNodes.length) {
+      return [];
+    }
+
+    if (!this.subtexts.length) {
       return [
         { nodes: this.childNodes, boxes: this.uniqueBoxes, subtext: null },
       ];
@@ -676,8 +686,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
         continue;
       }
 
-      const rangeBoxes = boxes[currentBoxIndex++];
-      const nextRangeBoxes = boxes[currentBoxIndex] as Box<Text>[] | undefined;
+      const rangeBoxes = boxes[currentBoxIndex++]!;
+      const nextRangeBoxes = boxes[currentBoxIndex];
       const range = childNode;
 
       const startSubtext = this.subtexts.find((subtext) => {
@@ -844,8 +854,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
             return false;
           }
 
-          const element = oldElements[elementIndex];
-          const textSplit = newSplitElements[splitIndex];
+          const element = oldElements[elementIndex]!;
+          const textSplit = newSplitElements[splitIndex]!;
 
           return element.updateTextSplit(textSplit, trimChildNodes, forceReset);
         }
@@ -910,7 +920,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       const restartFromIndex = Math.min(...indexes);
 
       for (let i = restartFromIndex; i < this.stagger.elements.length; i++) {
-        this.stagger.elements[i].restartAnimation();
+        this.stagger.elements[i]!.restartAnimation();
       }
     });
   }

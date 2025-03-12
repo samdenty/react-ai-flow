@@ -24,22 +24,22 @@ export function optimisticMarkdown(
   let inFencedCodeBlock = false;
 
   while (pos < markdown.length) {
-    const char = markdown[pos];
+    const char = markdown[pos]!;
 
     // Handle HTML blocks
-    if (char === "<" && isLetter(markdown[pos + 1])) {
+    if (char === "<" && isLetter(markdown[pos + 1]!)) {
       const tagMatch = markdown
         .slice(pos)
         .match(/^<(\/?[a-zA-Z][a-zA-Z0-9]*)[\s>]/);
       if (tagMatch) {
         inHtmlBlock = true;
-        if (tagMatch[1].startsWith("/")) {
+        if (tagMatch[1]!.startsWith("/")) {
           htmlTagStack.pop();
           if (htmlTagStack.length === 0) {
             inHtmlBlock = false;
           }
         } else {
-          htmlTagStack.push(tagMatch[1]);
+          htmlTagStack.push(tagMatch[1]!);
         }
         output += markdown[pos];
         pos++;
@@ -56,7 +56,7 @@ export function optimisticMarkdown(
 
     // Handle escaped characters
     if (char === "\\") {
-      output += markdown[pos] + markdown[pos + 1];
+      output += markdown[pos]! + markdown[pos + 1]!;
       pos += 2;
       continue;
     }

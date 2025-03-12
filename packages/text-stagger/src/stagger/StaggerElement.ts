@@ -136,7 +136,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     this.subtext =
       this.text.continuousChildNodesOffsets.find(({ nodes }) => {
         return nodes.some(({ start, end }) => {
-          return start >= this.start && end <= this.end;
+          return this.start >= start && this.end <= end;
         });
       })?.subtext ?? null;
 

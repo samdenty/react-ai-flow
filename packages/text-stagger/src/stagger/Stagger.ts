@@ -31,13 +31,13 @@ export class Stagger {
   #painter?: ReturnType<typeof requestAnimationFrame>;
   #paintQueue = new Set<Text>();
   #invalidateTexts = true;
-  #vibration?: Vibration;
 
   #texts: Text[] = [];
   #elements?: StaggerElement[];
 
   batchId = 0;
   id = ++ID;
+  vibration?: Vibration;
   lastPaint?: number;
 
   constructor({ streaming, ...options }: StaggerOptions = {}) {
@@ -136,18 +136,30 @@ export class Stagger {
     }
   }
 
-  vibrate(vibrations: number[]) {
-    if (!isTouchDevice()) {
+  vibrate() {
+    const elementVibrations = this.elements.flatMap((element): Vibration[] => {
+      if (!element.vibration) {
+        return [];
+      }
+
+      return [[element.startTime + element.delay, element.vibration]];
+    });
+
+    if (
+      !isTouchDevice() ||
+      !navigator.vibrate ||
+      !elementVibrations.length ||
+      this !== staggers?.at(-1)
+    ) {
       return;
     }
 
-    if (this.#vibration) {
-      vibrations = mergeVibrations([Date.now(), vibrations], this.#vibration);
-    }
+    this.vibration = [
+      Date.now(),
+      mergeVibrations(elementVibrations, Date.now()),
+    ];
 
-    this.#vibration = [Date.now(), vibrations];
-
-    navigator.vibrate(vibrations);
+    navigator.vibrate(this.vibration[1]);
   }
 
   paint(texts: Text[] = []) {
@@ -174,10 +186,6 @@ export class Stagger {
       element.progress = Math.min(1, elapsed / element.duration);
 
       if (oldProgress !== element.progress) {
-        if (oldProgress === 0 && element.vibration) {
-          this.vibrate(element.vibration);
-        }
-
         paintQueue.add(element.text);
       }
     }
@@ -299,6 +307,10 @@ export class Stagger {
 
     this.texts.push(text);
     this.#textsListeners.forEach((listener) => listener());
+
+    staggers?.sort(({ texts: [a] }, { texts: [b] }) => {
+      return (b && a?.comparePosition(b)) ?? 0;
+    });
 
     return () => this.disposeText(id);
   }

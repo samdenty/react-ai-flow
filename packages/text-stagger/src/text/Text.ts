@@ -467,18 +467,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       this.canvas.style.display = "none";
       this.canvas.id = this.className;
       document.head.prepend(this.canvas);
-
-      updateProperty(
-        this.className,
-        "mask-image",
-        `-moz-element(#${this.className})`
-      );
-    } else if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
-      updateProperty(
-        this.className,
-        "mask-image",
-        `-webkit-canvas(${this.className})`
-      );
     }
 
     this.canvasContext = this.canvas?.getContext("2d", {
@@ -577,6 +565,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     if (childNodes.length) {
       const element = new StaggerElement(this, childNodes, this.trailingSplit);
       element.restartAnimation();
+      this.stagger.vibrate();
     }
 
     this.trailingSplit = null;
@@ -636,6 +625,14 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
   get mask() {
     if (this.visualDebug || !this.elements.length) {
       return null;
+    }
+
+    if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
+      return `-moz-element(#${this.className})`;
+    }
+
+    if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
+      return `-webkit-canvas(${this.className})`;
     }
 
     if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
@@ -878,6 +875,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       }
 
       if (action === -1) {
+        const elements = items as StaggerElement[];
+
+        elements.forEach((element) => {
+          element.dispose();
+        });
+
         return;
       }
 
@@ -922,6 +925,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       for (let i = restartFromIndex; i < this.stagger.elements.length; i++) {
         this.stagger.elements[i]!.restartAnimation();
       }
+
+      this.stagger.vibrate();
     });
   }
 

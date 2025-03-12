@@ -298,20 +298,29 @@ export function splitText(
       return [split];
     }
 
-    for (const { nodes, start, end } of textLike.continuousChildNodesOffsets) {
+    for (const {
+      nodes,
+      start,
+      end,
+      subtext,
+    } of textLike.continuousChildNodesOffsets) {
       const text = nodes.map(({ childNode }) => childNode.toString()).join("");
-
-      const lastEnd = [...continuousSplits].at(-1)?.end ?? 0;
-
-      const [split, nextSplit] = fullSplits.filter((split) => {
-        return split.end > start && split.start <= end;
+      let lastEnd = continuousSplits.at(-1)?.end ?? 0;
+      let splits = fullSplits.filter((split) => {
+        return split.end > start && split.start < end;
       });
+
+      const [split, nextSplit] = splits;
 
       if (!split) {
         continue;
       }
 
-      if (!nextSplit) {
+      if (subtext && nextSplit) {
+        splits = splitText(text.slice(lastEnd - start), splitter, splitOptions);
+      }
+
+      for (const split of splits) {
         if (continuousSplits.includes(split)) {
           continue;
         }
@@ -319,20 +328,7 @@ export function splitText(
         split.end = split.end - split.start + lastEnd;
         split.start = lastEnd;
 
-        continuousSplits.push(split);
-
-        continue;
-      }
-
-      const relativeSplits = splitText(
-        text.slice(lastEnd - start),
-        splitter,
-        splitOptions
-      );
-
-      for (const split of relativeSplits) {
-        split.start += lastEnd;
-        split.end += lastEnd;
+        lastEnd = split.end;
 
         continuousSplits.push(split);
       }

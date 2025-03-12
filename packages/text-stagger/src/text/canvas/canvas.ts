@@ -32,7 +32,7 @@ export function doPaint(
   ctx.clearRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 
   const boxes = text.elements.flatMap((element) => {
-    const { animation, subtext } = element;
+    const { animation } = element;
 
     return element.uniqueBoxes.map((box) => {
       const {
@@ -40,6 +40,7 @@ export function doPaint(
         timing,
         gradientWidth,
         text: { parentText },
+        subtext,
       } = box;
 
       const isLast = element.isLast && box.isLast;

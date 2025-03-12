@@ -119,7 +119,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
   start: number;
   end: number;
-  subtext: Text | null = null;
 
   constructor(
     public text: Text,
@@ -133,15 +132,16 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     this.start = split.start;
     this.end = split.end;
 
-    this.subtext =
-      this.text.continuousChildNodesOffsets.find(({ nodes }) => {
-        return nodes.some(({ start, end }) => {
-          return this.start >= start && this.end <= end;
-        });
-      })?.subtext ?? null;
-
     this.childNodes = childNodes;
     text.elements.push(this);
+  }
+
+  dispose() {
+    super.dispose();
+
+    this.uniqueBoxes.forEach((box) => {
+      box.dispose();
+    });
   }
 
   set childNodes(childNodes: RangesChildNode[]) {
@@ -242,16 +242,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
       };
     }
 
-    if (this.subtext) {
-      return {
-        top: this.subtext.top,
-        left: this.subtext.left,
-        bottom: this.subtext.bottom,
-        right: this.subtext.right,
-      };
-    }
-
-    return super.scanBounds(rects);
+    return super.scanBounds([...rects, this.subtexts]);
   }
 
   restartAnimation() {
@@ -385,30 +376,29 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    const { closestCommonParent } = this.subtext || {};
-
-    if (closestCommonParent) {
-      const box = new StaggerElementBox(
-        this,
-        this.options,
-        this.container,
-        this.ranges,
-        closestCommonParent.rect
-      );
-
-      return rects.map((rects) => rects.map((_) => box));
-    }
-
     return preserveOptimizeRects<StaggerElementBox, TextLine>(
       rects,
       (rect, indexes) => {
         const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]!))];
+        const position = this.getRangeOffsets(ranges, this.start);
+
+        const subtext =
+          this.text.continuousChildNodesOffsets.find(({ nodes }) => {
+            return nodes.some(({ start, end }) => {
+              return (
+                (position.start >= start && position.end <= end) ||
+                (start >= position.start && end <= position.end)
+              );
+            });
+          })?.subtext ?? null;
 
         return new StaggerElementBox(
           this,
           this.options,
           this.container,
           ranges,
+          position,
+          subtext,
           rect
         );
       },
@@ -497,9 +487,13 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
     return this.relativeTo(this.text);
   }
 
+  get subtexts() {
+    return this.uniqueBoxes.flatMap((box) => box.subtext ?? []);
+  }
+
   toJSON() {
     return {
-      subtext: this.subtext,
+      subtexts: this.subtexts,
       startTime: this.startTime,
       duration: this.duration,
       delay: this.delay,

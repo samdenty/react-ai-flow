@@ -1,16 +1,36 @@
 import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import {
-  Box,
-  preserveOptimizeRects,
-  Ranges,
-  type RangesChildNode,
-} from "./Ranges.js";
+import { Box, preserveOptimizeRects, Ranges } from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<Box, Text> {
   startOfText = false;
-  endOfText = false;
+
+  get endOfBlock() {
+    return this.childNodes.at(-1) === "\r\n";
+  }
+
+  set endOfBlock(endOfBlock: boolean) {
+    this.childNodes = endOfBlock
+      ? [...this.ranges, "\r\n"]
+      : this.endOfText
+      ? this.ranges
+      : [...this.ranges, "\n"];
+  }
+
+  get endOfText() {
+    return (
+      this.ranges.length >= 1 && this.ranges.length === this.childNodes.length
+    );
+  }
+
+  set endOfText(endOfText: boolean) {
+    this.childNodes = endOfText
+      ? this.ranges
+      : this.endOfBlock
+      ? [...this.ranges, "\r\n"]
+      : [...this.ranges, "\n"];
+  }
 
   id: string;
 
@@ -22,11 +42,12 @@ export class TextLine extends Ranges<Box, Text> {
     public index: number,
     public blockParent: HTMLElement,
     public startOfBlock: boolean,
-    public endOfBlock: boolean,
+    endOfBlock: boolean,
     ranges: Range[],
     options?: ElementOptions
   ) {
     super(text, mergeObject(text.options, options), text.container);
+    this.endOfBlock = endOfBlock;
     this.childNodes = ranges;
     this.id = `${this.text.id}:${index}`;
   }
@@ -43,18 +64,11 @@ export class TextLine extends Ranges<Box, Text> {
       return null as T extends { lines: TextLine[] } ? never : null;
     }
 
-    let offset = 0;
-
     return range.lines.filter((line) => {
-      const lineStart = (line.childNodesOffsets.at(0)?.start ?? 0) + offset;
-      const lineEnd = (line.childNodesOffsets.at(-1)?.end ?? 0) + offset;
+      const start = position?.start ?? line.start;
+      const end = position?.end ?? line.end;
 
-      offset = lineEnd;
-
-      return (
-        (typeof position?.start !== "number" || position.start >= lineStart) &&
-        (typeof position?.end !== "number" || position.end <= lineEnd)
-      );
+      return start <= line.end && line.start <= end;
     }) as T extends { lines: TextLine[] } ? TextLine[] : never;
   }
 
@@ -80,22 +94,6 @@ export class TextLine extends Ranges<Box, Text> {
         rect.height
       );
     });
-  }
-
-  override set childNodes(ranges: RangesChildNode[]) {
-    super.childNodes = ranges.filter((node) => typeof node !== "string");
-  }
-
-  override get childNodes(): readonly RangesChildNode[] {
-    if (this.innerText.endsWith("\n") || this.endOfText) {
-      return super.childNodes;
-    }
-
-    if (this.endOfBlock) {
-      return [...super.childNodes, "\r\n"];
-    }
-
-    return [...super.childNodes, "\n"];
   }
 
   static scanLines(text: Text): TextLine[] {
@@ -155,8 +153,8 @@ export class TextLine extends Ranges<Box, Text> {
         const { subtext, blockParent } = node;
 
         const newNode = Object.assign(node, {
-          startOfBlock: blockParent && blockParent !== prev?.blockParent,
-          endOfBlock: blockParent && blockParent !== next?.blockParent,
+          startOfBlock: blockParent !== prev?.blockParent,
+          endOfBlock: !!next && blockParent !== next.blockParent,
           startOfSubtext: subtext && subtext !== prev?.subtext,
           endOfSubtext: subtext && subtext !== next?.subtext,
         });
@@ -305,12 +303,12 @@ export class TextLine extends Ranges<Box, Text> {
     let offset = 0;
 
     lines.forEach((line, i) => {
+      line.startOfText = i === 0;
+      line.endOfText = i === lines.length - 1;
+
       line.start = offset;
       line.end = offset + line.innerText.length;
       offset = line.end;
-
-      line.startOfText = i === 0;
-      line.endOfText = i === lines.length - 1;
     });
 
     return lines;
@@ -330,7 +328,6 @@ function createParentChecker(text: Text) {
         return text.container;
       })
     );
-    excludeContainers.add(text.container);
 
     const ignored = previousTexts.some((text) => {
       return text.isIgnoredNode(

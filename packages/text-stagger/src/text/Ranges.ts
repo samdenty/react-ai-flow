@@ -351,8 +351,10 @@ export abstract class Ranges<
       return result;
     }
 
-    const containedWithin = this.containedWithin(other);
-    const otherContainedWithin = other.containedWithin(this);
+    const containedWithin =
+      otherFirstBox && firstBox?.containedWithin(otherFirstBox);
+    const otherContainedWithin =
+      firstBox && otherFirstBox?.containedWithin(firstBox);
 
     if (containedWithin && !otherContainedWithin) {
       return 1;
@@ -474,7 +476,9 @@ export abstract class Ranges<
     return changed;
   }
 
-  scanBounds(rects: DOMRect[][]) {
+  scanBounds(
+    rects: { top: number; left: number; bottom: number; right: number }[][]
+  ) {
     return Box.getBounds(rects.flat());
   }
 

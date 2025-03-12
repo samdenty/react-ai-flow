@@ -3,6 +3,7 @@ import {
   preserveOptimizeRects,
   Ranges,
   TextLine,
+  Text,
   type SplitterImpl,
 } from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
@@ -43,16 +44,16 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     public options: StaggerElementBoxOptions,
     element: HTMLElement,
     ranges: Range[],
+    position: { start: number; end: number },
+    public subtext: Text | null,
     rect: DOMRect
   ) {
     super(parent, options, element);
     this.#rect = rect;
     this.childNodes = ranges;
 
-    const { start, end } = parent.getRangeOffsets(ranges, parent.start);
-
-    this.start = start;
-    this.end = end;
+    this.start = position.start;
+    this.end = position.end;
 
     this.className = `${this.text.options.classNamePrefix}-box-${this.id}`;
   }
@@ -145,7 +146,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
   updateCustomAnimation() {
     const styles = getCustomAnimationStyles(this);
 
-    const { closestCommonParent } = this.element.subtext || {};
+    const { closestCommonParent } = this.subtext || {};
 
     if (closestCommonParent) {
       this.initialStyle ??=
@@ -309,6 +310,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
       progress: this.progress,
       timing: this.timing,
       gradientWidth: this.gradientWidth,
+      subtext: this.subtext,
       text: {
         parentText: this.text.parentText && {
           id: this.text.parentText.id,

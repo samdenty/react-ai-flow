@@ -481,18 +481,20 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		});
 
 		this.#resizeObserver = new ResizeObserver((entries) => {
-			if (!mounted) {
-				this.updateBounds();
-				this.scanElementLines({ reason: ScanReason.Mounted });
+			requestAnimationFrame(() => {
+				if (!mounted) {
+					this.updateBounds();
+					this.scanElementLines({ reason: ScanReason.Mounted });
 
-				// if (this.stagger.streaming === false) {
-				//   this.progress = 1;
-				// }
-			} else {
-				this.scanElementLines({ reason: ScanReason.Resize, entries });
-			}
+					// if (this.stagger.streaming === false) {
+					//   this.progress = 1;
+					// }
+				} else {
+					this.scanElementLines({ reason: ScanReason.Resize, entries });
+				}
 
-			mounted = true;
+				mounted = true;
+			});
 		});
 
 		let mutations: MutationRecord[] = [];

@@ -376,21 +376,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   }
 
   scanBoxes(rects: DOMRect[][]) {
-    return preserveOptimizeRects<StaggerElementBox, TextLine>(
+    return preserveOptimizeRects<StaggerElementBox, [Text | TextLine]>(
       rects,
-      (rect, indexes) => {
+      (rect, indexes, text) => {
         const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]!))];
         const position = this.getRangeOffsets(ranges, this.start);
-
-        const subtext =
-          this.text.continuousChildNodesOffsets.find(({ nodes }) => {
-            return nodes.some(({ start, end }) => {
-              return (
-                (position.start >= start && position.end <= end) ||
-                (start >= position.start && end <= position.end)
-              );
-            });
-          })?.subtext ?? null;
+        const subtext = text instanceof Text ? text : null;
 
         return new StaggerElementBox(
           this,
@@ -403,7 +394,22 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
         );
       },
       (_, index) => {
-        const position = this.getRangeOffsets(this.ranges[index]!, this.start);
+        const range = this.ranges[index]!;
+        const position = this.getRangeOffsets(range, this.start);
+        const subtext =
+          this.text.continuousChildNodesOffsets.find(({ nodes }) => {
+            return nodes.some(({ start, end }) => {
+              return (
+                (position.start >= start && position.end <= end) ||
+                (start >= position.start && end <= position.end)
+              );
+            });
+          })?.subtext ?? null;
+
+        if (subtext) {
+          return subtext;
+        }
+
         const [line] = TextLine.getLines(this.text, position);
 
         return line!;
@@ -429,30 +435,37 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
   }
 
   override rescan() {
-    const oldBoxCount = this.uniqueBoxes.length;
-    const oldProgresses = this.uniqueBoxes.map((box) => box.progress);
+    const oldBoxes = this.boxes.flat();
+    const oldBoxCount = oldBoxes.length;
+    const oldProgresses = oldBoxes.map((box) => box.progress);
 
     super.rescan();
 
     const now = Date.now();
 
-    if (oldBoxCount && this.uniqueBoxes.length !== oldBoxCount) {
+    const newBoxes = this.boxes.flat();
+    const newBoxCount = newBoxes.length;
+
+    if (oldBoxCount && newBoxCount !== oldBoxCount) {
       this.duration = this.calculateDuration();
 
       const progresses =
-        this.uniqueBoxes.length > oldBoxCount
+        newBoxes.length > oldBoxCount
           ? oldProgresses
-          : this.uniqueBoxes.map((_, i) => oldProgresses[i]!);
+          : newBoxes.map((_, i) => oldProgresses[i]!);
 
       // Calculate total elapsed time from old progress values
       const totalElapsedTime = progresses.reduce(
         (current, progress) =>
-          current + progress * (this.duration / this.uniqueBoxes.length),
+          current + progress * (this.duration / newBoxCount),
         0
       );
 
+      const elapsed = now - this.startTime - this.delay;
+
+      this.staggerDelay =
+        this.staggerDelay && Math.max(0, this.staggerDelay - elapsed);
       this.startTime = now - totalElapsedTime;
-      this.staggerDelay = 0;
       this.batchId = this.stagger.batchId;
     }
 

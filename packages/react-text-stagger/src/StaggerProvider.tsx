@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, forwardRef, useContext, useEffect, useImperativeHandle, useState } from "react";
 import { Stagger, type StaggerOptions } from "text-stagger";
 import {
   useCachedFunctionLike,
@@ -18,17 +18,17 @@ const StaggerProviderContext = createContext<StaggerProvider | null>(null);
 
 export interface StaggerProviderProps
   extends StaggerOptions {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 
   targetScrollTop?: GetTargetScrollTop;
 }
 
-export function StaggerProvider({
+export const  StaggerProvider= forwardRef<Stagger, StaggerProviderProps>(({
   children,
   streaming = null,
   targetScrollTop: currentTargetScrollTop,
   ...props
-}: StaggerProviderProps) {
+}: StaggerProviderProps, ref) => {
   const targetScrollTop = useCachedFunctionLike(currentTargetScrollTop);
   const options = useCachedOptions(props);
 
@@ -40,6 +40,8 @@ export function StaggerProvider({
     setStagger(stagger);
     return () => stagger.dispose();
   }, []);
+
+  useImperativeHandle(ref, () => stagger!, []);
 
   useEffect(() => {
     if (!stagger) {
@@ -105,7 +107,7 @@ export function StaggerProvider({
       {children}
     </StaggerProviderContext.Provider>
   );
-}
+})
 
 export function useStaggerContext() {
   return useContext(StaggerProviderContext);

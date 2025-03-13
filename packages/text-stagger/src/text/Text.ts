@@ -135,18 +135,14 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
     return element;
   }
 
-  isIgnoredNode(
-    node: Node,
-    recursive: boolean,
-    acceptNode?: (node: Node) => boolean
-  ) {
+  isIgnoredNode(node: Node, recursive: boolean | ((node: Node) => boolean)) {
     let currentElement: Node | null = node;
 
     while (currentElement) {
       let ignored = this.#ignoredNodes.has(currentElement);
 
-      if (acceptNode) {
-        ignored &&= acceptNode(currentElement);
+      if (typeof recursive === "function") {
+        ignored &&= recursive(currentElement);
       }
 
       if (ignored || !recursive) {
@@ -829,7 +825,14 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       );
 
       if (missingSplit) {
+        if (!this.elements.length) {
+          return;
+        }
+
         this.elements = [];
+
+        this.stagger.restartFrom(this);
+
         return;
       }
     }
@@ -859,6 +862,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
       ),
     ];
 
+    let restartFrom!: StaggerElement | Text | void;
+
     diffs.forEach(([action, items], i) => {
       const isLastDiff = i === diffs.length - 1;
 
@@ -876,6 +881,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
       if (action === -1) {
         const elements = items as StaggerElement[];
+
+        restartFrom ??= this.elements.at(-1) ?? this;
 
         elements.forEach((element) => {
           element.dispose();
@@ -912,22 +919,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
         );
       });
 
-      const indexes = new Set(
-        newElements.map((element) => this.stagger.elements.indexOf(element))
-      );
-
-      if (!indexes.size) {
-        return;
-      }
-
-      const restartFromIndex = Math.min(...indexes);
-
-      for (let i = restartFromIndex; i < this.stagger.elements.length; i++) {
-        this.stagger.elements[i]!.restartAnimation();
-      }
-
-      this.stagger.vibrate();
+      restartFrom ??= newElements[0];
     });
+
+    if (restartFrom) {
+      this.stagger.restartFrom(restartFrom);
+    }
   }
 
   get previousTexts() {

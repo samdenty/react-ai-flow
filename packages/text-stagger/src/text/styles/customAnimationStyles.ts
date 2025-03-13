@@ -34,8 +34,8 @@ export function getCustomAnimationStyles(
       blurAmount = box.text.convertToPx(blurAmount, box);
     }
 
-    styles.filter ||= `blur(${(1 - box.timing) * blurAmount}px)`;
-    styles.opacity ||= `${box.timing}`;
+    styles.filter ||= `blur(${((1 - box.timing) * blurAmount).toFixed(2)}px)`;
+    styles.opacity ||= `${box.timing.toFixed(2)}`;
 
     return styles;
   }
@@ -71,7 +71,7 @@ export function getCustomAnimationStyles(
     const t = box.timingFunction(segmentProgress);
     const y = startFrame.value + (endFrame.value - startFrame.value) * t;
 
-    styles.transform ||= `translateY(${y}px)`;
+    styles.transform ||= `translateY(${y.toFixed(2)}px)`;
 
     return styles;
   }

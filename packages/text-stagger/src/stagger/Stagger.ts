@@ -7,7 +7,7 @@ import {
   type TextOptions,
   type TextSplitterOptions,
 } from "../text/index.js";
-import type { StaggerElement } from "./StaggerElement.js";
+import { StaggerElement } from "./StaggerElement.js";
 
 export interface StaggerOptions extends TextOptions {
   streaming?: boolean | null;
@@ -202,6 +202,40 @@ export class Stagger {
       skippedFrames.size ||
       this.elements.some((element) => element.progress !== 1)
     );
+  }
+
+  restartFrom(restartFrom: StaggerElement | Text) {
+    let element!: StaggerElement | void;
+
+    if (restartFrom instanceof Text) {
+      element = restartFrom.elements[0];
+
+      if (!element) {
+        for (const text of restartFrom.previousTexts) {
+          element = text.elements.at(-1) ?? element;
+        }
+      }
+    } else if (restartFrom instanceof StaggerElement) {
+      element = restartFrom;
+    }
+
+    const restartFromElementIndex = element && this.elements.indexOf(element);
+
+    if (
+      restartFromElementIndex == null ||
+      restartFromElementIndex === -1 ||
+      restartFromElementIndex === this.elements.length - 1
+    ) {
+      return false;
+    }
+
+    for (let i = restartFromElementIndex; i < this.elements.length; i++) {
+      this.elements[i]!.restartAnimation();
+    }
+
+    this.vibrate();
+
+    return true;
   }
 
   requestAnimation(force: Text[] = []) {

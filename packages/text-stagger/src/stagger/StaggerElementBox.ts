@@ -62,6 +62,12 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     super.dispose();
 
     this.customAnimationElement?.remove();
+
+    const { closestCommonParent } = this.subtext || {};
+
+    if (closestCommonParent && this.initialStyle != null) {
+      closestCommonParent.element.setAttribute("style", this.initialStyle);
+    }
   }
 
   scanRanges() {
@@ -73,6 +79,16 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
     }
 
     return super.scanRanges();
+  }
+
+  scanBounds(
+    rects: { top: number; left: number; bottom: number; right: number }[][]
+  ) {
+    if (this.subtext) {
+      return Box.getBounds([this.subtext]);
+    }
+
+    return super.scanBounds(rects);
   }
 
   scanBoxes(rects: DOMRect[][]) {
@@ -154,12 +170,19 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
       closestCommonParent.element.setAttribute("style", this.initialStyle);
 
+      console.log(
+        closestCommonParent.element.className,
+        styles,
+        this.initialStyle
+      );
       if (!styles) {
         return;
       }
 
       for (const [key, value] of Object.entries(styles)) {
-        (closestCommonParent.element.style as any)[key] = value;
+        if (value != null) {
+          closestCommonParent.element.style.setProperty(key, value);
+        }
       }
 
       return;

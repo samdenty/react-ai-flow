@@ -4,6 +4,7 @@ import {
   useContext,
   useState,
   useImperativeHandle,
+  forwardRef,
 } from "react";
 import { useStaggerContext } from "./StaggerProvider.js";
 import { Text, type TextOptions } from "text-stagger";
@@ -15,16 +16,18 @@ export interface StaggeredTextProps extends TextOptions {
 
 export const StaggeredTextContext = createContext<number | null>(null);
 
-export function StaggeredText(props: StaggeredTextProps) {
+export const StaggeredText = forwardRef<Text | null, StaggeredTextProps>((props, textRef) => {
   const { children, ...restProps } = props;
-  const { id, ref, options } = useTextStagger(restProps);
+  const { text, id, ref, options } = useTextStagger(restProps);
+
+  useImperativeHandle(textRef, () => text ?? null!, [text]);
 
   return (
     <StaggeredTextContext.Provider value={id}>
       {options?.disabled ? children : <span ref={ref}>{children}</span>}
     </StaggeredTextContext.Provider>
   );
-}
+})
 
 export function useStaggeredTextContext(ref?: React.Ref<Text | null>) {
   const stagger = useStaggerContext();

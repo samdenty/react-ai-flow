@@ -4,8 +4,11 @@ import {
   StaggeredText,
   StaggerProvider,
   StickToBottom,
+  enableIOSVibrationWithPopup,
   useStickToBottomContext,
 } from "react-ai-flow";
+
+enableIOSVibrationWithPopup()
 
 function ScrollToBottom() {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();

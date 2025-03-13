@@ -1,35 +1,62 @@
 import { type ElementOptions } from "../stagger/index.js";
 import { Text } from "./Text.js";
-import { Box, preserveOptimizeRects, Ranges } from "./Ranges.js";
+import {
+  Box,
+  preserveOptimizeRects,
+  Ranges,
+  type RangesChildNode,
+} from "./Ranges.js";
 import { mergeObject } from "../utils/mergeObject.js";
 
 export class TextLine extends Ranges<Box, Text> {
   startOfText = false;
+  #endOfBlock = false;
+  #endOfText = false;
 
   get endOfBlock() {
-    return this.childNodes.at(-1) === "\r\n";
+    return this.#endOfBlock;
   }
 
   set endOfBlock(endOfBlock: boolean) {
-    this.childNodes = endOfBlock
-      ? [...this.ranges, "\r\n"]
-      : this.endOfText
-      ? this.ranges
-      : [...this.ranges, "\n"];
+    if (this.#endOfBlock === endOfBlock) {
+      return;
+    }
+
+    this.#endOfBlock = endOfBlock;
+    this.childNodes = [...this.childNodes];
   }
 
   get endOfText() {
-    return (
-      this.ranges.length >= 1 && this.ranges.length === this.childNodes.length
-    );
+    return this.#endOfText;
   }
 
   set endOfText(endOfText: boolean) {
-    this.childNodes = endOfText
-      ? this.ranges
-      : this.endOfBlock
-      ? [...this.ranges, "\r\n"]
-      : [...this.ranges, "\n"];
+    if (this.#endOfText === endOfText) {
+      return;
+    }
+
+    this.#endOfText = endOfText;
+    this.childNodes = [...this.childNodes];
+  }
+
+  override set childNodes(childNodes: RangesChildNode[]) {
+    childNodes = childNodes.filter(
+      (childNode) => typeof childNode !== "string"
+    );
+
+    if (!this.endOfText) {
+      const ending = this.endOfBlock ? "\r\n" : "\n";
+
+      if (!childNodes.join("").endsWith(ending)) {
+        childNodes.push(ending);
+      }
+    }
+
+    super.childNodes = childNodes;
+  }
+
+  get childNodes(): readonly RangesChildNode[] {
+    return super.childNodes;
   }
 
   id: string;
@@ -68,7 +95,7 @@ export class TextLine extends Ranges<Box, Text> {
       const start = position?.start ?? line.start;
       const end = position?.end ?? line.end;
 
-      return start <= line.end && line.start <= end;
+      return start < line.end && line.start <= end;
     }) as T extends { lines: TextLine[] } ? TextLine[] : never;
   }
 
@@ -322,31 +349,6 @@ function createParentChecker(text: Text) {
   return function checkNodeParents(textNode: globalThis.Text) {
     const element = textNode.parentElement ?? document.body;
 
-    const previousTexts = text.previousTexts;
-    const excludeContainers = new Set<Node>(
-      previousTexts.map((text) => {
-        return text.container;
-      })
-    );
-
-    const ignored = previousTexts.some((text) => {
-      return text.isIgnoredNode(
-        element,
-        true,
-        (node) => !excludeContainers.has(node)
-      );
-    });
-
-    if (ignored) {
-      return {
-        isHidden: true,
-        subtext: null,
-        blockParent: null,
-        style: null,
-        parent: null,
-      } as const;
-    }
-
     let blockParent: HTMLElement | null = null;
     let parent: HTMLElement = element;
     let style: CSSStyleDeclaration;
@@ -362,12 +364,16 @@ function createParentChecker(text: Text) {
 
       style ??= parentStyle;
 
-      const hidden =
+      let hidden =
         parentStyle.display === "none" ||
         parentStyle.visibility === "hidden" ||
         (parent.offsetParent === null &&
           parent !== document.body &&
           parent !== document.documentElement);
+
+      hidden ||= text.stagger.texts.some((text) => {
+        return text.isIgnoredNode(element, false);
+      });
 
       if (hidden) {
         return {
@@ -393,7 +399,6 @@ function createParentChecker(text: Text) {
           throw new Error("Infinite loop detected");
         }
 
-        parentText.createIgnoredElement(text.container);
         parentText.createIgnoredElement(text.customAnimationContainer);
         text.parent = parentText;
       }

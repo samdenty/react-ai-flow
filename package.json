@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "clean": "rm -rf packages/*/{*.tsbuildinfo,dist} > /dev/null 2>&1",
+    "check": "biome check",
+    "lint": "biome check --write",
     "build": "pnpm clean && tsc --build tsconfig.lib.json",
     "watch": "pnpm build --watch",
     "test": "vitest",
@@ -30,5 +32,8 @@
     "vite": "^5.4.1",
     "vite-plugin-dts": "^4.2.1",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@biomejs/biome": "^1.9.4"
   }
 }

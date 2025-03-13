@@ -641,18 +641,19 @@ export abstract class Ranges<
   }
 }
 
-export function preserveOptimizeRects<T = DOMRect, K = number>(
+export function preserveOptimizeRects<T = DOMRect, K extends any[] = [number]>(
   rects: DOMRect[],
-  create?: (rect: DOMRect, indexes: [index: number, key: K][]) => T,
-  getKey?: (rect: DOMRect, index: number) => K | null
+  create?: (rect: DOMRect, indexes: number[], ...key: K) => T,
+  getKey?: (rect: DOMRect, index: number) => K[0] | K | null
 ): T[];
-export function preserveOptimizeRects<T = DOMRect, K = number>(
+export function preserveOptimizeRects<T = DOMRect, K extends any[] = [number]>(
   rects: DOMRect[][],
   create?: (
     rect: DOMRect,
-    indexes: [index1: number, index2: number, key: K][]
+    indexes: [index1: number, index2: number][],
+    ...key: K
   ) => T,
-  getKey?: (rect: DOMRect, index1: number, index2: number) => K | null
+  getKey?: (rect: DOMRect, index1: number, index2: number) => K[0] | K | null
 ): T[][];
 export function preserveOptimizeRects(
   rects: DOMRect[] | DOMRect[][],
@@ -675,16 +676,43 @@ export function preserveOptimizeRects(
     })
   );
 
+  const keyArrays = new Map<Map<any, any>, any[]>();
+  const cachedKey = new Map<any, any>();
   const keys = new Map<DOMRect, any>();
 
   if (getKey) {
     for (const rect of rectsArray.flat()) {
       const indexes = inputRectsIndexes.get(rect)!;
-      const key = getKey(rect, ...indexes);
-
-      if (key != null) {
-        keys.set(rect, key);
+      let rawKeysArray = getKey(rect, ...indexes);
+      if (rawKeysArray == null) {
+        continue;
       }
+
+      if (!Array.isArray(rawKeysArray)) {
+        rawKeysArray = [rawKeysArray];
+      }
+
+      if (rawKeysArray.length === 0) {
+        continue;
+      }
+
+      let keyReference = cachedKey;
+
+      for (const key of rawKeysArray) {
+        if (!keyReference.has(key)) {
+          keyReference.set(key, new Map());
+        }
+
+        keyReference = keyReference.get(key);
+      }
+
+      let keysArrayRef = keyArrays.get(keyReference);
+      if (!keysArrayRef) {
+        keysArrayRef = [...rawKeysArray];
+        keyArrays.set(keyReference, keysArrayRef);
+      }
+
+      keys.set(rect, keysArrayRef);
     }
   }
 
@@ -751,18 +779,14 @@ export function preserveOptimizeRects(
     [...optimizedRects.entries()].flatMap(([optimized, [...inputRects]]) => {
       let transformed = optimized;
       if (create) {
+        const key = keys.get(inputRects[0]!) ?? [];
         const indexes = inputRects.map((inputRect) => {
-          const key = keys.get(inputRect);
-          const indexes = inputRectsIndexes.get(inputRect)!;
+          const index = inputRectsIndexes.get(inputRect)!;
 
-          if (key != null) {
-            return [...indexes, key];
-          }
-
-          return indexes;
+          return isFlat ? index[0] : index;
         });
 
-        transformed = create(optimized, indexes);
+        transformed = create(optimized, indexes, ...key);
       }
 
       return inputRects.map((inputRect) => {
@@ -779,18 +803,19 @@ export function preserveOptimizeRects(
   return isFlat ? result[0] ?? [] : result;
 }
 
-export function optimizeRects<T = DOMRect, K = any>(
+export function optimizeRects<T = DOMRect, K extends any[] = [number]>(
   rects: DOMRect[],
-  create?: (rect: DOMRect, indexes: [index: number, key: K][]) => T,
-  getKey?: (rect: DOMRect, index: number) => K | null
+  create?: (rect: DOMRect, indexes: number[], ...key: K) => T,
+  getKey?: (rect: DOMRect, index: number) => K[0] | K | null
 ): T[];
-export function optimizeRects<T = DOMRect, K = any>(
+export function optimizeRects<T = DOMRect, K extends any[] = [number]>(
   rects: DOMRect[][],
   create?: (
     rect: DOMRect,
-    indexes: [index1: number, index2: number, key: K][]
+    indexes: [index1: number, index2: number][],
+    ...key: K
   ) => T,
-  getKey?: (rect: DOMRect, index1: number, index2: number) => K | null
+  getKey?: (rect: DOMRect, index1: number, index2: number) => K[0] | K | null
 ): T[];
 export function optimizeRects(
   rects: DOMRect[] | DOMRect[][],

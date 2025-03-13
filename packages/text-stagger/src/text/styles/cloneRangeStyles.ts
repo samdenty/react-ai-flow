@@ -1,141 +1,141 @@
 const COPY_STYLES = [
-  "color",
-  "fontFamily",
-  "fontSize",
-  "fontStyle",
-  "fontWeight",
-  "letterSpacing",
-  "lineHeight",
-  "textAlign",
-  "textDecoration",
-  "textTransform",
-  "whiteSpace",
-  "wordSpacing",
-  "margin",
-  "padding",
-  "borderWidth",
-  "borderStyle",
-  "borderColor",
-  "display",
-  "opacity",
+	"color",
+	"fontFamily",
+	"fontSize",
+	"fontStyle",
+	"fontWeight",
+	"letterSpacing",
+	"lineHeight",
+	"textAlign",
+	"textDecoration",
+	"textTransform",
+	"whiteSpace",
+	"wordSpacing",
+	"margin",
+	"padding",
+	"borderWidth",
+	"borderStyle",
+	"borderColor",
+	"display",
+	"opacity",
 ] as const;
 
 export function cloneRangeWithStyles(
-  range: Range,
-  target: HTMLElement,
-  onElement?: (element: HTMLElement, styles: CSSStyleDeclaration) => void
+	range: Range,
+	target: HTMLElement,
+	onElement?: (element: HTMLElement, styles: CSSStyleDeclaration) => void,
 ) {
-  // Get the common ancestor container
-  const ancestorContainer = range.commonAncestorContainer;
+	// Get the common ancestor container
+	const ancestorContainer = range.commonAncestorContainer;
 
-  // If the container is a text node, get its parent
-  const contextElement =
-    ancestorContainer.nodeType === Node.TEXT_NODE
-      ? ancestorContainer.parentElement
-      : (ancestorContainer as Element);
+	// If the container is a text node, get its parent
+	const contextElement =
+		ancestorContainer.nodeType === Node.TEXT_NODE
+			? ancestorContainer.parentElement
+			: (ancestorContainer as Element);
 
-  // Clone the range contents
-  const clonedContent = range.cloneContents();
+	// Clone the range contents
+	const clonedContent = range.cloneContents();
 
-  target.appendChild(clonedContent);
+	target.appendChild(clonedContent);
 
-  function transferComputedStyles(
-    style: CSSStyleDeclaration,
-    targetElement: HTMLElement
-  ) {
-    const targetStyle = getComputedStyle(targetElement);
+	function transferComputedStyles(
+		style: CSSStyleDeclaration,
+		targetElement: HTMLElement,
+	) {
+		const targetStyle = getComputedStyle(targetElement);
 
-    for (const prop of COPY_STYLES) {
-      if (style[prop] !== targetStyle[prop]) {
-        targetElement.style[prop] = style[prop];
-      }
-    }
+		for (const prop of COPY_STYLES) {
+			if (style[prop] !== targetStyle[prop]) {
+				targetElement.style[prop] = style[prop];
+			}
+		}
 
-    onElement?.(targetElement, style);
-  }
+		onElement?.(targetElement, style);
+	}
 
-  // Helper function to copy computed styles to an element
-  function copyComputedStyles(
-    sourceElement: Element,
-    targetElement: HTMLElement
-  ) {
-    targetElement.classList.remove(...sourceElement.classList);
+	// Helper function to copy computed styles to an element
+	function copyComputedStyles(
+		sourceElement: Element,
+		targetElement: HTMLElement,
+	) {
+		targetElement.classList.remove(...sourceElement.classList);
 
-    const style = getComputedStyle(sourceElement);
+		const style = getComputedStyle(sourceElement);
 
-    transferComputedStyles(style, targetElement);
+		transferComputedStyles(style, targetElement);
 
-    // Handle pseudo-elements if needed
-    const beforeStyle = getComputedStyle(sourceElement, ":before");
-    const afterStyle = getComputedStyle(sourceElement, ":after");
+		// Handle pseudo-elements if needed
+		const beforeStyle = getComputedStyle(sourceElement, ":before");
+		const afterStyle = getComputedStyle(sourceElement, ":after");
 
-    if (beforeStyle.content !== "none") {
-      const targetBefore = document.createElement("span");
-      targetElement.insertBefore(targetBefore, targetElement.firstChild);
+		if (beforeStyle.content !== "none") {
+			const targetBefore = document.createElement("span");
+			targetElement.insertBefore(targetBefore, targetElement.firstChild);
 
-      transferComputedStyles(beforeStyle, targetBefore);
-    }
+			transferComputedStyles(beforeStyle, targetBefore);
+		}
 
-    if (afterStyle.content !== "none") {
-      const targetAfter = document.createElement("span");
-      targetElement.appendChild(targetAfter);
+		if (afterStyle.content !== "none") {
+			const targetAfter = document.createElement("span");
+			targetElement.appendChild(targetAfter);
 
-      transferComputedStyles(afterStyle, targetAfter);
-    }
-  }
+			transferComputedStyles(afterStyle, targetAfter);
+		}
+	}
 
-  // Copy styles from ancestor if it's an element
-  if (contextElement instanceof HTMLElement) {
-    copyComputedStyles(contextElement, target);
+	// Copy styles from ancestor if it's an element
+	if (contextElement instanceof HTMLElement) {
+		copyComputedStyles(contextElement, target);
 
-    // Process all elements in the cloned content
-    const walker = document.createTreeWalker(
-      clonedContent,
-      NodeFilter.SHOW_ELEMENT,
-      null
-    );
+		// Process all elements in the cloned content
+		const walker = document.createTreeWalker(
+			clonedContent,
+			NodeFilter.SHOW_ELEMENT,
+			null,
+		);
 
-    let currentNode = walker.nextNode();
-    while (currentNode) {
-      const sourceElement = document.querySelector(
-        generateSelector(currentNode as HTMLElement)
-      );
-      if (sourceElement) {
-        copyComputedStyles(sourceElement, currentNode as HTMLElement);
-      }
-      currentNode = walker.nextNode();
-    }
-  }
+		let currentNode = walker.nextNode();
+		while (currentNode) {
+			const sourceElement = document.querySelector(
+				generateSelector(currentNode as HTMLElement),
+			);
+			if (sourceElement) {
+				copyComputedStyles(sourceElement, currentNode as HTMLElement);
+			}
+			currentNode = walker.nextNode();
+		}
+	}
 }
 
 // Helper function to generate a unique selector for an element
 function generateSelector(element: HTMLElement): string {
-  if (element.id) {
-    return "#" + element.id;
-  }
+	if (element.id) {
+		return `#${element.id}`;
+	}
 
-  let path = [];
-  let current: HTMLElement | null = element;
+	const path = [];
+	let current: HTMLElement | null = element;
 
-  while (current) {
-    let selector = current.tagName.toLowerCase();
-    if (current.className) {
-      selector += "." + Array.from(current.classList).join(".");
-    }
+	while (current) {
+		let selector = current.tagName.toLowerCase();
+		if (current.className) {
+			selector += `.${Array.from(current.classList).join(".")}`;
+		}
 
-    // Add nth-child if needed
-    const parent = current.parentElement;
-    if (parent) {
-      const siblings = Array.from(parent.children);
-      const index = siblings.indexOf(current) + 1;
-      if (siblings.filter((s) => s.tagName === current!.tagName).length > 1) {
-        selector += `:nth-child(${index})`;
-      }
-    }
+		// Add nth-child if needed
+		const parent = current.parentElement;
+		if (parent) {
+			const siblings = Array.from(parent.children);
+			const index = siblings.indexOf(current) + 1;
+			if (siblings.filter((s) => s.tagName === current!.tagName).length > 1) {
+				selector += `:nth-child(${index})`;
+			}
+		}
 
-    path.unshift(selector);
-    current = current.parentElement;
-  }
+		path.unshift(selector);
+		current = current.parentElement;
+	}
 
-  return path.join(" > ");
+	return path.join(" > ");
 }

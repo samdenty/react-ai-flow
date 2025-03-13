@@ -1,67 +1,67 @@
 import {
-  ElementAnimation,
-  type ElementOptions,
-  type ScanEvent,
+	ElementAnimation,
+	type ElementOptions,
+	type ScanEvent,
 } from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
-import { Ranges } from "./Ranges.js";
+import type { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";
 
 export type TextLike = Text | Ranges<any, any> | string;
 
 export type SplitterImpl<T extends ElementOptions> = T & {
-  splitText(text: Text, event: ScanEvent): ParsedTextSplit[];
-  animation: ElementAnimation;
+	splitText(text: Text, event: ScanEvent): ParsedTextSplit[];
+	animation: ElementAnimation;
 };
 
 export interface TextSplitterOptions extends ElementOptions {
-  splitter?: Exclude<TextSplitter<ElementOptions>, TextSplitterOptions>;
+	splitter?: Exclude<TextSplitter<ElementOptions>, TextSplitterOptions>;
 }
 
 export interface TextSplitElementOffset extends ElementOptions {
-  start: number;
-  end: number;
+	start: number;
+	end: number;
 }
 
 export interface TextSplitElementString extends ElementOptions {
-  text: string;
+	text: string;
 }
 
 export type TextSplitElement =
-  | TextSplitElementOffset
-  | TextSplitElementString
-  | string;
+	| TextSplitElementOffset
+	| TextSplitElementString
+	| string;
 
 export interface ParsedTextSplit
-  extends TextSplitElementOffset,
-    TextSplitElementString {
-  animation: ElementAnimation;
+	extends TextSplitElementOffset,
+		TextSplitElementString {
+	animation: ElementAnimation;
 }
 
 export type TextSplitter<T extends ElementOptions> =
-  | TextSplit
-  | `${TextSplit}`
-  | (Omit<T, "animation" | "splitText"> & TextSplitterOptions)
-  | CustomTextSplitter<T>
-  | SplitterImpl<ElementOptions>;
+	| TextSplit
+	| `${TextSplit}`
+	| (Omit<T, "animation" | "splitText"> & TextSplitterOptions)
+	| CustomTextSplitter<T>
+	| SplitterImpl<ElementOptions>;
 
 export type CustomTextSplitter<T extends ElementOptions> = (context: {
-  text: Text;
-  event: ScanEvent;
-  options: SplitterImpl<ElementOptions>;
+	text: Text;
+	event: ScanEvent;
+	options: SplitterImpl<ElementOptions>;
 
-  splitText(
-    splitter: RegExp | string,
-    splitOptions?: SplitOptions
-  ): ParsedTextSplit[];
+	splitText(
+		splitter: RegExp | string,
+		splitOptions?: SplitOptions,
+	): ParsedTextSplit[];
 }) => TextSplitter<T> | TextSplitElement[];
 
 export enum TextSplit {
-  Character = "character",
-  Word = "word",
-  Line = "line",
-  Sentence = "sentence",
-  Paragraph = "paragraph",
+	Character = "character",
+	Word = "word",
+	Line = "line",
+	Sentence = "sentence",
+	Paragraph = "paragraph",
 }
 
 const DEFAULT_TEXT_SPLIT = TextSplit.Line;
@@ -73,370 +73,370 @@ const SENTENCE_REGEX = /\r\n/g;
 const PARAGRAPH_REGEX = /\n\s*\n/g;
 
 function splitCharacters(this: SplitterImpl<ElementOptions>, text: TextLike) {
-  return splitText(text, CHARACTER_REGEX, this);
+	return splitText(text, CHARACTER_REGEX, this);
 }
 
 function splitWords(this: SplitterImpl<ElementOptions>, text: TextLike) {
-  return splitText(text, WORD_REGEX, this);
+	return splitText(text, WORD_REGEX, this);
 }
 
 function splitLines(this: SplitterImpl<ElementOptions>, text: TextLike) {
-  return splitText(text, LINE_REGEX, this);
+	return splitText(text, LINE_REGEX, this);
 }
 
 function splitSentences(this: SplitterImpl<ElementOptions>, text: TextLike) {
-  return splitText(text, SENTENCE_REGEX, this);
+	return splitText(text, SENTENCE_REGEX, this);
 }
 
 function splitParagraphs(this: SplitterImpl<ElementOptions>, text: TextLike) {
-  return splitText(text, PARAGRAPH_REGEX, this);
+	return splitText(text, PARAGRAPH_REGEX, this);
 }
 
 export function getTextSplit<T extends ElementOptions>(
-  textSplit: TextSplit | `${TextSplit}`,
-  currentOptions?: T
+	textSplit: TextSplit | `${TextSplit}`,
+	currentOptions?: T,
 ): SplitterImpl<T> {
-  const animation = [TextSplit.Character, TextSplit.Word].includes(
-    textSplit as TextSplit
-  )
-    ? ElementAnimation.FadeIn
-    : ElementAnimation.GradientReveal;
+	const animation = [TextSplit.Character, TextSplit.Word].includes(
+		textSplit as TextSplit,
+	)
+		? ElementAnimation.FadeIn
+		: ElementAnimation.GradientReveal;
 
-  const splitText = {
-    [TextSplit.Character]: splitCharacters,
-    [TextSplit.Word]: splitWords,
-    [TextSplit.Line]: splitLines,
-    [TextSplit.Sentence]: splitSentences,
-    [TextSplit.Paragraph]: splitParagraphs,
-  }[textSplit];
+	const splitText = {
+		[TextSplit.Character]: splitCharacters,
+		[TextSplit.Word]: splitWords,
+		[TextSplit.Line]: splitLines,
+		[TextSplit.Sentence]: splitSentences,
+		[TextSplit.Paragraph]: splitParagraphs,
+	}[textSplit];
 
-  if (!splitText) {
-    throw new Error(`Invalid text split: ${textSplit}`);
-  }
+	if (!splitText) {
+		throw new Error(`Invalid text split: ${textSplit}`);
+	}
 
-  return {
-    ...mergeObject(currentOptions, { animation }),
-    splitText,
-  };
+	return {
+		...mergeObject(currentOptions, { animation }),
+		splitText,
+	};
 }
 
 export function mergeTextSplitter<T extends TextSplitterOptions>(
-  currentSplitter: SplitterImpl<T>,
-  mergeSplitter: TextSplitter<T | ElementOptions>
+	currentSplitter: SplitterImpl<T>,
+	mergeSplitter: TextSplitter<T | ElementOptions>,
 ): SplitterImpl<T> {
-  if (typeof mergeSplitter === "function") {
-    const customSplitter = mergeSplitter;
+	if (typeof mergeSplitter === "function") {
+		const customSplitter = mergeSplitter;
 
-    function customTextSplitter(
-      this: SplitterImpl<T>,
-      text: Text,
-      event: ScanEvent
-    ) {
-      const result = customSplitter({
-        text,
-        event,
-        options: this,
-        splitText: (splitter, splitOptions) => {
-          return splitText(text, splitter, mergeObject(this, splitOptions));
-        },
-      });
+		function customTextSplitter(
+			this: SplitterImpl<T>,
+			text: Text,
+			event: ScanEvent,
+		) {
+			const result = customSplitter({
+				text,
+				event,
+				options: this,
+				splitText: (splitter, splitOptions) => {
+					return splitText(text, splitter, mergeObject(this, splitOptions));
+				},
+			});
 
-      if (!Array.isArray(result)) {
-        const mergedSplitter = mergeTextSplitter(currentSplitter, result);
+			if (!Array.isArray(result)) {
+				const mergedSplitter = mergeTextSplitter(currentSplitter, result);
 
-        return mergedSplitter.splitText(text, event);
-      }
+				return mergedSplitter.splitText(text, event);
+			}
 
-      const textSplitObjects = result
-        .map((split) => {
-          const { splitText: _, ...options } = this;
+			const textSplitObjects = result
+				.map((split) => {
+					const { splitText: _, ...options } = this;
 
-          return mergeObject(
-            options,
-            typeof split === "string" ? { text: split } : split
-          );
-        })
-        .filter((element) => isTextSplitOffset(element) || element.text.trim());
+					return mergeObject(
+						options,
+						typeof split === "string" ? { text: split } : split,
+					);
+				})
+				.filter((element) => isTextSplitOffset(element) || element.text.trim());
 
-      let end = 0;
+			let end = 0;
 
-      return textSplitObjects.map((textSplit, i): ParsedTextSplit => {
-        const nextSplit = textSplitObjects[i + 1];
-        let start = end;
+			return textSplitObjects.map((textSplit, i): ParsedTextSplit => {
+				const nextSplit = textSplitObjects[i + 1];
+				let start = end;
 
-        if (isTextSplitOffset(textSplit)) {
-          ({ start, end } = textSplit);
-        } else if (isTextSplitOffset(nextSplit)) {
-          end = nextSplit.start;
-        } else if (i === textSplitObjects.length - 1) {
-          end = text.innerText.length;
-        } else {
-          end = start + textSplit.text.length;
+				if (isTextSplitOffset(textSplit)) {
+					({ start, end } = textSplit);
+				} else if (isTextSplitOffset(nextSplit)) {
+					end = nextSplit.start;
+				} else if (i === textSplitObjects.length - 1) {
+					end = text.innerText.length;
+				} else {
+					end = start + textSplit.text.length;
 
-          if (typeof nextSplit?.text === "string") {
-            let searchString = "";
-            let searchStringStart: number | undefined;
+					if (typeof nextSplit?.text === "string") {
+						let searchString = "";
+						let searchStringStart: number | undefined;
 
-            for (const offset of text.childNodesOffsets) {
-              if (offset.end <= end) {
-                continue;
-              }
+						for (const offset of text.childNodesOffsets) {
+							if (offset.end <= end) {
+								continue;
+							}
 
-              searchStringStart ??= offset.start;
-              searchString += offset.childNode.toString();
+							searchStringStart ??= offset.start;
+							searchString += offset.childNode.toString();
 
-              const searchStart = Math.max(0, end - searchStringStart);
-              const index = searchString.indexOf(nextSplit.text, searchStart);
+							const searchStart = Math.max(0, end - searchStringStart);
+							const index = searchString.indexOf(nextSplit.text, searchStart);
 
-              if (index !== -1) {
-                end = searchStringStart + index;
-                break;
-              }
-            }
-          }
-        }
+							if (index !== -1) {
+								end = searchStringStart + index;
+								break;
+							}
+						}
+					}
+				}
 
-        return {
-          ...textSplit,
-          start,
-          end,
-          text: text.innerText.slice(start, end),
-        };
-      });
-    }
+				return {
+					...textSplit,
+					start,
+					end,
+					text: text.innerText.slice(start, end),
+				};
+			});
+		}
 
-    return {
-      ...currentSplitter,
-      animation: ElementAnimation.FadeIn,
-      splitText: customTextSplitter,
-    };
-  }
+		return {
+			...currentSplitter,
+			animation: ElementAnimation.FadeIn,
+			splitText: customTextSplitter,
+		};
+	}
 
-  if (typeof mergeSplitter === "object") {
-    if ("splitText" in mergeSplitter) {
-      return mergeObject(currentSplitter, mergeSplitter);
-    }
+	if (typeof mergeSplitter === "object") {
+		if ("splitText" in mergeSplitter) {
+			return mergeObject(currentSplitter, mergeSplitter);
+		}
 
-    let { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
+		const { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
 
-    if (textSplitter) {
-      currentSplitter = mergeTextSplitter(
-        currentSplitter,
-        textSplitter
-      ) as SplitterImpl<T>;
-    }
+		if (textSplitter) {
+			currentSplitter = mergeTextSplitter(
+				currentSplitter,
+				textSplitter,
+			) as SplitterImpl<T>;
+		}
 
-    let { splitText, ...options } = currentSplitter;
-    options = mergeObject(options, splitterOptions);
-    return { ...options, splitText } as SplitterImpl<T>;
-  }
+		let { splitText, ...options } = currentSplitter;
+		options = mergeObject(options, splitterOptions);
+		return { ...options, splitText } as SplitterImpl<T>;
+	}
 
-  const { splitText: _, ...options } = currentSplitter;
-  return getTextSplit(mergeSplitter, options) as SplitterImpl<T>;
+	const { splitText: _, ...options } = currentSplitter;
+	return getTextSplit(mergeSplitter, options) as SplitterImpl<T>;
 }
 
 export function resolveTextSplitter<T extends ElementOptions>(
-  textSplitter: TextSplitter<T> | undefined | null,
-  ...textSplitters: (TextSplitter<T | ElementOptions> | undefined | null)[]
+	textSplitter: TextSplitter<T> | undefined | null,
+	...textSplitters: (TextSplitter<T | ElementOptions> | undefined | null)[]
 ) {
-  return [textSplitter, ...textSplitters]
-    .filter((splitter) => !!splitter)
-    .reduce<SplitterImpl<T>>(
-      (currentSplitter, newSplitter) =>
-        mergeTextSplitter(currentSplitter, newSplitter),
-      getTextSplit(DEFAULT_TEXT_SPLIT)
-    );
+	return [textSplitter, ...textSplitters]
+		.filter((splitter) => !!splitter)
+		.reduce<SplitterImpl<T>>(
+			(currentSplitter, newSplitter) =>
+				mergeTextSplitter(currentSplitter, newSplitter),
+			getTextSplit(DEFAULT_TEXT_SPLIT),
+		);
 }
 
 export interface SplitOptions extends ElementOptions {
-  /**
-   * When true, delimiters will be separate matches rather then extending the matches near them
-   * @default false
-   */
-  separateDelimiters?: boolean;
+	/**
+	 * When true, delimiters will be separate matches rather then extending the matches near them
+	 * @default false
+	 */
+	separateDelimiters?: boolean;
 }
 
 export function splitText(
-  textLike: TextLike,
-  splitter: RegExp | string,
-  splitOptions: SplitOptions
+	textLike: TextLike,
+	splitter: RegExp | string,
+	splitOptions: SplitOptions,
 ): ParsedTextSplit[] {
-  if (!splitOptions || typeof splitOptions !== "object") {
-    throw new Error(
-      "[splitText] Please pass down the options from the context argument"
-    );
-  }
+	if (!splitOptions || typeof splitOptions !== "object") {
+		throw new Error(
+			"[splitText] Please pass down the options from the context argument",
+		);
+	}
 
-  const {
-    separateDelimiters,
-    animation = ElementAnimation.FadeIn,
-    ...options
-  } = splitOptions as SplitOptions & { animation?: ElementAnimation };
+	const {
+		separateDelimiters,
+		animation = ElementAnimation.FadeIn,
+		...options
+	} = splitOptions as SplitOptions & { animation?: ElementAnimation };
 
-  if (typeof textLike !== "string") {
-    const fullSplits = splitText(textLike.innerText, splitter, splitOptions);
+	if (typeof textLike !== "string") {
+		const fullSplits = splitText(textLike.innerText, splitter, splitOptions);
 
-    if (!(textLike instanceof Text)) {
-      return fullSplits;
-    }
+		if (!(textLike instanceof Text)) {
+			return fullSplits;
+		}
 
-    const continuousSplits: ParsedTextSplit[] = [];
+		const continuousSplits: ParsedTextSplit[] = [];
 
-    const [continuousNode, secondContinuousNode] =
-      textLike.continuousChildNodes;
+		const [continuousNode, secondContinuousNode] =
+			textLike.continuousChildNodes;
 
-    if (continuousNode?.subtext && !secondContinuousNode) {
-      const text = continuousNode.nodes.join("");
-      const split: ParsedTextSplit = {
-        text: text,
-        start: 0,
-        end: text.length,
-        animation,
-        ...options,
-      };
+		if (continuousNode?.subtext && !secondContinuousNode) {
+			const text = continuousNode.nodes.join("");
+			const split: ParsedTextSplit = {
+				text: text,
+				start: 0,
+				end: text.length,
+				animation,
+				...options,
+			};
 
-      return [split];
-    }
+			return [split];
+		}
 
-    for (const {
-      nodes,
-      start,
-      end,
-      subtext,
-    } of textLike.continuousChildNodesOffsets) {
-      const text = nodes.map(({ childNode }) => childNode.toString()).join("");
-      let lastEnd = continuousSplits.at(-1)?.end ?? 0;
-      let splits = fullSplits.filter((split) => {
-        return split.end > start && split.start < end;
-      });
+		for (const {
+			nodes,
+			start,
+			end,
+			subtext,
+		} of textLike.continuousChildNodesOffsets) {
+			const text = nodes.map(({ childNode }) => childNode.toString()).join("");
+			let lastEnd = continuousSplits.at(-1)?.end ?? 0;
+			let splits = fullSplits.filter((split) => {
+				return split.end > start && split.start < end;
+			});
 
-      const [split, nextSplit] = splits;
+			const [split, nextSplit] = splits;
 
-      if (!split) {
-        continue;
-      }
+			if (!split) {
+				continue;
+			}
 
-      if (subtext && nextSplit) {
-        splits = splitText(text.slice(lastEnd - start), splitter, splitOptions);
-      }
+			if (subtext && nextSplit) {
+				splits = splitText(text.slice(lastEnd - start), splitter, splitOptions);
+			}
 
-      for (const split of splits) {
-        if (continuousSplits.includes(split)) {
-          continue;
-        }
+			for (const split of splits) {
+				if (continuousSplits.includes(split)) {
+					continue;
+				}
 
-        split.end = split.end - split.start + lastEnd;
-        split.start = lastEnd;
+				split.end = split.end - split.start + lastEnd;
+				split.start = lastEnd;
 
-        lastEnd = split.end;
+				lastEnd = split.end;
 
-        continuousSplits.push(split);
-      }
-    }
+				continuousSplits.push(split);
+			}
+		}
 
-    return continuousSplits;
-  }
+		return continuousSplits;
+	}
 
-  const text = textLike;
+	const text = textLike;
 
-  const splits: ParsedTextSplit[] = [];
-  let lastIndex = 0;
+	const splits: ParsedTextSplit[] = [];
+	let lastIndex = 0;
 
-  function getNextMatch() {
-    if (lastIndex === text.length) {
-      return null;
-    }
+	function getNextMatch() {
+		if (lastIndex === text.length) {
+			return null;
+		}
 
-    if (typeof splitter === "string") {
-      if (splitter === "") {
-        return { index: lastIndex, 0: text.slice(lastIndex, lastIndex + 1) };
-      }
+		if (typeof splitter === "string") {
+			if (splitter === "") {
+				return { index: lastIndex, 0: text.slice(lastIndex, lastIndex + 1) };
+			}
 
-      const index = text.indexOf(splitter, lastIndex);
-      return index === -1 ? null : { index, 0: splitter };
-    }
+			const index = text.indexOf(splitter, lastIndex);
+			return index === -1 ? null : { index, 0: splitter };
+		}
 
-    const regex = splitter.flags.includes("g")
-      ? splitter
-      : new RegExp(splitter.source, splitter.flags + "g");
-    regex.lastIndex = lastIndex;
-    const match = regex.exec(text);
+		const regex = splitter.flags.includes("g")
+			? splitter
+			: new RegExp(splitter.source, `${splitter.flags}g`);
+		regex.lastIndex = lastIndex;
+		const match = regex.exec(text);
 
-    // If it's a zero-width match, we need to find the next match position
-    if (match && match[0] === "") {
-      regex.lastIndex = match.index + 1;
-      const nextMatch = regex.exec(text);
-      return { ...match, endIndex: nextMatch ? nextMatch.index : text.length };
-    }
+		// If it's a zero-width match, we need to find the next match position
+		if (match && match[0] === "") {
+			regex.lastIndex = match.index + 1;
+			const nextMatch = regex.exec(text);
+			return { ...match, endIndex: nextMatch ? nextMatch.index : text.length };
+		}
 
-    return match;
-  }
+		return match;
+	}
 
-  let match: ReturnType<typeof getNextMatch>;
+	let match: ReturnType<typeof getNextMatch>;
 
-  while ((match = getNextMatch())) {
-    const matchEndIndex =
-      "endIndex" in match ? match.endIndex : match.index + match[0].length;
+	while ((match = getNextMatch())) {
+		const matchEndIndex =
+			"endIndex" in match ? match.endIndex : match.index + match[0].length;
 
-    const end = separateDelimiters ? match.index : matchEndIndex;
+		const end = separateDelimiters ? match.index : matchEndIndex;
 
-    if (end > lastIndex) {
-      const segment = text.slice(lastIndex, end);
+		if (end > lastIndex) {
+			const segment = text.slice(lastIndex, end);
 
-      if (!segment.trim()) {
-        if (splits.length > 0) {
-          const previousSplit = splits[splits.length - 1];
-          if (previousSplit) {
-            previousSplit.end = end;
-            previousSplit.text = text.slice(previousSplit.start, end);
-          }
-        }
-      } else {
-        splits.push({
-          ...options,
-          animation,
-          start: lastIndex,
-          end,
-          text: segment,
-        });
-      }
-    }
+			if (!segment.trim()) {
+				if (splits.length > 0) {
+					const previousSplit = splits[splits.length - 1];
+					if (previousSplit) {
+						previousSplit.end = end;
+						previousSplit.text = text.slice(previousSplit.start, end);
+					}
+				}
+			} else {
+				splits.push({
+					...options,
+					animation,
+					start: lastIndex,
+					end,
+					text: segment,
+				});
+			}
+		}
 
-    if (separateDelimiters) {
-      splits.push({
-        ...options,
-        animation,
-        start: match.index,
-        end: matchEndIndex,
-        text: match[0],
-      });
-    }
+		if (separateDelimiters) {
+			splits.push({
+				...options,
+				animation,
+				start: match.index,
+				end: matchEndIndex,
+				text: match[0],
+			});
+		}
 
-    lastIndex = matchEndIndex;
-  }
+		lastIndex = matchEndIndex;
+	}
 
-  if (lastIndex < text.length) {
-    splits.push({
-      ...options,
-      animation,
-      start: lastIndex,
-      end: text.length,
-      text: text.slice(lastIndex),
-    });
-  }
+	if (lastIndex < text.length) {
+		splits.push({
+			...options,
+			animation,
+			start: lastIndex,
+			end: text.length,
+			text: text.slice(lastIndex),
+		});
+	}
 
-  return splits;
+	return splits;
 }
 
 function isTextSplitOffset(
-  textSplitOffset: any
+	textSplitOffset: any,
 ): textSplitOffset is TextSplitElementOffset {
-  return (
-    textSplitOffset &&
-    typeof textSplitOffset === "object" &&
-    "start" in textSplitOffset &&
-    "end" in textSplitOffset &&
-    typeof textSplitOffset.start === "number" &&
-    typeof textSplitOffset.end === "number"
-  );
+	return (
+		textSplitOffset &&
+		typeof textSplitOffset === "object" &&
+		"start" in textSplitOffset &&
+		"end" in textSplitOffset &&
+		typeof textSplitOffset.start === "number" &&
+		typeof textSplitOffset.end === "number"
+	);
 }

@@ -1,10 +1,10 @@
-import { it, expect } from "vitest";
 import { render } from "@testing-library/react";
+import { expect, it } from "vitest";
 import {
 	Stagger,
-	StaggeredText,
 	StaggerProvider,
 	type StaggerProviderProps,
+	StaggeredText,
 } from "../src/index.js";
 
 function renderProvider(

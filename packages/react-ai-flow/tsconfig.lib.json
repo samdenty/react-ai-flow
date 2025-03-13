@@ -1,13 +1,13 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
-  },
-  "include": ["src"],
-  "exclude": ["demo", "**/*.test.ts", "**/*.test.tsx"],
-  "references": [
-    { "path": "../react-text-stagger/tsconfig.lib.json" },
-    { "path": "../optimistic-markdown/tsconfig.lib.json" }
-  ]
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "dist",
+		"rootDir": "src"
+	},
+	"include": ["src"],
+	"exclude": ["demo", "**/*.test.ts", "**/*.test.tsx"],
+	"references": [
+		{ "path": "../react-text-stagger/tsconfig.lib.json" },
+		{ "path": "../optimistic-markdown/tsconfig.lib.json" }
+	]
 }

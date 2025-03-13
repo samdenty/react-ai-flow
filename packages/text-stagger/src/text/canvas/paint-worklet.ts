@@ -1,7 +1,7 @@
-import { type SerializedText } from "../Text.js";
+import type { SerializedText } from "../Text.js";
 import { doPaint } from "./canvas.js";
 
-export let paintWorkletRegistered!: Promise<void>;
+export let paintWorkletRegistered: Promise<void> | void;
 
 if (globalThis.CSS?.paintWorklet) {
   try {

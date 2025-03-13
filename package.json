@@ -7,8 +7,8 @@
   ],
   "scripts": {
     "clean": "rm -rf packages/*/{*.tsbuildinfo,dist} > /dev/null 2>&1",
-    "check": "biome check",
-    "lint": "biome check --write",
+    "lint": "biome check",
+    "lint:fix": "pnpm lint --write",
     "build": "pnpm clean && tsc --build tsconfig.lib.json",
     "watch": "pnpm build --watch",
     "test": "vitest",

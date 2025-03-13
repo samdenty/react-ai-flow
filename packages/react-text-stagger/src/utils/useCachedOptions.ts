@@ -1,128 +1,129 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  mergeTextSplitter,
-  type ParsedStaggerOptions,
-  type StaggerOptions,
-  type TextOptions,
+	type ParsedStaggerOptions,
+	type StaggerOptions,
+	type TextOptions,
+	mergeTextSplitter,
 } from "text-stagger";
 import { useStaggerContext } from "../StaggerProvider.js";
 
 export function useResolvedOptions(options: TextOptions) {
-  const stagger = useStaggerContext();
-  const [staggerOptions, setStaggerOptions] =
-    useState<ParsedStaggerOptions | null>(null);
+	const stagger = useStaggerContext();
+	const [staggerOptions, setStaggerOptions] =
+		useState<ParsedStaggerOptions | null>(null);
 
-  useEffect(() => {
-    if (!stagger) {
-      return;
-    }
+	useEffect(() => {
+		if (!stagger) {
+			return;
+		}
 
-    setStaggerOptions(stagger.options);
+		setStaggerOptions(stagger.options);
 
-    return stagger.onDidChangeOptions(setStaggerOptions);
-  }, [stagger]);
+		return stagger.onDidChangeOptions(setStaggerOptions);
+	}, [stagger]);
 
-  const cachedOptions = useCachedOptions(options);
+	const cachedOptions = useCachedOptions(options);
 
-  const mergedOptions = useMemo(() => {
-    return staggerOptions && mergeTextSplitter(staggerOptions, cachedOptions);
-  }, [staggerOptions, cachedOptions]);
+	const mergedOptions = useMemo(() => {
+		return staggerOptions && mergeTextSplitter(staggerOptions, cachedOptions);
+	}, [staggerOptions, cachedOptions]);
 
-  return mergedOptions;
+	return mergedOptions;
 }
 
 export function useCachedOptions({
-  animation,
-  delay: currentDelay,
-  duration: currentDuration,
-  stagger: currentStagger,
-  vibration: currentVibration,
-  gradientWidth: currentGradientWidth,
-  customStyles: currentCustomStyles,
-  blurAmount: currentBlurAmount,
-  animationTiming: currentAnimationTiming,
-  splitter: currentSplitter,
-  delayTrailing,
-  visualDebug,
-  maxFps: currentMaxFps,
-  disabled,
-  classNamePrefix,
+	animation,
+	delay: currentDelay,
+	duration: currentDuration,
+	stagger: currentStagger,
+	vibration: currentVibration,
+	gradientWidth: currentGradientWidth,
+	customStyles: currentCustomStyles,
+	blurAmount: currentBlurAmount,
+	animationTiming: currentAnimationTiming,
+	splitter: currentSplitter,
+	delayTrailing,
+	visualDebug,
+	maxFps: currentMaxFps,
+	disabled,
+	classNamePrefix,
 }: StaggerOptions): StaggerOptions {
-  const maxFps = useCachedFunctionLike(currentMaxFps);
-  const duration = useCachedFunctionLike(currentDuration);
-  const vibration = useCachedFunctionLike(currentVibration);
-  const delay = useCachedFunctionLike(currentDelay);
-  const stagger = useCachedFunctionLike(currentStagger);
-  const splitter = useCachedFunctionLike(currentSplitter);
-  const gradientWidth = useCachedFunctionLike(currentGradientWidth);
-  const customStyles = useCachedFunctionLike(currentCustomStyles);
-  const blurAmount = useCachedFunctionLike(currentBlurAmount);
-  const animationTiming = useCachedFunctionLike(currentAnimationTiming);
+	const maxFps = useCachedFunctionLike(currentMaxFps);
+	const duration = useCachedFunctionLike(currentDuration);
+	const vibration = useCachedFunctionLike(currentVibration);
+	const delay = useCachedFunctionLike(currentDelay);
+	const stagger = useCachedFunctionLike(currentStagger);
+	const splitter = useCachedFunctionLike(currentSplitter);
+	const gradientWidth = useCachedFunctionLike(currentGradientWidth);
+	const customStyles = useCachedFunctionLike(currentCustomStyles);
+	const blurAmount = useCachedFunctionLike(currentBlurAmount);
+	const animationTiming = useCachedFunctionLike(currentAnimationTiming);
 
-  return useMemo<StaggerOptions>(
-    () => ({
-      animation,
-      delay,
-      duration,
-      vibration,
-      splitter,
-      stagger,
-      gradientWidth,
-      customStyles,
-      blurAmount,
-      animationTiming,
-      visualDebug,
-      maxFps,
-      delayTrailing,
-      disabled,
-      classNamePrefix,
-    }),
-    [
-      animation,
-      delay,
-      duration,
-      vibration,
-      splitter,
-      stagger,
-      gradientWidth,
-      customStyles,
-      blurAmount,
-      animationTiming,
-      visualDebug,
-      maxFps,
-      delayTrailing,
-      disabled,
-      classNamePrefix,
-    ]
-  );
+	return useMemo<StaggerOptions>(
+		() => ({
+			animation,
+			delay,
+			duration,
+			vibration,
+			splitter,
+			stagger,
+			gradientWidth,
+			customStyles,
+			blurAmount,
+			animationTiming,
+			visualDebug,
+			maxFps,
+			delayTrailing,
+			disabled,
+			classNamePrefix,
+		}),
+		[
+			animation,
+			delay,
+			duration,
+			vibration,
+			splitter,
+			stagger,
+			gradientWidth,
+			customStyles,
+			blurAmount,
+			animationTiming,
+			visualDebug,
+			maxFps,
+			delayTrailing,
+			disabled,
+			classNamePrefix,
+		],
+	);
 }
 
-export function useCachedFunctionLike<T extends any>(value: T): T {
-  const valueRef = useRef(value);
-  valueRef.current = value;
+export function useCachedFunctionLike<T>(value: T): T {
+	const valueRef = useRef(value);
+	valueRef.current = value;
 
-  const cachedValue = useCallback(function (this: any, ...args: any[]) {
-    const value = valueRef.current;
+	const cachedValue = useCallback(function (this: any, ...args: any[]) {
+		const value = valueRef.current;
 
-    if (typeof value === "function") {
-      return value.apply(this, args);
-    }
+		if (typeof value === "function") {
+			return value.apply(this, args);
+		}
 
-    return value;
-  }, []);
+		return value;
+	}, []);
 
-  const cachedArrayLike = useMemo(
-    () => (Array.isArray(value) ? value : null),
-    Array.isArray(value) ? value : []
-  );
+	// biome-ignore lint/correctness/useExhaustiveDependencies: not needed
+	const cachedArrayLike = useMemo(
+		() => (Array.isArray(value) ? value : null),
+		Array.isArray(value) ? value : [],
+	);
 
-  if (cachedArrayLike !== null) {
-    return cachedArrayLike as T;
-  }
+	if (cachedArrayLike !== null) {
+		return cachedArrayLike as T;
+	}
 
-  if (typeof value === "function") {
-    return cachedValue as T;
-  }
+	if (typeof value === "function") {
+		return cachedValue as T;
+	}
 
-  return value;
+	return value;
 }

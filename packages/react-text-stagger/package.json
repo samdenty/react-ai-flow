@@ -11,6 +11,8 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
+    "lint": "pnpm -w lint",
+    "lint:fix": "pnpm -w lint:fix",
     "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
     "test": "vitest",
     "prepublishOnly": "pnpm build"

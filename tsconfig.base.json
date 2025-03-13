@@ -1,27 +1,25 @@
 {
-  "compilerOptions": {
-    "outDir": "dist",
-    "target": "ES2022",
-    "composite": true,
-    "useDefineForClassFields": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext"],
-    "types": ["vite/client"],
-    "noUncheckedIndexedAccess": true,
-    "module": "NodeNext",
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
+	"compilerOptions": {
+		"outDir": "dist",
+		"target": "ES2022",
+		"composite": true,
+		"useDefineForClassFields": true,
+		"lib": ["ES2024", "DOM", "DOM.Iterable", "ESNext"],
+		"types": ["vite/client"],
+		"noUncheckedIndexedAccess": true,
+		"module": "NodeNext",
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
 
-    /* Bundler mode */
-    "moduleResolution": "NodeNext",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "declaration": true,
-    "jsx": "react-jsx",
+		"moduleResolution": "NodeNext",
+		"isolatedModules": true,
+		"moduleDetection": "force",
+		"declaration": true,
+		"jsx": "react-jsx",
 
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
-  }
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true
+	}
 }

@@ -1,9 +1,9 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "include": ["src"],
-  "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
-  },
-  "references": [{ "path": "../text-stagger/tsconfig.lib.json" }]
+	"extends": "../../tsconfig.base.json",
+	"include": ["src"],
+	"compilerOptions": {
+		"outDir": "dist",
+		"rootDir": "src"
+	},
+	"references": [{ "path": "../text-stagger/tsconfig.lib.json" }]
 }

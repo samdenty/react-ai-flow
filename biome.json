@@ -1,12 +1,23 @@
 {
-  "linter": {
-    "rules": {
-      "suspicious": {
-        "noDebugger": "info"
-      },
-      "style": {
-        "noNonNullAssertion": "off"
-      }
-    }
-  }
+	"files": {
+		"include": ["packages/**/*.ts", "packages/**/*.tsx"],
+		"ignore": ["**/dist/**"]
+	},
+	"linter": {
+		"rules": {
+			"suspicious": {
+				"noDebugger": "info",
+				"noArrayIndexKey": "off",
+				"noExplicitAny": "off",
+				"noAssignInExpressions": "off"
+			},
+			"complexity": {
+				"noForEach": "off"
+			},
+			"style": {
+				"noParameterAssign": "off",
+				"noNonNullAssertion": "off"
+			}
+		}
+	}
 }

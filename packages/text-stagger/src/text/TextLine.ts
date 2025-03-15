@@ -1,9 +1,4 @@
-import {
-	type ElementOptions,
-	type PausableItem,
-	PauseFlags,
-	StaggerElement,
-} from "../stagger/index.js";
+import { type ElementOptions, PauseFlags } from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import {
 	Box,

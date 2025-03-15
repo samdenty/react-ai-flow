@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"paths": {
+			"react-text-stagger": ["./src/index.ts"]
+		}
+	},
+	"include": ["src", "e2e"],
+  "references": [
+    {
+      "path": "./tsconfig.lib.json"
+    }
+  ]
+}

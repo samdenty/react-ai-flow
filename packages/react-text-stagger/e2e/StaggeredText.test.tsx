@@ -1,13 +1,15 @@
 import { render } from "@testing-library/react";
-import { expect, it } from "vitest";
+import {} from "@vitest/browser/context";
 import {
-	Stagger,
+	type Stagger,
 	StaggerProvider,
 	type StaggerProviderProps,
 	StaggeredText,
-} from "../src/index.js";
+} from "react-text-stagger";
+import { record } from "text-stagger-record";
+import { expect, it } from "vitest";
 
-function renderProvider(
+async function renderProvider(
 	children: React.ReactNode,
 	props?: StaggerProviderProps,
 ) {
@@ -24,7 +26,11 @@ function renderProvider(
 		</StaggerProvider>,
 	);
 
-	expect(stagger).toBeInstanceOf(Stagger);
+	if (!stagger) {
+		throw new Error("Stagger not found");
+	}
+
+	await stagger.ready;
 
 	return { stagger, ...result };
 }
@@ -41,16 +47,65 @@ it("returns empty container when no provider", () => {
   `);
 });
 
-it("returns text instance when provider", () => {
-	const result = renderProvider(<StaggeredText>Hello World</StaggeredText>);
+it("returns text instance when provider", async () => {
+	// const stop = record();
 
-	expect(result.container).toMatchInlineSnapshot(`
-    <div>
-      <span
-        class="ai-flow react-text-stagger-1"
-      >
-        Hello World
-      </span>
-    </div>
-  `);
+	const { container, stagger } = await renderProvider(
+		<StaggeredText>
+			Hello World Hello World Hello World Hello World Hello World Hello World
+			Hello World Hello World Hello World Hello World Hello World Hello World
+			Hello World Hello World Hello World Hello World Hello World Hello World
+			Hello World Hello World Hello World Hello World Hello World Hello World
+			Hello World Hello World Hello World Hello World Hello World Hello World
+			Hello World Hello World Hello World Hello World Hello World Hello World{" "}
+		</StaggeredText>,
+	);
+
+	await stagger.ready;
+
+	expect(container).toMatchInlineSnapshot(`
+		<div>
+		  <span
+		    class="ai-flow react-text-stagger-1"
+		    data-elements="1"
+		    data-lines="1"
+		  >
+		    Hello World
+		  </span>
+		</div>
+	`);
+
+	expect(stagger.elements).toMatchInlineSnapshot(`
+		[
+		  {
+		    "animation": "gradient-reveal",
+		    "delay": 0,
+		    "duration": 500,
+		    "isLast": true,
+		    "startTime": 1741921655084,
+		    "subtexts": [],
+		    "textContent": "Hello World",
+		    "uniqueBoxes": [
+		      {
+		        "gradientWidth": 100,
+		        "isLast": true,
+		        "progress": 0,
+		        "relativeToCanvas": {
+		          "bottom": 18.5,
+		          "height": 18.5,
+		          "left": 0,
+		          "right": 78.8671875,
+		          "top": 0,
+		          "width": 78.8671875,
+		        },
+		        "subtext": null,
+		        "text": {
+		          "parentText": undefined,
+		        },
+		        "timing": 0,
+		      },
+		    ],
+		  },
+		]
+	`);
 });

@@ -1,4 +1,9 @@
-import type { ElementOptions } from "../stagger/index.js";
+import {
+	type ElementOptions,
+	type PausableItem,
+	PauseFlags,
+	StaggerElement,
+} from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import {
 	Box,
@@ -12,6 +17,35 @@ export class TextLine extends Ranges<Box, Text> {
 	startOfText = false;
 	#endOfBlock = false;
 	#endOfText = false;
+
+	pause() {
+		this.stagger.pause(this);
+	}
+
+	play() {
+		this.stagger.play(this);
+	}
+
+	get paused(): boolean {
+		const state = this.stagger.getPauseState(this);
+		return state.flags !== PauseFlags.None;
+	}
+
+	get pauseTime(): number | null {
+		const state = this.stagger.getPauseState(this);
+		return state.time;
+	}
+
+	get pausedBy() {
+		const state = this.stagger.getPauseState(this);
+		return state.items;
+	}
+
+	get elements() {
+		return this.text.elements.filter((element) => {
+			return this.start < element.end && element.start <= this.end;
+		});
+	}
 
 	get endOfBlock() {
 		return this.#endOfBlock;
@@ -131,7 +165,7 @@ export class TextLine extends Ranges<Box, Text> {
 
 		let foundFollowing = false;
 
-		const walker = document.createTreeWalker(
+		const walker = text.document.createTreeWalker(
 			text.container,
 			NodeFilter.SHOW_TEXT,
 			{
@@ -214,7 +248,7 @@ export class TextLine extends Ranges<Box, Text> {
 			let start = textNode === lastScannedNode ? lastScannedOffset : 0;
 
 			while (start < textContent.length) {
-				const range = document.createRange();
+				const range = text.document.createRange();
 
 				// Start with maximum possible range
 				range.setStart(textNode, start);
@@ -347,7 +381,7 @@ function createParentChecker(text: Text) {
 	const blockParentCache = new WeakMap<Element, HTMLElement | null>();
 
 	return function checkNodeParents(textNode: globalThis.Text) {
-		const element = textNode.parentElement ?? document.body;
+		const element = textNode.parentElement ?? text.document.body;
 
 		let blockParent: HTMLElement | null = null;
 		let parent: HTMLElement = element;
@@ -358,7 +392,7 @@ function createParentChecker(text: Text) {
 			// Check if parent is hidden
 			let parentStyle = styleCache.get(parent);
 			if (parentStyle == null) {
-				parentStyle = getComputedStyle(parent);
+				parentStyle = text.window.getComputedStyle(parent);
 				styleCache.set(parent, parentStyle);
 			}
 
@@ -368,8 +402,8 @@ function createParentChecker(text: Text) {
 				parentStyle.display === "none" ||
 				parentStyle.visibility === "hidden" ||
 				(parent.offsetParent === null &&
-					parent !== document.body &&
-					parent !== document.documentElement);
+					parent !== text.document.body &&
+					parent !== text.document.documentElement);
 
 			hidden ||= text.stagger.texts.some((text) => {
 				return text.isIgnoredNode(element, false);
@@ -413,7 +447,7 @@ function createParentChecker(text: Text) {
 			blockParentCache.set(parent, blockParent);
 		} while (parent.parentElement && (parent = parent.parentElement));
 
-		blockParent ??= document.body;
+		blockParent ??= text.document.body;
 
 		return {
 			isHidden: false,

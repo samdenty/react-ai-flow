@@ -1,51 +1,64 @@
 import type { SerializedText } from "../Text.js";
 import { doPaint } from "./canvas.js";
 
-export let paintWorkletRegistered: Promise<void> | void;
+const registered = new WeakSet<Window & typeof globalThis>();
 
-if (globalThis.CSS?.paintWorklet) {
-  try {
-    const workletBlob = new Blob([`(${paintWorklet})(${doPaint});`], {
-      type: "text/javascript",
-    });
+registerPaintWorklet();
 
-    const workletUrl = URL.createObjectURL(workletBlob);
+export function registerPaintWorklet({ CSS } = globalThis) {
+	if (registered.has(window)) {
+		return;
+	}
 
-    paintWorkletRegistered = globalThis.CSS.paintWorklet
-      .addModule(workletUrl)
-      .then(() => URL.revokeObjectURL(workletUrl));
-  } catch (error) {
-    console.error("Failed to register paint worklet:", error);
-  }
+	registered.add(window);
+
+	try {
+		const workletBlob = new Blob([`(${paintWorklet})(${doPaint});`], {
+			type: "text/javascript",
+		});
+
+		const workletUrl = URL.createObjectURL(workletBlob);
+
+		CSS.paintWorklet
+			?.addModule(workletUrl)
+			.then(() => URL.revokeObjectURL(workletUrl));
+	} catch (error) {
+		console.error("Failed to register paint worklet:", error);
+	}
 }
 
 function paintWorklet(paint: typeof doPaint) {
-  globalThis.registerPaint(
-    "text-stagger",
-    class PaintWorklet {
-      static get inputProperties() {
-        return [];
-      }
+	globalThis.registerPaint(
+		"text-stagger",
+		class PaintWorklet {
+			static get inputProperties() {
+				return ["--text-stagger"];
+			}
 
-      static get inputArguments() {
-        return ["<string>"];
-      }
+			static get inputArguments() {
+				return ["<string>"];
+			}
 
-      paint(
-        ctx: PaintRenderingContext2D,
-        _geometry: PaintSize,
-        _properties: PaintStylePropertyMapReadOnly,
-        [stateStyleValue]: CSSStyleValue[]
-      ) {
-        let text: SerializedText;
-        try {
-          text = JSON.parse(JSON.parse(stateStyleValue?.toString() ?? ""));
-        } catch {
-          return;
-        }
+			paint(
+				ctx: PaintRenderingContext2D,
+				_geometry: PaintSize,
+				properties: PaintStylePropertyMapReadOnly,
+				[stateStyleValue]: CSSStyleValue[],
+			) {
+				let text: SerializedText;
 
-        paint(ctx, text);
-      }
-    }
-  );
+				try {
+					if (stateStyleValue) {
+						text = JSON.parse(JSON.parse(stateStyleValue.toString() ?? ""));
+					} else {
+						text = JSON.parse(properties.get("--text-stagger")?.toString());
+					}
+				} catch {
+					return;
+				}
+
+				paint(ctx, text);
+			}
+		},
+	);
 }

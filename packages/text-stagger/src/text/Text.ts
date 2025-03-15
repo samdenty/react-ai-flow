@@ -1,5 +1,6 @@
 import { calcSlices } from "fast-myers-diff";
 import {
+	PauseFlags,
 	type ScanEvent,
 	ScanReason,
 	type Stagger,
@@ -22,9 +23,8 @@ import type {
 import {
 	CanvasMaskRenderMode,
 	doPaint,
-	maskRenderMode,
+	getRenderingMode,
 } from "./canvas/index.js";
-import { updateProperty } from "./styles/index.js";
 
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
 	"style",
@@ -100,7 +100,7 @@ export interface TextOptions extends TextSplitterOptions {
 
 export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	#mutationCache = new WeakMap<Node, number>();
-	#ignoredNodes = new WeakSet<Node>();
+	ignoredNodes = new Set<Node>();
 	#maxFps?: number;
 	#closestCommonParent?: { rect: DOMRect; element: HTMLElement };
 
@@ -108,6 +108,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	elements: StaggerElement[] = [];
 	trailingSplit: ParsedTextSplit | null = null;
 
+	#resolvePendingReady?: VoidFunction;
+	ready = Promise.resolve();
 	canvas?: HTMLCanvasElement;
 	canvasContext?: PaintRenderingContext2D | null;
 	canvasRect = new DOMRect();
@@ -125,16 +127,39 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	readonly className: string;
 
+	pause() {
+		this.stagger.pause(this);
+	}
+
+	play() {
+		this.stagger.play(this);
+	}
+
+	get paused(): boolean {
+		const state = this.stagger.getPauseState(this);
+		return state.flags !== PauseFlags.None;
+	}
+
+	get pauseTime(): number | null {
+		const state = this.stagger.getPauseState(this);
+		return state.time;
+	}
+
+	get pausedBy() {
+		const state = this.stagger.getPauseState(this);
+		return state.items;
+	}
+
 	createIgnoredElement(element: HTMLElement): void;
 	createIgnoredElement<K extends keyof HTMLElementTagNameMap>(
 		element: K,
 	): HTMLElementTagNameMap[K];
 	createIgnoredElement(element: HTMLElement | keyof HTMLElementTagNameMap) {
 		if (typeof element === "string") {
-			element = document.createElement(element);
+			element = this.document.createElement(element);
 		}
 
-		this.#ignoredNodes.add(element);
+		this.ignoredNodes.add(element);
 
 		return element;
 	}
@@ -143,7 +168,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		let currentElement: Node | null = node;
 
 		while (currentElement) {
-			let ignored = this.#ignoredNodes.has(currentElement);
+			let ignored = this.ignoredNodes.has(currentElement);
 
 			if (typeof recursive === "function") {
 				ignored &&= recursive(currentElement);
@@ -172,8 +197,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	}
 
 	scanBounds() {
-		updateProperty(this.className, "padding", "0px");
-		updateProperty(this.className, "margin", "0px");
+		this.updateStyles(this.className, "padding", "0px");
+		this.updateStyles(this.className, "margin", "0px");
 
 		const { top, bottom, left, right, height, width } =
 			this.container.getBoundingClientRect();
@@ -182,28 +207,29 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		let marginRight = 0;
 
 		if (this.parentText) {
-			updateProperty(this.className, "padding", null);
-			updateProperty(this.className, "margin", null);
+			this.updateStyles(this.className, "padding", null);
+			this.updateStyles(this.className, "margin", null);
 		} else {
 			({ left: marginLeft, right: marginRight } = getAvailableSpace(
+				this.window,
 				this.container,
 				{ left, right },
 			));
 
-			updateProperty(
+			this.updateStyles(
 				this.className,
 				"padding",
 				`0px ${marginRight}px 0 ${marginLeft}px`,
 			);
-			updateProperty(
+			this.updateStyles(
 				this.className,
 				"margin",
 				`0px ${-marginRight}px 0 ${-marginLeft}px`,
 			);
 		}
 
-		updateProperty(this.customAnimationClassName, "height", `${height}px`);
-		updateProperty(this.customAnimationClassName, "width", `${width}px`);
+		this.updateStyles(this.customAnimationClassName, "height", `${height}px`);
+		this.updateStyles(this.customAnimationClassName, "width", `${width}px`);
 
 		this.canvasRect = new DOMRect(
 			left - marginLeft,
@@ -322,7 +348,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return;
 		}
 
-		const styles = getComputedStyle(this.customAnimationContainer);
+		const styles = this.window.getComputedStyle(this.customAnimationContainer);
 
 		let offsetTop = Number.parseFloat(styles.marginTop) || 0;
 		let offsetLeft = Number.parseFloat(styles.marginLeft) || 0;
@@ -330,7 +356,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		offsetTop -= top - this.top;
 		offsetLeft -= left - this.left;
 
-		updateProperty(
+		this.updateStyles(
 			this.customAnimationClassName,
 			"margin",
 			`${offsetTop}px 0px 0px ${offsetLeft}px`,
@@ -375,8 +401,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return;
 		}
 
-		const boxCount = this.elements.length;
-		const progressPerElement = 1 / boxCount;
+		const elementCount = this.elements.length;
+		const progressPerElement = 1 / elementCount;
 
 		this.elements.forEach((element, i) => {
 			const startProgress = i * progressPerElement;
@@ -410,6 +436,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			this.#mutationObserver?.disconnect();
 			this.#resizeObserver?.disconnect();
 			this.#positionObserver?.disconnect();
+			this.#resolvePendingReady?.();
 
 			return;
 		}
@@ -418,14 +445,17 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		super.container = container;
 
-		const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+		const walker = this.document.createTreeWalker(
+			container,
+			NodeFilter.SHOW_TEXT,
+		);
 
 		const firstNode = walker.nextNode();
 		walker.currentNode = container;
 		const lastNode = walker.lastChild();
 
 		if (firstNode && lastNode?.textContent != null) {
-			const range = document.createRange();
+			const range = this.document.createRange();
 
 			range.setStart(firstNode, 0);
 			range.setEnd(lastNode, lastNode.textContent.length);
@@ -438,63 +468,47 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.container.text = this;
 		this.container.classList.add("ai-flow", this.className);
 
-		updateProperty(this.customAnimationClassName, "position", "absolute");
+		this.updateStyles(this.customAnimationClassName, "position", "absolute");
 
 		if (!this.visualDebug) {
-			updateProperty(this.customAnimationClassName, "pointer-events", "none");
+			this.updateStyles(
+				this.customAnimationClassName,
+				"pointer-events",
+				"none",
+			);
 		}
 
 		this.canvas = undefined;
 
-		updateProperty(this.className, "position", "relative");
+		this.updateStyles(this.className, "position", "relative");
 
-		if (this.visualDebug) {
-			this.canvas = this.createIgnoredElement("canvas");
-			this.canvas.style.position = "absolute";
-			this.canvas.style.pointerEvents = "none";
-			this.canvas.style.top = "0";
-			this.canvas.style.left = "50%";
-			this.canvas.style.transform = "translateX(-50%)";
-
-			this.container.prepend(this.canvas);
-
-			updateProperty(this.className, "mask-image", null);
-		} else if (maskRenderMode === CanvasMaskRenderMode.DataUri) {
-			this.canvas = this.createIgnoredElement("canvas");
-			updateProperty(this.className, "will-change", "mask-image");
-		} else if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
-			this.canvas = this.createIgnoredElement("canvas");
-			this.canvas.style.display = "none";
-			this.canvas.id = this.className;
-			document.head.prepend(this.canvas);
-		}
-
-		this.canvasContext = this.canvas?.getContext("2d", {
-			willReadFrequently: !this.visualDebug,
-			alpha: true,
-		});
+		this.updateRenderingMode();
 
 		let mounted = false;
 
-		this.#positionObserver = new PositionObserver(() => {
+		this.#positionObserver = new PositionObserver(this.window, () => {
 			this.updateBounds();
 		});
 
+		this.ready = new Promise<void>((r) => (this.#resolvePendingReady = r));
+
 		this.#resizeObserver = new ResizeObserver((entries) => {
-			requestAnimationFrame(() => {
-				if (!mounted) {
-					this.updateBounds();
-					this.scanElementLines({ reason: ScanReason.Mounted });
+			if (!mounted) {
+				this.updateBounds();
+				this.scanElementLines({ reason: ScanReason.Mounted });
+				this.#resolvePendingReady?.();
 
-					// if (this.stagger.streaming === false) {
-					//   this.progress = 1;
-					// }
-				} else {
+				// todo
+				// if (this.stagger.streaming === false) {
+				//   this.progress = 1;
+				// }
+			} else {
+				requestAnimationFrame(() => {
 					this.scanElementLines({ reason: ScanReason.Resize, entries });
-				}
+				});
+			}
 
-				mounted = true;
-			});
+			mounted = true;
 		});
 
 		let mutations: MutationRecord[] = [];
@@ -566,13 +580,13 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		// childNodes can be empty if a mutation has occurred in meantime
 		if (childNodes.length) {
 			const element = new StaggerElement(this, childNodes, this.trailingSplit);
-			element.restartAnimation();
+			element.restartAnimation(false);
 			this.stagger.vibrate();
 		}
 
 		this.trailingSplit = null;
 
-		this.paint();
+		this.stagger.requestAnimation([this]);
 	}
 
 	constructor(
@@ -589,11 +603,59 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.customAnimationContainer = this.createIgnoredElement("div");
 		this.customAnimationContainer.className = this.customAnimationClassName;
 
+		this.updateStyles(this.className, null);
+		this.updateStyles(this.customAnimationClassName, null);
+
 		this.container = element;
 
 		// hide until first render, but don't set to zero otherwise it
 		// won't be scanned by the layout engine
-		updateProperty(this.className, "opacity", "0.001");
+		this.updateStyles(this.className, "opacity", "0.001");
+	}
+
+	#stopRenderingModeListener?: VoidFunction;
+	updateRenderingMode() {
+		this.#stopRenderingModeListener?.();
+
+		this.#stopRenderingModeListener = getRenderingMode((mode) => {
+			this.canvas?.remove();
+			this.canvas = undefined;
+
+			if (this.visualDebug) {
+				this.canvas = this.createIgnoredElement("canvas");
+				this.canvas.style.position = "absolute";
+				this.canvas.style.pointerEvents = "none";
+				this.canvas.style.top = "0";
+				this.canvas.style.left = "50%";
+				this.canvas.style.transform = "translateX(-50%)";
+
+				this.container.prepend(this.canvas);
+
+				this.updateStyles(this.className, "mask-image", null);
+			} else if (mode === CanvasMaskRenderMode.DataUri) {
+				this.canvas = this.createIgnoredElement("canvas");
+				this.updateStyles(this.className, "will-change", "mask-image");
+			} else if (mode === CanvasMaskRenderMode.MozElement) {
+				this.canvas = this.createIgnoredElement("canvas");
+				this.canvas.style.display = "none";
+				this.canvas.id = this.className;
+				this.document.head.prepend(this.canvas);
+			}
+
+			if (this.canvas) {
+				this.canvas.width = this.canvasRect.width;
+				this.canvas.height = this.canvasRect.height;
+				this.canvas.style.width = `${this.canvasRect.width}px`;
+				this.canvas.style.height = `${this.canvasRect.height}px`;
+			}
+
+			this.canvasContext = this.canvas?.getContext("2d", {
+				willReadFrequently: !this.visualDebug,
+				alpha: true,
+			});
+
+			this.stagger.requestAnimation([this]);
+		});
 	}
 
 	get visualDebug() {
@@ -606,8 +668,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	dispose() {
 		this.container = undefined;
-		updateProperty(this.className, null);
-		updateProperty(this.customAnimationClassName, null);
+		this.#stopRenderingModeListener?.();
+		this.updateStyles(this.className, null);
+		this.updateStyles(this.customAnimationClassName, null);
 	}
 
 	paint() {
@@ -618,10 +681,14 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			doPaint(this.canvasContext, this);
 		}
 
-		updateProperty(this.className, "mask-image", this.mask);
-		updateProperty(this.className, "opacity", null);
+		this.updateStyles(this.className, "mask-image", this.mask);
+		this.updateStyles(this.className, "opacity", null);
 
-		this.parentText?.paint();
+		this.updateProperty("data-progress", `${Math.round(this.progress * 100)}`);
+
+		if (this.parentText) {
+			this.stagger.requestAnimation([this.parentText]);
+		}
 	}
 
 	get mask() {
@@ -629,19 +696,29 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return null;
 		}
 
-		if (maskRenderMode === CanvasMaskRenderMode.MozElement) {
+		const mode = getRenderingMode();
+
+		if (mode === CanvasMaskRenderMode.MozElement) {
 			return `-moz-element(#${this.className})`;
 		}
 
-		if (maskRenderMode === CanvasMaskRenderMode.WebkitCanvas) {
+		if (mode === CanvasMaskRenderMode.WebkitCanvas) {
 			return `-webkit-canvas(${this.className})`;
 		}
 
-		if (maskRenderMode === CanvasMaskRenderMode.PaintWorklet) {
+		if (mode === CanvasMaskRenderMode.PaintWorkletArg) {
 			return `paint(text-stagger, ${JSON.stringify(JSON.stringify(this))})`;
 		}
 
-		if (this.canvas && maskRenderMode === CanvasMaskRenderMode.DataUri) {
+		if (mode === CanvasMaskRenderMode.PaintWorkletCssVar) {
+			this.updateStyles(this.className, "--text-stagger", JSON.stringify(this));
+
+			return "paint(text-stagger)";
+		}
+
+		if (this.canvas && mode === CanvasMaskRenderMode.DataUri) {
+			this.updateStyles(this.className, "--text-stagger", null);
+
 			return `url(${this.canvas.toDataURL("image/png", 0)})`;
 		}
 
@@ -837,7 +914,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 				this.elements = [];
 
-				this.stagger.restartFrom(this);
+				this.stagger.restartAnimationFrom(this, false);
 
 				return;
 			}
@@ -929,7 +1006,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		});
 
 		if (restartFrom) {
-			this.stagger.restartFrom(restartFrom);
+			this.stagger.restartAnimationFrom(restartFrom, false);
 		}
 	}
 
@@ -971,13 +1048,15 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			if (this.canvas) {
 				this.canvas.width = this.canvasRect.width;
 				this.canvas.height = this.canvasRect.height;
+				this.canvas.style.width = `${this.canvasRect.width}px`;
+				this.canvas.style.height = `${this.canvasRect.height}px`;
 			}
 
 			if (
 				!this.visualDebug &&
-				maskRenderMode === CanvasMaskRenderMode.WebkitCanvas
+				getRenderingMode() === CanvasMaskRenderMode.WebkitCanvas
 			) {
-				this.canvasContext = document.getCSSCanvasContext?.(
+				this.canvasContext = this.document.getCSSCanvasContext?.(
 					"2d",
 					this.className,
 					this.canvasRect.width,
@@ -995,11 +1074,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		}
 
 		const isBlock = hasBlockElement(
+			this.window,
 			this.container,
 			(node) => !this.isIgnoredNode(node, false),
 		);
 
-		updateProperty(
+		this.updateStyles(
 			this.className,
 			"display",
 			isBlock ? "block" : "inline-block",
@@ -1010,15 +1090,15 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		this.diffElements(event, resized);
 
-		this.setAttribute("data-lines", `${this.lines.length}`);
-		this.setAttribute("data-elements", `${this.elements.length}`);
+		this.updateProperty("data-lines", `${this.lines.length}`);
+		this.updateProperty("data-elements", `${this.elements.length}`);
 
 		this.paint();
 
 		this.stagger.requestAnimation([this]);
 	}
 
-	setAttribute(name: string, value: string | number) {
+	updateProperty(name: string, value: string | number) {
 		value = String(value);
 
 		if (value === this.container.getAttribute(name)) {
@@ -1070,7 +1150,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			switch (mutation.type) {
 				// Text content changed
 				case "characterData": {
-					if (mutation.target instanceof globalThis.Text) {
+					if (mutation.target instanceof this.window.Text) {
 						const lineIndex = this.findLineContainingNode(mutation.target);
 
 						if (lineIndex === -1) {
@@ -1090,7 +1170,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 				case "childList": {
 					for (const node of mutation.addedNodes) {
 						const lineIndex = this.findLineContainingNode(
-							node.previousSibling ?? node.parentElement ?? document.body,
+							node.previousSibling ?? node.parentElement ?? this.document.body,
 						);
 
 						if (lineIndex === -1) {
@@ -1159,6 +1239,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 export type SerializedText = ReturnType<Text["toJSON"]>;
 
 function getAvailableSpace(
+	window: Window,
 	element: HTMLElement,
 	elementRect: { left: number; right: number },
 ) {
@@ -1173,8 +1254,8 @@ function getAvailableSpace(
 	// Start from the parent and traverse up the DOM tree
 	let currentElement = element.parentElement;
 
-	while (currentElement && currentElement !== document.body) {
-		const style = getComputedStyle(currentElement);
+	while (currentElement && currentElement !== window.document.body) {
+		const style = window.getComputedStyle(currentElement);
 		const overflowX = style.overflowX;
 
 		if (
@@ -1199,9 +1280,9 @@ function getAvailableSpace(
 		};
 	}
 
-	overflowContainer ||= document.body;
+	overflowContainer ||= window.document.body;
 
-	const styles = getComputedStyle(overflowContainer);
+	const styles = window.getComputedStyle(overflowContainer);
 
 	const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
 	const paddingRight = Number.parseFloat(styles.paddingRight) || 0;
@@ -1225,6 +1306,7 @@ function getAvailableSpace(
 }
 
 function hasBlockElement(
+	window: Window,
 	element: Element,
 	acceptNode?: (node: Node) => boolean,
 ) {
@@ -1245,7 +1327,7 @@ function hasBlockElement(
 		}
 
 		// Recursively check children
-		if (hasBlockElement(child, acceptNode)) {
+		if (hasBlockElement(window, child, acceptNode)) {
 			return true;
 		}
 	}

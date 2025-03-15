@@ -1,0 +1,30 @@
+{
+  "name": "text-stagger-record",
+  "version": "0.0.13",
+  "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/samdenty/react-ai-flow.git",
+    "directory": "packages/text-stagger-record"
+  },
+  "scripts": {
+    "lint": "pnpm -w lint",
+    "lint:fix": "pnpm -w lint:fix",
+    "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@rrweb/types": "2.0.0-alpha.18",
+    "fast-deep-equal": "^3.1.3",
+    "rrweb": "2.0.0-alpha.18",
+    "text-stagger": "workspace:*"
+  }
+}

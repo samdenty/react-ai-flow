@@ -8,6 +8,7 @@ import {
 	preserveOptimizeRects,
 } from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
+import { type PausableItem, PauseFlags } from "./Stagger.js";
 import {
 	type SerializedStaggerElementBox,
 	StaggerElementBox,
@@ -111,7 +112,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	#delay: number | null = null;
 	staggerDelay: number | null = null;
 
-	#lines?: TextLine[];
+	#lines = new WeakMap<TextLine[], TextLine[]>();
 	batchId!: number;
 	index!: number;
 
@@ -145,12 +146,35 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	}
 
 	set childNodes(childNodes: RangesChildNode[]) {
-		this.#lines = undefined;
+		this.#lines.delete(this.text.lines);
 		super.childNodes = childNodes;
 	}
 
 	get childNodes(): readonly RangesChildNode[] {
 		return super.childNodes;
+	}
+
+	pause() {
+		this.stagger.pause(this);
+	}
+
+	play() {
+		this.stagger.play(this);
+	}
+
+	get paused(): boolean {
+		const state = this.stagger.getPauseState(this);
+		return state.flags !== PauseFlags.None;
+	}
+
+	get pauseTime(): number | null {
+		const state = this.stagger.getPauseState(this);
+		return state.time;
+	}
+
+	get pausedBy(): PausableItem[] {
+		const state = this.stagger.getPauseState(this);
+		return state.items;
 	}
 
 	updateTextSplit(
@@ -244,7 +268,11 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		return super.scanBounds([...rects, this.subtexts]);
 	}
 
-	restartAnimation() {
+	restartAnimation(unpause = true) {
+		if (unpause) {
+			this.stagger.play(this);
+		}
+
 		const now = Date.now();
 
 		this.progress = 0;
@@ -417,16 +445,21 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	}
 
 	get lines() {
-		if (this.#lines) {
-			return this.#lines;
+		const cached = this.#lines.get(this.text.lines);
+
+		if (cached) {
+			return cached;
 		}
 
 		const uniqueLines = new Set(
 			this.boxes.flatMap(([box]) => box?.lines ?? []),
 		);
-		this.#lines = [...uniqueLines].filter((line) => !!line);
 
-		return this.#lines;
+		const lines = [...uniqueLines].filter((line) => !!line);
+
+		this.#lines.set(this.text.lines, lines);
+
+		return lines;
 	}
 
 	get isLast() {

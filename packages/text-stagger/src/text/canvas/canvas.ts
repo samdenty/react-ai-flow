@@ -1,14 +1,14 @@
 import type { SerializedText } from "../Text.js";
-import { paintWorkletRegistered } from "./paint-worklet.js";
 
 export enum CanvasMaskRenderMode {
-	PaintWorklet = "houdini-paint-worklet",
+	PaintWorkletArg = "houdini-paint-worklet-with-arg",
+	PaintWorkletCssVar = "houdini-paint-worklet-with-css-var",
 	MozElement = "-moz-element",
 	WebkitCanvas = "-webkit-canvas",
 	DataUri = "data-uri",
 }
 
-export const maskRenderMode = getCanvasRenderingMode();
+let maskRenderMode = getOptimalRenderingMode();
 
 export function doPaint(
 	ctx: CanvasRenderingContext2D | PaintRenderingContext2D,
@@ -199,9 +199,13 @@ export function doPaint(
 	}
 }
 
-function getCanvasRenderingMode(): CanvasMaskRenderMode {
-	if (paintWorkletRegistered) {
-		return CanvasMaskRenderMode.PaintWorklet;
+function getOptimalRenderingMode(): CanvasMaskRenderMode {
+	if (globalThis.CSS?.paintWorklet) {
+		if (CSS.supports("mask-image", 'paint(foo, "")')) {
+			return CanvasMaskRenderMode.PaintWorkletArg;
+		}
+
+		return CanvasMaskRenderMode.PaintWorkletCssVar;
 	}
 
 	if (globalThis.document?.getCSSCanvasContext) {
@@ -213,4 +217,39 @@ function getCanvasRenderingMode(): CanvasMaskRenderMode {
 	}
 
 	return CanvasMaskRenderMode.DataUri;
+}
+
+const listeners = new Set<(mode: CanvasMaskRenderMode) => void>();
+
+export function getRenderingMode(
+	listener: (mode: CanvasMaskRenderMode) => void,
+): VoidFunction;
+export function getRenderingMode(): CanvasMaskRenderMode;
+export function getRenderingMode(
+	listener?: (mode: CanvasMaskRenderMode) => void,
+) {
+	if (!listener) {
+		return maskRenderMode;
+	}
+
+	listeners.add(listener);
+
+	listener(maskRenderMode);
+
+	return () => {
+		listeners.delete(listener);
+	};
+}
+
+export function enableDataUriRendering(enabled: boolean) {
+	const previousMode = maskRenderMode;
+	if (enabled) {
+		maskRenderMode = CanvasMaskRenderMode.DataUri;
+	} else {
+		maskRenderMode = getOptimalRenderingMode();
+	}
+
+	if (previousMode !== maskRenderMode) {
+		listeners.forEach((listener) => listener(maskRenderMode));
+	}
 }

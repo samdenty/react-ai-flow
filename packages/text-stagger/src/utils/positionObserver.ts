@@ -38,12 +38,15 @@ export default class PositionObserver {
 	 * @param options the options of this observer
 	 */
 	constructor(
+		window: Window,
 		callback: PositionObserverCallback,
 		options?: Partial<PositionObserverOptions>,
 	) {
 		this.entries = new Map();
 		this._callback = callback;
-		this._root = options?.root ? options.root : document?.documentElement;
+		this._root = options?.root
+			? options.root
+			: window.document?.documentElement;
 		this._tick = 0;
 	}
 

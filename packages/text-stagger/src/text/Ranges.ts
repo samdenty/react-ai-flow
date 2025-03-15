@@ -5,6 +5,7 @@ import type {
 } from "../stagger/index.js";
 import type { Text } from "./Text.js";
 import type { TextLine } from "./TextLine.js";
+import { updateStyles } from "./styles/properties.js";
 
 export class Box<
 	T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger,
@@ -67,7 +68,7 @@ export class Box<
 	}
 
 	drawDebugBox() {
-		const element = document.createElement("div");
+		const element = this.document.createElement("div");
 		element.style.position = "fixed";
 		element.style.top = `${this.top}px`;
 		element.style.left = `${this.left}px`;
@@ -75,8 +76,11 @@ export class Box<
 		element.style.height = `${this.height}px`;
 		element.style.backgroundColor = "red";
 		element.style.zIndex = "1000";
-		document.body.appendChild(element);
+		this.document.body.appendChild(element);
 	}
+
+	window: Window & typeof globalThis;
+	document: Document;
 
 	constructor(
 		public parent: T,
@@ -107,6 +111,10 @@ export class Box<
 		} else {
 			this.stagger = parent;
 		}
+
+		this.window = this.stagger.window;
+
+		this.document = this.window.document;
 
 		this.updateParentCoords();
 
@@ -261,6 +269,14 @@ export abstract class Ranges<
 
 	get lines(): TextLine[] | undefined {
 		return undefined;
+	}
+
+	updateStyles(
+		className: string,
+		property: string | null,
+		value?: string | null,
+	) {
+		updateStyles(this.window, className, property, value);
 	}
 
 	constructor(
@@ -518,7 +534,7 @@ export abstract class Ranges<
 				const cachedStart = trimFromStart && offsetsCache.get(start);
 				const cachedEnd = trimFromEnd && offsetsCache.get(end);
 
-				const walker = document.createTreeWalker(
+				const walker = this.document.createTreeWalker(
 					commonAncestorContainer,
 					NodeFilter.SHOW_TEXT,
 				);

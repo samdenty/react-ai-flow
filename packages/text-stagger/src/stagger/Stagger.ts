@@ -1,7 +1,9 @@
 import { type Vibration, mergeVibrations } from "ios-vibrator-pro-max";
+import { registerPaintWorklet } from "../text/canvas/paint-worklet.js";
 import {
 	type ParsedTextOptions,
 	Text,
+	TextLine,
 	type TextOptions,
 	type TextSplitterOptions,
 	mergeTextSplitter,
@@ -11,15 +13,41 @@ import { StaggerElement } from "./StaggerElement.js";
 
 export interface StaggerOptions extends TextOptions {
 	streaming?: boolean | null;
+	id?: number;
+	window?: Window & typeof globalThis;
 }
 
 export interface ParsedStaggerOptions extends ParsedTextOptions {}
 
 declare global {
-	var staggers: Stagger[] | undefined;
+	interface Window {
+		staggers: Stagger[] | undefined;
+	}
 }
 
 let ID = 0;
+
+export type PausableItem<T = StaggerElement> =
+	| T
+	| (T extends Stagger
+			? never
+			: T extends Text
+				? Stagger
+				: T extends TextLine
+					? Stagger | Text
+					: Stagger | Text | TextLine);
+
+export enum PauseFlags {
+	None = 0, //         0b000 - No pause
+	Self = 1 << 0, //    0b001 - Paused by itself
+	Parent = 1 << 1, //  0b010 - Paused by parent (Text)
+	Stagger = 1 << 2, // 0b100 - Paused by Stagger
+}
+
+export interface PauseState {
+	flags: number; // Bitfield using PauseFlags
+	time: number | null; // Timestamp of last pause, null if unpaused
+}
 
 export class Stagger {
 	#options!: ParsedStaggerOptions;
@@ -30,22 +58,287 @@ export class Stagger {
 	#textsListeners = new Set<() => void>();
 	#painter?: ReturnType<typeof requestAnimationFrame>;
 	#paintQueue = new Set<Text>();
+	#painting = false;
+	#pauses = new Map<PausableItem, PauseState>();
+	#pauseCache = new WeakMap<
+		PausableItem,
+		PauseState & { items: PausableItem[] }
+	>();
 	#invalidateTexts = true;
 
 	#texts: Text[] = [];
 	#elements?: StaggerElement[];
 
 	batchId = 0;
-	id = ++ID;
+	id: number;
 	vibration?: Vibration;
 	lastPaint?: number;
 
-	constructor({ streaming, ...options }: StaggerOptions = {}) {
+	window: Window & typeof globalThis;
+
+	get ready() {
+		return Promise.all(this.texts.map((text) => text.ready));
+	}
+
+	constructor({
+		streaming,
+		id,
+		window = globalThis.window,
+		...options
+	}: StaggerOptions = {}) {
+		this.id = id ?? ++ID;
 		this.options = options;
 		this.streaming = streaming ?? null;
+		this.window = window;
 
-		globalThis.staggers ??= [];
-		globalThis.staggers.push(this);
+		window.staggers ??= [];
+		window.staggers.push(this);
+
+		registerPaintWorklet(window);
+	}
+
+	play(items: PausableItem[] | PausableItem = this) {
+		items = Array.isArray(items) ? items : [items];
+
+		const now = Date.now();
+
+		for (const item of items) {
+			const current = this.#pauses.get(item) || {
+				flags: PauseFlags.None,
+				time: null,
+			};
+
+			let newFlags = current.flags;
+
+			if (item instanceof Stagger) {
+				newFlags &= ~PauseFlags.Stagger;
+			} else if (item instanceof Text) {
+				newFlags &= ~PauseFlags.Parent;
+			} else {
+				newFlags &= ~PauseFlags.Self;
+			}
+
+			// Update startTime for StaggerElements
+			if (item instanceof StaggerElement && current.time !== null) {
+				item.startTime = now + (item.startTime - current.time);
+			} else if (item instanceof TextLine && current.time !== null) {
+				for (const text of this.texts) {
+					for (const element of text.elements) {
+						if (element.lines.includes(item)) {
+							element.startTime = now + (element.startTime - current.time);
+						}
+					}
+				}
+			} else if (item instanceof Text) {
+				for (const element of item.elements) {
+					const elementState = this.getPauseState(element);
+					if (elementState.time !== null) {
+						element.startTime = now + (element.startTime - elementState.time);
+					}
+				}
+			} else if (item instanceof Stagger) {
+				for (const element of item.elements) {
+					const elementState = this.getPauseState(element);
+					if (elementState.time !== null) {
+						element.startTime = now + (element.startTime - elementState.time);
+					}
+				}
+			}
+
+			if (newFlags === PauseFlags.None) {
+				this.#pauses.delete(item);
+			} else {
+				this.#pauses.set(item, { flags: newFlags, time: current.time });
+			}
+
+			// Invalidate cache for this item and its dependencies
+			this.#pauseCache.delete(item);
+
+			if (item instanceof Stagger) {
+				for (const element of this.elements) {
+					this.#pauseCache.delete(element);
+				}
+
+				for (const text of this.texts) {
+					this.#pauseCache.delete(text);
+
+					for (const line of text.lines) {
+						this.#pauseCache.delete(line);
+					}
+				}
+			} else if (item instanceof Text) {
+				for (const line of item.lines) {
+					this.#pauseCache.delete(line);
+				}
+
+				for (const element of item.elements) {
+					this.#pauseCache.delete(element);
+				}
+			} else if (item instanceof TextLine) {
+				for (const element of item.elements) {
+					this.#pauseCache.delete(element);
+				}
+			}
+		}
+	}
+
+	pause(items: PausableItem[] | PausableItem = this) {
+		items = Array.isArray(items) ? items : [items];
+
+		const now = Date.now();
+
+		for (const item of items) {
+			const current = this.#pauses.get(item) || {
+				flags: PauseFlags.None,
+				time: null,
+			};
+
+			let newFlags = current.flags;
+
+			if (item instanceof Stagger) {
+				newFlags |= PauseFlags.Stagger;
+			} else if (item instanceof Text) {
+				newFlags |= PauseFlags.Parent;
+			} else {
+				newFlags |= PauseFlags.Self;
+			}
+
+			this.#pauses.set(item, { flags: newFlags, time: now });
+
+			// Invalidate cache for this item and its dependencies
+			this.#pauseCache.delete(item);
+
+			if (item instanceof Stagger) {
+				for (const element of this.elements) {
+					this.#pauseCache.delete(element);
+				}
+
+				for (const text of this.texts) {
+					this.#pauseCache.delete(text);
+
+					for (const line of text.lines) {
+						this.#pauseCache.delete(line);
+					}
+				}
+			} else if (item instanceof Text) {
+				for (const line of item.lines) {
+					this.#pauseCache.delete(line);
+				}
+
+				for (const element of item.elements) {
+					this.#pauseCache.delete(element);
+				}
+			} else if (item instanceof TextLine) {
+				for (const element of item.elements) {
+					this.#pauseCache.delete(element);
+				}
+			}
+		}
+	}
+
+	getPauseState<T extends PausableItem>(
+		item: T,
+	): PauseState & { items: PausableItem<T>[] } {
+		const cached = this.#pauseCache.get(item);
+		if (cached) {
+			return cached as any;
+		}
+
+		let combinedFlags = PauseFlags.None;
+		const times: number[] = [];
+		const pausedItems: PausableItem[] = [];
+		const visitedTexts = new Set<Text>();
+
+		const selfState = this.#pauses.get(item) || {
+			flags: PauseFlags.None,
+			time: null,
+		};
+
+		combinedFlags |= selfState.flags;
+
+		if (selfState.time !== null) {
+			times.push(selfState.time);
+			if (selfState.flags !== PauseFlags.None) pausedItems.push(item);
+		}
+
+		if (item instanceof StaggerElement) {
+			for (const line of item.lines) {
+				const lineState = this.#pauses.get(line) || {
+					flags: PauseFlags.None,
+					time: null,
+				};
+
+				combinedFlags |= lineState.flags;
+
+				if (lineState.time !== null) {
+					times.push(lineState.time);
+					if (lineState.flags !== PauseFlags.None) {
+						pausedItems.push(line);
+					}
+				}
+			}
+
+			const textState = this.#pauses.get(item.text) || {
+				flags: PauseFlags.None,
+				time: null,
+			};
+
+			combinedFlags |= textState.flags;
+
+			if (textState.time !== null) {
+				times.push(textState.time);
+				if (textState.flags !== PauseFlags.None) {
+					pausedItems.push(item.text);
+				}
+			}
+		}
+
+		if (item instanceof Text) {
+			let currentText = item.parentText;
+
+			while (currentText && !visitedTexts.has(currentText)) {
+				visitedTexts.add(currentText);
+
+				const parentState = this.#pauses.get(currentText) || {
+					flags: PauseFlags.None,
+					time: null,
+				};
+
+				combinedFlags |= parentState.flags;
+
+				if (parentState.time !== null) {
+					times.push(parentState.time);
+					if (parentState.flags !== PauseFlags.None) {
+						pausedItems.push(currentText);
+					}
+				}
+
+				currentText = currentText.parentText;
+			}
+		}
+
+		// Check Stagger's state for all items except when item is the Stagger itself
+		if ((item as any) !== this) {
+			const staggerState = this.#pauses.get(this) || {
+				flags: PauseFlags.None,
+				time: null,
+			};
+
+			combinedFlags |= staggerState.flags;
+
+			if (staggerState.time !== null) {
+				times.push(staggerState.time);
+				if (staggerState.flags !== PauseFlags.None) {
+					pausedItems.push(this);
+				}
+			}
+		}
+
+		const time = times.length > 0 ? Math.min(...times) : null;
+		const result = { flags: combinedFlags, time, items: pausedItems };
+
+		this.#pauseCache.set(item, result);
+		return result as any;
 	}
 
 	dispose() {
@@ -53,8 +346,8 @@ export class Stagger {
 			text.dispose();
 		}
 
-		if (globalThis.staggers) {
-			globalThis.staggers = globalThis.staggers.filter(
+		if (this.window.staggers) {
+			this.window.staggers = this.window.staggers.filter(
 				(stagger) => stagger !== this,
 			);
 		}
@@ -149,7 +442,7 @@ export class Stagger {
 			!isTouchDevice() ||
 			!navigator.vibrate ||
 			!elementVibrations.length ||
-			this !== staggers?.at(-1)
+			this !== this.window.staggers?.at(-1)
 		) {
 			return;
 		}
@@ -163,17 +456,17 @@ export class Stagger {
 	}
 
 	paint(texts: Text[] = []) {
+		this.#painting = true;
+
 		const now = Date.now();
 
-		const paintQueue = new Set([...this.#paintQueue, ...texts]);
-		this.#paintQueue.clear();
-
+		const queuedToPaint = new Set(texts);
 		const skippedFrames = new Set<Text>();
 
 		for (const element of this.elements) {
 			const elapsed = now - element.startTime - element.delay;
 
-			if (elapsed < 0 || element.progress === 1) {
+			if (element.paused || elapsed < 0 || element.progress === 1) {
 				continue;
 			}
 
@@ -182,21 +475,30 @@ export class Stagger {
 				continue;
 			}
 
-			const oldProgress = element.progress;
 			element.progress = Math.min(1, elapsed / element.duration);
-
-			if (oldProgress !== element.progress) {
-				paintQueue.add(element.text);
-			}
 		}
 
-		if (paintQueue.size) {
-			for (const text of paintQueue) {
+		if (queuedToPaint.size || this.#paintQueue.size) {
+			for (const text of queuedToPaint) {
 				text.paint();
+			}
+
+			while (this.#paintQueue.size) {
+				const queue = [...this.#paintQueue];
+				this.#paintQueue.clear();
+
+				for (const text of queue) {
+					if (!queuedToPaint.has(text)) {
+						queuedToPaint.add(text);
+						text.paint();
+					}
+				}
 			}
 
 			this.#paintListeners.forEach((listener) => listener());
 		}
+
+		this.#painting = false;
 
 		return (
 			skippedFrames.size ||
@@ -204,7 +506,7 @@ export class Stagger {
 		);
 	}
 
-	restartFrom(restartFrom: StaggerElement | Text) {
+	restartAnimationFrom(restartFrom: StaggerElement | Text, unpause = true) {
 		let element!: StaggerElement | undefined;
 
 		if (restartFrom instanceof Text) {
@@ -221,16 +523,12 @@ export class Stagger {
 
 		const restartFromElementIndex = element && this.elements.indexOf(element);
 
-		if (
-			restartFromElementIndex == null ||
-			restartFromElementIndex === -1 ||
-			restartFromElementIndex === this.elements.length - 1
-		) {
+		if (restartFromElementIndex == null || restartFromElementIndex === -1) {
 			return false;
 		}
 
 		for (let i = restartFromElementIndex; i < this.elements.length; i++) {
-			this.elements[i]!.restartAnimation();
+			this.elements[i]!.restartAnimation(unpause);
 		}
 
 		this.vibrate();
@@ -241,6 +539,10 @@ export class Stagger {
 	requestAnimation(force: Text[] = []) {
 		for (const text of force) {
 			this.#paintQueue.add(text);
+		}
+
+		if (this.#painting) {
+			return;
 		}
 
 		this.#painter ??= requestAnimationFrame(() => {
@@ -330,19 +632,19 @@ export class Stagger {
 	observeText(
 		element: HTMLElement,
 		id: number,
-		textOptions: TextSplitterOptions,
+		textOptions: TextSplitterOptions | null | undefined,
 	) {
 		const text = new Text(
 			this,
 			id,
 			element,
-			mergeTextSplitter<ParsedTextOptions>(this.options, textOptions),
+			mergeTextSplitter<ParsedTextOptions>(this.options, textOptions ?? {}),
 		);
 
 		this.texts.push(text);
 		this.#textsListeners.forEach((listener) => listener());
 
-		staggers?.sort(({ texts: [a] }, { texts: [b] }) => {
+		this.window.staggers?.sort(({ texts: [a] }, { texts: [b] }) => {
 			return (b && a?.comparePosition(b)) ?? 0;
 		});
 

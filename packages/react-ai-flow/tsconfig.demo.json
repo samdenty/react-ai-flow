@@ -1,9 +1,17 @@
 {
-	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"paths": {
-			"react-ai-flow": ["./src/index.ts"]
-		}
-	},
-	"include": ["src", "demo"]
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "react-ai-flow": ["./src/index.ts"]
+    }
+  },
+  "include": ["src", "demo"],
+  "references": [
+    {
+      "path": "../replay/tsconfig.lib.json"
+    },
+    {
+      "path": "../record/tsconfig.lib.json"
+    }
+  ]
 }

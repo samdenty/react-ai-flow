@@ -65,5 +65,3 @@ declare global {
 		) => CanvasRenderingContext2D;
 	}
 }
-
-export type { PaintRenderingContext2D };

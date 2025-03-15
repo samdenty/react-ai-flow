@@ -25,7 +25,7 @@ let ID = 0;
 export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 	static DEFAULT_GRADIENT_WIDTH = 100;
 
-	#lines?: TextLine[];
+	#lines = new WeakMap<TextLine[], TextLine[]>();
 	#progress = 0;
 
 	id = ++ID;
@@ -151,12 +151,9 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
 		this.#progress = progress;
 
-		this.text.setAttribute(
-			"data-progress",
-			`${Math.round(this.text.progress * 100)}`,
-		);
-
 		this.updateCustomAnimation();
+
+		this.stagger.requestAnimation([this.text]);
 	}
 
 	updateCustomAnimation() {
@@ -170,11 +167,6 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
 			closestCommonParent.element.setAttribute("style", this.initialStyle);
 
-			console.log(
-				closestCommonParent.element.className,
-				styles,
-				this.initialStyle,
-			);
 			if (!styles) {
 				return;
 			}
@@ -207,11 +199,16 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 			this.text.customAnimationContainer.append(this.customAnimationElement);
 
 			for (const range of this.ranges) {
-				cloneRangeWithStyles(range, this.customAnimationElement, (element) => {
-					if (!this.text.options.visualDebug) {
-						element.style.pointerEvents = "none";
-					}
-				});
+				cloneRangeWithStyles(
+					this.window,
+					range,
+					this.customAnimationElement,
+					(element) => {
+						if (!this.text.options.visualDebug) {
+							element.style.pointerEvents = "none";
+						}
+					},
+				);
 			}
 
 			if (this.customAnimationElement.style.display === "list-item") {
@@ -257,11 +254,17 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 	}
 
 	get lines() {
-		if (this.#lines) {
-			return this.#lines;
+		const cached = this.#lines.get(this.text.lines);
+
+		if (cached) {
+			return cached;
 		}
 
-		return (this.#lines = TextLine.getLines(this.text, this));
+		const lines = TextLine.getLines(this.text, this);
+
+		this.#lines.set(this.text.lines, lines);
+
+		return lines;
 	}
 
 	get isLast() {

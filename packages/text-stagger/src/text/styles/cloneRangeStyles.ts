@@ -21,6 +21,7 @@ const COPY_STYLES = [
 ] as const;
 
 export function cloneRangeWithStyles(
+	window: Window & typeof globalThis,
 	range: Range,
 	target: HTMLElement,
 	onElement?: (element: HTMLElement, styles: CSSStyleDeclaration) => void,
@@ -43,7 +44,7 @@ export function cloneRangeWithStyles(
 		style: CSSStyleDeclaration,
 		targetElement: HTMLElement,
 	) {
-		const targetStyle = getComputedStyle(targetElement);
+		const targetStyle = window.getComputedStyle(targetElement);
 
 		for (const prop of COPY_STYLES) {
 			if (style[prop] !== targetStyle[prop]) {
@@ -61,23 +62,23 @@ export function cloneRangeWithStyles(
 	) {
 		targetElement.classList.remove(...sourceElement.classList);
 
-		const style = getComputedStyle(sourceElement);
+		const style = window.getComputedStyle(sourceElement);
 
 		transferComputedStyles(style, targetElement);
 
 		// Handle pseudo-elements if needed
-		const beforeStyle = getComputedStyle(sourceElement, ":before");
-		const afterStyle = getComputedStyle(sourceElement, ":after");
+		const beforeStyle = window.getComputedStyle(sourceElement, ":before");
+		const afterStyle = window.getComputedStyle(sourceElement, ":after");
 
 		if (beforeStyle.content !== "none") {
-			const targetBefore = document.createElement("span");
+			const targetBefore = window.document.createElement("span");
 			targetElement.insertBefore(targetBefore, targetElement.firstChild);
 
 			transferComputedStyles(beforeStyle, targetBefore);
 		}
 
 		if (afterStyle.content !== "none") {
-			const targetAfter = document.createElement("span");
+			const targetAfter = window.document.createElement("span");
 			targetElement.appendChild(targetAfter);
 
 			transferComputedStyles(afterStyle, targetAfter);
@@ -85,11 +86,11 @@ export function cloneRangeWithStyles(
 	}
 
 	// Copy styles from ancestor if it's an element
-	if (contextElement instanceof HTMLElement) {
+	if (contextElement instanceof window.HTMLElement) {
 		copyComputedStyles(contextElement, target);
 
 		// Process all elements in the cloned content
-		const walker = document.createTreeWalker(
+		const walker = window.document.createTreeWalker(
 			clonedContent,
 			NodeFilter.SHOW_ELEMENT,
 			null,
@@ -97,7 +98,7 @@ export function cloneRangeWithStyles(
 
 		let currentNode = walker.nextNode();
 		while (currentNode) {
-			const sourceElement = document.querySelector(
+			const sourceElement = window.document.querySelector(
 				generateSelector(currentNode as HTMLElement),
 			);
 			if (sourceElement) {

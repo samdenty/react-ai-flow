@@ -1,24 +1,41 @@
-let styleSheet: CSSStyleSheet;
+const styleSheets = new Map<
+	Window & typeof globalThis,
+	{ styleSheet: CSSStyleSheet; rules: Map<string, CSSStyleRule> }
+>();
 
-const streamRules = new Map<string, CSSStyleRule>();
-
-export function updateProperty(
+export function updateStyles(
+	window: Window & typeof globalThis,
 	className: string,
 	property: string | null,
 	value?: string | null,
 ) {
-	let rule = streamRules.get(className);
+	let { styleSheet, rules } = styleSheets.get(window) || {};
 
-	if (!styleSheet) {
-		styleSheet = new CSSStyleSheet();
-		document.adoptedStyleSheets = [...document.adoptedStyleSheets, styleSheet];
+	if (!styleSheet || !rules) {
+		styleSheet = new window.CSSStyleSheet();
+		rules = new Map();
+		styleSheets.set(window, { styleSheet, rules });
+
+		window.document.adoptedStyleSheets = [
+			...window.document.adoptedStyleSheets,
+			styleSheet,
+		];
 	}
 
+	let rule = rules.get(className);
+
 	if (!property) {
-		if (rule) {
-			streamRules.delete(className);
-			const ruleIndex = [...styleSheet.cssRules].indexOf(rule);
-			styleSheet.deleteRule(ruleIndex);
+		for (const styleSheet of window.document.adoptedStyleSheets) {
+			for (let i = 0; i < styleSheet.cssRules.length; i++) {
+				const rule = styleSheet.cssRules[i];
+
+				if (
+					rule instanceof window.CSSStyleRule &&
+					rule.selectorText === `.${className}`
+				) {
+					styleSheet.deleteRule(i);
+				}
+			}
 		}
 
 		return;
@@ -28,7 +45,7 @@ export function updateProperty(
 	if (!rule) {
 		const ruleIndex = styleSheet.insertRule(`.${className} {}`);
 		rule = styleSheet.cssRules[ruleIndex] as CSSStyleRule;
-		streamRules.set(className, rule);
+		rules.set(className, rule);
 	}
 
 	if (value) {

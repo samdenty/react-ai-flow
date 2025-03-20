@@ -6,6 +6,7 @@ export default defineConfig({
 		alias: {
 			"react-text-stagger": path.resolve(__dirname, "./src/index.ts"),
 			"text-stagger": path.resolve(__dirname, "../text-stagger/src/index.ts"),
+			"text-stagger-replay": path.resolve(__dirname, "../replay/src/index.ts"),
 		},
 	},
 	test: {

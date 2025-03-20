@@ -5,7 +5,6 @@ import {
 	Text,
 	TextLine,
 	type TextOptions,
-	type TextSplitterOptions,
 	mergeTextSplitter,
 	resolveTextSplitter,
 } from "../text/index.js";
@@ -48,6 +47,9 @@ export interface PauseState {
 	flags: number; // Bitfield using PauseFlags
 	time: number | null; // Timestamp of last pause, null if unpaused
 }
+
+// text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
+const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
 
 export class Stagger {
 	#options!: ParsedStaggerOptions;
@@ -476,6 +478,7 @@ export class Stagger {
 			}
 
 			element.progress = Math.min(1, elapsed / element.duration);
+			element.play();
 		}
 
 		if (queuedToPaint.size || this.#paintQueue.size) {
@@ -632,7 +635,7 @@ export class Stagger {
 	observeText(
 		element: HTMLElement,
 		id: number,
-		textOptions: TextSplitterOptions | null | undefined,
+		textOptions: TextOptions | null | undefined,
 	) {
 		const text = new Text(
 			this,

@@ -1,7 +1,7 @@
 {
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"files": {
-		"include": ["packages/**/*.ts", "packages/**/*.tsx"],
+		"include": ["packages/**/*.ts", "packages/**/*.tsx", "e2e/**/*.tsx"],
 		"ignore": ["**/dist/**"]
 	},
 	"linter": {

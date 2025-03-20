@@ -18,6 +18,9 @@ export type PositionObserverOptions = {
 	root: HTMLElement;
 };
 
+// text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
+const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
+
 /**
  * The PositionObserver class is a utility class that observes the position
  * of DOM elements and triggers a callback when their position changes.

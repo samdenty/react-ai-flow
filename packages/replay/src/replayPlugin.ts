@@ -3,20 +3,24 @@ import type { ReplayPlugin, Replayer, playerConfig } from "rrweb";
 import { Stagger, type Text } from "text-stagger";
 import type { RecordedEvent, TextSnapshot } from "text-stagger-record";
 import { removeTextAnimation } from "./removeTextAnimation.js";
-import type { ReplayOptions } from "./replay.js";
+import { ReplayMode, type ReplayOptions } from "./replay.js";
 
 export function replayPlugin(
 	events: RecordedEvent[],
-	{ hydrateAnimations, ...options }: ReplayOptions,
-): ReplayPlugin & { options: Partial<playerConfig> } {
-	if (!hydrateAnimations) {
-		return { options };
+	{
+		mode,
+		onFrame,
+		...options
+	}: ReplayOptions<ReplayMode.Hydrated | ReplayMode.Recorded>,
+): ReplayPlugin & {
+	options: Partial<playerConfig>;
+	hydratedTexts: Map<number, Text>;
+	hydratedStaggers: Map<number, Stagger>;
+	ready(): Promise<void>;
+} {
+	if (mode === ReplayMode.Hydrated) {
+		removeTextAnimation(events, options);
 	}
-
-	const hydrateAnimationOptions =
-		typeof hydrateAnimations === "object" ? hydrateAnimations : {};
-
-	removeTextAnimation(events, hydrateAnimationOptions);
 
 	let nodeMirror: IMirror<Node>;
 	let replayer: Replayer;
@@ -27,15 +31,20 @@ export function replayPlugin(
 	const initSnapshots = new Map<number, TextSnapshot>();
 
 	function processEvent(event: RecordedEvent) {
-		const { inits, snapshots } = event;
+		const { snapshots } = event;
 
-		for (const snapshot of inits) {
-			hydrateTextSnapshot(snapshot);
-			initSnapshots.set(snapshot.elementId, snapshot);
+		if (mode === ReplayMode.Hydrated) {
+			for (const snapshot of snapshots) {
+				hydrateTextSnapshot(snapshot);
+
+				if (!initSnapshots.has(snapshot.elementId)) {
+					initSnapshots.set(snapshot.elementId, snapshot);
+				}
+			}
 		}
 
-		for (const snapshot of snapshots) {
-			hydrateTextSnapshot(snapshot);
+		if (snapshots.length) {
+			onFrame?.();
 		}
 	}
 
@@ -70,26 +79,42 @@ export function replayPlugin(
 		if (!stagger || (initialized && snapshot.stagger.options)) {
 			stagger = new Stagger({
 				window: replayer.iframe.contentWindow! as Window & typeof globalThis,
+				streaming: true,
 				...snapshot.stagger.options,
 			});
 
-			if (!hydrateAnimationOptions.recalculateProgress) {
+			if (!options.recalculateProgress) {
 				stagger.pause();
 			}
 
 			hydratedStaggers.set(snapshot.stagger.id, stagger);
 		}
 
-		stagger.observeText(element, snapshot.id, snapshot.options);
+		stagger.observeText(element, snapshot.id, {
+			...snapshot.options,
+			// todo update
+			animation: "blur-in",
+			splitter: "word",
+			delayTrailing: true,
+			duration: 200,
+			stagger: "100%",
+		});
 		hydratedTexts.set(snapshot.id, stagger.getText(snapshot.id)!);
 	}
 
 	return {
+		hydratedStaggers,
+		hydratedTexts,
 		handler(event, _isSync: boolean, context) {
 			replayer = context.replayer;
 			window = replayer.iframe.contentWindow! as Window & typeof globalThis;
 
 			processEvent(event as RecordedEvent);
+		},
+		async ready() {
+			await Promise.all(
+				[...hydratedStaggers.values()].map((stagger) => stagger.ready),
+			);
 		},
 		onBuild: (_, { id }) => {
 			const text = initSnapshots.get(id);

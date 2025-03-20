@@ -9,6 +9,12 @@
   "references": [
     {
       "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "../record/tsconfig.lib.json"
+    },
+    {
+      "path": "../replay/tsconfig.lib.json"
     }
   ]
 }

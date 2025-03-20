@@ -95,7 +95,7 @@ function Message({ children }: { children: React.ReactNode }) {
 		<div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
 			<StaggeredText
 				splitter="word"
-				visualDebug
+				// visualDebug
 				delayTrailing
 				animation="blur-in"
 				// animation="blur-in"

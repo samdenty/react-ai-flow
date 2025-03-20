@@ -9,12 +9,11 @@ import {
 } from "@rrweb/types";
 import equal from "fast-deep-equal";
 import type { Text } from "text-stagger";
-import type {
-	RecordedEvent,
-	StaggerSnapshot,
-	TextInit,
-	TextSnapshot,
-} from "./record.js";
+import type { RecordedEvent, StaggerSnapshot, TextSnapshot } from "./record.js";
+import {
+	originalRequestAnimationFrame,
+	rafSyncFlush,
+} from "./utils/rafSyncFlush.js";
 
 export function textEmitPlugin() {
 	let nodeMirror: IMirror<Node>;
@@ -22,10 +21,14 @@ export function textEmitPlugin() {
 		number,
 		{
 			text: Text;
+			initSnapshot: TextSnapshot;
 			lastSnapshot: TextSnapshot;
 			updateIgnoredNodes: VoidFunction;
 		}
 	>();
+	let pendingNewTexts = 0;
+
+	const events: RecordedEvent[] = [];
 
 	function getTextSnapshot(text: Text): TextSnapshot {
 		const stagger: StaggerSnapshot = {
@@ -43,12 +46,12 @@ export function textEmitPlugin() {
 				progress: element.progress,
 			})),
 			stagger,
+			customAnimationClassName: text.customAnimationClassName,
 		};
 	}
 
 	function processEvent(event: eventWithTime): RecordedEvent {
 		const allTexts = window.staggers?.flatMap((stagger) => stagger.texts);
-		const newTexts = new Map<number, TextInit>();
 
 		if (event.type === EventType.FullSnapshot) {
 			findTextsInNode(event.data.node);
@@ -79,10 +82,9 @@ export function textEmitPlugin() {
 		return {
 			...event,
 			snapshots: [],
-			inits: [...newTexts.values()],
 		};
 
-		function searchNodeId(id: number) {
+		async function searchNodeId(id: number) {
 			const ref = nodeMirror.getNode(id);
 			if (!ref) {
 				return;
@@ -93,14 +95,19 @@ export function textEmitPlugin() {
 				return;
 			}
 
+			pendingNewTexts++;
+
+			await text.ready;
+
+			await new Promise(requestAnimationFrame);
+
+			rafSyncFlush();
+
 			const ignoredNodes = new WeakSet<Node>();
 			const ignoredNodeIds = new Set<number>();
 
-			const initSnapshot = getTextSnapshot(text);
-
-			const textInit: TextInit = {
-				...initSnapshot,
-				customAnimationClassName: text.customAnimationClassName,
+			const initSnapshot = {
+				...getTextSnapshot(text),
 				ignoredNodeIds: [] as number[],
 			};
 
@@ -118,17 +125,18 @@ export function textEmitPlugin() {
 					}
 				}
 
-				textInit.ignoredNodeIds = [...ignoredNodeIds];
+				initSnapshot.ignoredNodeIds = [...ignoredNodeIds];
 			};
 
 			updateIgnoredNodes();
 
-			newTexts.set(text.id, textInit);
 			recordedTexts.set(text.id, {
 				text,
+				initSnapshot,
 				lastSnapshot: initSnapshot,
 				updateIgnoredNodes,
 			});
+			pendingNewTexts--;
 		}
 
 		function findTextsInNode(
@@ -146,6 +154,93 @@ export function textEmitPlugin() {
 		}
 	}
 
+	function getSnapshotDiff(latestSnapshot: TextSnapshot, update: boolean) {
+		const recorded = recordedTexts.get(latestSnapshot.id);
+
+		if (!recorded) {
+			return null;
+		}
+
+		const options = latestSnapshot.options ?? recorded.lastSnapshot.options;
+		const stagger: StaggerSnapshot = {
+			id: latestSnapshot.stagger.id,
+			options:
+				latestSnapshot.stagger.options ?? recorded.lastSnapshot.stagger.options,
+		};
+
+		const optionsEqual =
+			recorded.initSnapshot !== recorded.lastSnapshot &&
+			equal(recorded.lastSnapshot.options, options);
+		const staggerEqual =
+			recorded.initSnapshot !== recorded.lastSnapshot &&
+			equal(recorded.lastSnapshot.stagger, stagger);
+
+		if (
+			optionsEqual &&
+			staggerEqual &&
+			recorded.lastSnapshot.progress === latestSnapshot.progress
+		) {
+			return null;
+		}
+
+		if (update) {
+			recorded.lastSnapshot = {
+				...latestSnapshot,
+				options,
+				stagger,
+			};
+		}
+
+		return {
+			...latestSnapshot,
+			ignoredNodeIds: recorded.initSnapshot.ignoredNodeIds,
+			options: optionsEqual ? undefined : latestSnapshot.options,
+			stagger: staggerEqual
+				? { id: latestSnapshot.stagger.id }
+				: latestSnapshot.stagger,
+		};
+	}
+
+	let lastEvent!: RecordedEvent;
+	const pushStack: RecordedEvent[][] = [events];
+	let ticker: number;
+
+	function tick() {
+		const pushTo = pushStack.at(-1)!;
+
+		ticker = originalRequestAnimationFrame(tick);
+
+		if (pendingNewTexts) {
+			return;
+		}
+
+		const snapshots = [...recordedTexts.values()].flatMap(
+			(recorded): TextSnapshot | [] => {
+				const latestSnapshot = getTextSnapshot(recorded.text);
+
+				return getSnapshotDiff(latestSnapshot, true) ?? [];
+			},
+		);
+
+		if (snapshots.length) {
+			rafFlush(pushTo);
+
+			lastEvent.snapshots = snapshots;
+		}
+	}
+
+	function rafFlush(pushTo: RecordedEvent[]) {
+		const items: RecordedEvent[] = [];
+		pushStack.push(items);
+
+		rafSyncFlush();
+
+		pushStack.pop();
+		pushTo.push(...items);
+	}
+
+	tick();
+
 	return {
 		name: "text-stagger/emitTextPlugin@1",
 		eventProcessor: (event) => {
@@ -154,41 +249,17 @@ export function textEmitPlugin() {
 		getMirror: (mirrors) => {
 			nodeMirror = mirrors.nodeMirror;
 		},
-		getTextSnapshots() {
-			return [...recordedTexts.values()].flatMap(
-				(recorded): TextSnapshot | [] => {
-					const latestSnapshot = getTextSnapshot(recorded.text);
+		addSnapshots(event: RecordedEvent) {
+			const pushTo = pushStack.at(-1)!;
+			pushTo.push(event);
+			lastEvent = event;
 
-					const optionsEqual = equal(
-						recorded.lastSnapshot.options,
-						latestSnapshot.options,
-					);
-
-					const staggerEqual = equal(
-						recorded.lastSnapshot.stagger,
-						latestSnapshot.stagger,
-					);
-
-					if (
-						optionsEqual &&
-						staggerEqual &&
-						recorded.lastSnapshot.progress === latestSnapshot.progress
-					) {
-						return [];
-					}
-
-					recorded.lastSnapshot = latestSnapshot;
-
-					return {
-						...latestSnapshot,
-						options: optionsEqual ? undefined : latestSnapshot.options,
-						stagger: staggerEqual
-							? { id: latestSnapshot.stagger.id }
-							: latestSnapshot.stagger,
-					};
-				},
-			);
+			rafFlush(pushTo);
 		},
+		dispose() {
+			cancelAnimationFrame(ticker);
+		},
+		events,
 		options: {},
 	} satisfies RecordPlugin & Record<string, any>;
 }

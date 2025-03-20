@@ -9,6 +9,9 @@
   "references": [
     {
       "path": "../record/tsconfig.lib.json"
+    },
+    {
+      "path": "../text-stagger/tsconfig.lib.json"
     }
   ]
 }

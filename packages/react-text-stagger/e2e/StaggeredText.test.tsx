@@ -1,12 +1,10 @@
 import { render } from "@testing-library/react";
-import {} from "@vitest/browser/context";
 import {
 	type Stagger,
 	StaggerProvider,
 	type StaggerProviderProps,
 	StaggeredText,
 } from "react-text-stagger";
-import { record } from "text-stagger-record";
 import { expect, it } from "vitest";
 
 async function renderProvider(
@@ -48,8 +46,6 @@ it("returns empty container when no provider", () => {
 });
 
 it("returns text instance when provider", async () => {
-	// const stop = record();
-
 	const { container, stagger } = await renderProvider(
 		<StaggeredText>
 			Hello World Hello World Hello World Hello World Hello World Hello World

@@ -21,17 +21,13 @@ export interface TextSnapshot {
 	elementId: number;
 	progress: number;
 	elements: ElementSnapshot[];
+	customAnimationClassName: string;
 	stagger: StaggerSnapshot;
 	options?: ParsedTextOptions;
-}
-
-export interface TextInit extends TextSnapshot {
-	ignoredNodeIds: number[];
-	customAnimationClassName: string;
+	ignoredNodeIds?: number[];
 }
 
 export type RecordedEvent = eventWithTime & {
-	inits: TextInit[];
 	snapshots: TextSnapshot[];
 };
 
@@ -40,38 +36,24 @@ let recorders = 0;
 export function record() {
 	enableDataUriRendering(true);
 
-	const events: RecordedEvent[] = [];
-
 	const textEmitter = textEmitPlugin();
-
-	let snapshot = false;
-	let nextFrame: number | null;
 
 	const stop = rrwebRecord({
 		recordCanvas: true,
 		plugins: [textEmitter],
 		emit(event: RecordedEvent) {
-			nextFrame ??= requestAnimationFrame(() => {
-				snapshot = true;
-				nextFrame = null;
-			});
-
-			if (snapshot) {
-				event.snapshots = textEmitter.getTextSnapshots();
-				snapshot = false;
-			}
-
-			events.push(event);
+			textEmitter.addSnapshots(event);
 		},
 	});
 
 	return () => {
 		stop?.();
+		textEmitter.dispose();
 
 		recorders--;
 
 		enableDataUriRendering(!!recorders);
 
-		return events;
+		return textEmitter.events;
 	};
 }

@@ -14,7 +14,9 @@ export function removeTextAnimation(
 	events: RecordedEvent[],
 	{ recalculateOptions, recalculateProgress }: RemoveTextAnimationOptions = {},
 ) {
-	const texts = events.flatMap((event) => event.inits);
+	const texts = events.flatMap((event) =>
+		event.snapshots.filter((snapshot) => !!snapshot.ignoredNodeIds),
+	);
 	const ignoredStyleId = findIgnoredStyleId();
 	const ignoredNodeIds = new Set(texts.flatMap((text) => text.ignoredNodeIds));
 
@@ -75,7 +77,7 @@ export function removeTextAnimation(
 				}
 			}
 
-			if (!event.inits.length && !event.snapshots.length) {
+			if (!event.snapshots.length) {
 				return false;
 			}
 
@@ -114,6 +116,10 @@ export function removeTextAnimation(
 			return filterSnapshots(!!event.data.styleIds.length);
 		}
 
+		if (event.data.source === IncrementalSource.StyleSheetRule) {
+			return filterSnapshots(event.data.styleId !== ignoredStyleId);
+		}
+
 		if (event.data.source === IncrementalSource.Mutation) {
 			event.data.adds = event.data.adds.filter(({ node, parentId }) => {
 				return filterIgnoredNode(node, ignoredNodeIds.has(parentId));
@@ -134,6 +140,8 @@ export function removeTextAnimation(
 				),
 			);
 		}
+
+		return filterSnapshots(true);
 	}
 
 	function filterIgnoredNode(
@@ -158,6 +166,7 @@ export function removeTextAnimation(
 	let i = 0;
 	while (i < events.length) {
 		const event = events[i]!;
+
 		if (!filterIgnoredEvent(event)) {
 			events.splice(i, 1);
 		} else {

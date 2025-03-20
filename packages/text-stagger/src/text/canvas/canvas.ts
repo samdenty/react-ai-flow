@@ -20,12 +20,6 @@ export function doPaint(
 		: "rgba(0, 0, 0, 1)";
 
 	if (!text.elements.length) {
-		if (text.parentText) {
-			return;
-		}
-
-		ctx.fillStyle = surroundingFill;
-		ctx.fillRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 		return;
 	}
 

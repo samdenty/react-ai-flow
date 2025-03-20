@@ -1,7 +1,9 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"tsBuildInfoFile": "./dist/root.tsbuildinfo"
+		"tsBuildInfoFile": "./dist/root.tsbuildinfo",
+		"rootDir": "e2e",
+    "outDir": "dist",
 	},
 	"include": [],
 	"references": [

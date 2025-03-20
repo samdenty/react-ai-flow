@@ -26,6 +26,9 @@ import {
 	getRenderingMode,
 } from "./canvas/index.js";
 
+// text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
+const { requestAnimationFrame } = globalThis;
+
 const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
 	"style",
 	"class",
@@ -482,6 +485,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		this.updateStyles(this.className, "position", "relative");
 
+		this.updateBlockDisplay();
+
 		this.updateRenderingMode();
 
 		let mounted = false;
@@ -497,15 +502,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 				this.updateBounds();
 				this.scanElementLines({ reason: ScanReason.Mounted });
 				this.#resolvePendingReady?.();
-
-				// todo
-				// if (this.stagger.streaming === false) {
-				//   this.progress = 1;
-				// }
 			} else {
-				requestAnimationFrame(() => {
-					this.scanElementLines({ reason: ScanReason.Resize, entries });
-				});
+				this.scanElementLines({ reason: ScanReason.Resize, entries });
 			}
 
 			mounted = true;
@@ -1020,6 +1018,20 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		return this.stagger.texts.slice(index + 1);
 	}
 
+	private updateBlockDisplay() {
+		const isBlock = hasBlockElement(
+			this.window,
+			this.container,
+			(node) => !this.isIgnoredNode(node, false),
+		);
+
+		this.updateStyles(
+			this.className,
+			"display",
+			isBlock ? "block" : "inline-block",
+		);
+	}
+
 	scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
 		if (event.reason === ScanReason.Mutation) {
 			const impacts = this.analyzeMutationImpact(event.entries);
@@ -1030,6 +1042,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 				this.#lines = this.lines.slice(0, impacts.firstAffectedLine);
 				// todo handle subtext
 			}
+
+			this.updateBlockDisplay();
 		}
 
 		const oldDimensions = this.#scannedDimensions;
@@ -1072,18 +1086,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		if (resized || (event.reason === ScanReason.Force && event.reset)) {
 			this.#lines = [];
 		}
-
-		const isBlock = hasBlockElement(
-			this.window,
-			this.container,
-			(node) => !this.isIgnoredNode(node, false),
-		);
-
-		this.updateStyles(
-			this.className,
-			"display",
-			isBlock ? "block" : "inline-block",
-		);
 
 		this.#lines = TextLine.scanLines(this);
 		this.childNodes = this.lines.flatMap((line) => line.childNodes);

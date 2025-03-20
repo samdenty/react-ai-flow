@@ -154,8 +154,6 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 		this.updateCustomAnimation();
 
 		this.stagger.requestAnimation([this.text]);
-
-		this.element.pause();
 	}
 
 	updateCustomAnimation() {

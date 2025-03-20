@@ -51,7 +51,9 @@ function paintWorklet(paint: typeof doPaint) {
 					if (stateStyleValue) {
 						text = JSON.parse(JSON.parse(stateStyleValue.toString() ?? ""));
 					} else {
-						text = JSON.parse(properties.get("--text-stagger")?.toString());
+						text = JSON.parse(
+							JSON.parse(properties.get("--text-stagger")?.toString()),
+						);
 					}
 				} catch {
 					return;

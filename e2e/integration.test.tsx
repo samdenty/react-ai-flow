@@ -17,10 +17,14 @@ const testPaths = getFiles(testsPath).filter((path) => path.endsWith(".json"));
 interface Context {
 	name: string;
 	testPath: string;
+	screenshotsPath: string;
+	originalPath: string;
+	hydratedPath: string;
+	diffsPath: string;
 }
 
 async function testFrame(
-	{ name, testPath }: Context,
+	{ originalPath, hydratedPath, diffsPath, name }: Context,
 	frame: RunnerFrame,
 	page: Page,
 ) {
@@ -32,6 +36,23 @@ async function testFrame(
 			return iframe.screenshot();
 		}),
 	);
+
+	if (!fs.existsSync(originalPath)) {
+		fs.mkdirSync(originalPath, { recursive: true });
+	}
+	if (!fs.existsSync(hydratedPath)) {
+		fs.mkdirSync(hydratedPath, { recursive: true });
+	}
+	if (!fs.existsSync(diffsPath)) {
+		fs.mkdirSync(diffsPath, { recursive: true });
+	}
+
+	screenshots.forEach((screenshot, i) => {
+		fs.writeFileSync(
+			path.join(i === 0 ? originalPath : hydratedPath, `${frame.index}.png`),
+			screenshot,
+		);
+	});
 
 	const pngs = screenshots.map((screenshot) => {
 		return PNG.sync.read(screenshot);
@@ -47,17 +68,27 @@ async function testFrame(
 			diffPng.data as any,
 			png.width,
 			png.height,
-			{ threshold: 0.4 },
+			{ threshold: 0.6 },
 		);
 
-		if (mismatch > 100) {
+		const diffBuffer = PNG.sync.write(diffPng);
+
+		fs.writeFileSync(path.join(diffsPath, `${frame.index}.png`), diffBuffer);
+
+		if (mismatch > 70) {
 			console.log(
 				frame.index,
 				mismatch,
 				frame.recordedEvents.at(-1)?.timestamp,
 			);
 
-			expect(mismatch).toBeLessThan(100);
+			console.log(
+				frame.index,
+				mismatch,
+				frame.recordedEvents.at(-1)?.timestamp,
+			);
+
+			expect(mismatch).toBeLessThan(70);
 		}
 	}
 
@@ -102,10 +133,6 @@ for (const testPath of testPaths) {
 		path.basename(testPath),
 	);
 
-	if (fs.existsSync(testScreenshotPath)) {
-		fs.rmSync(testScreenshotPath, { recursive: true, force: true });
-	}
-
 	test.describe(name, async () => {
 		for (let batch = 0; batch < batchCount; batch++) {
 			const startFrame = batch * batchSize;
@@ -121,6 +148,12 @@ for (const testPath of testPaths) {
 					test.skip();
 				}
 
+				const screenshotsPath = path.join(testScreenshotPath, browserName);
+
+				const diffsPath = path.join(screenshotsPath, "diffs");
+				const originalPath = path.join(screenshotsPath, "original");
+				const hydratedPath = path.join(screenshotsPath, "hydrated");
+
 				await page.setViewportSize({ width, height: height * 2 });
 
 				let complete!: VoidFunction;
@@ -133,7 +166,11 @@ for (const testPath of testPaths) {
 						onFrame={(frame) => {
 							testFrame(
 								{
+									diffsPath,
+									hydratedPath,
 									name,
+									originalPath,
+									screenshotsPath,
 									testPath,
 								},
 								frame,

@@ -3,6 +3,7 @@ import type { RecordedEvent, TextSnapshot } from "text-stagger-record";
 import type { RemoveTextAnimationOptions } from "./removeTextAnimation.js";
 import { replayPlugin } from "./replayPlugin.js";
 import { getFrames } from "./frames.js";
+import { enableDataUriRendering } from "text-stagger";
 
 export enum ReplayMode {
 	Recorded = "recorded",
@@ -57,6 +58,8 @@ export function replay<T extends ReplayMode = ReplayMode.Hydrated>(
 	events: RecordedEvent[],
 	{ mode = ReplayMode.Hydrated as T, ...options }: ReplayOptions<T> = {},
 ): Player<T> {
+	enableDataUriRendering(true);
+
 	const textFrames = getFrames(events).map(
 		({
 			snapshots,

@@ -478,7 +478,6 @@ export class Stagger {
 			}
 
 			element.progress = Math.min(1, elapsed / element.duration);
-			element.play();
 		}
 
 		if (queuedToPaint.size || this.#paintQueue.size) {

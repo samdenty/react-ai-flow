@@ -709,7 +709,11 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		}
 
 		if (mode === CanvasMaskRenderMode.PaintWorkletCssVar) {
-			this.updateStyles(this.className, "--text-stagger", JSON.stringify(this));
+			this.updateStyles(
+				this.className,
+				"--text-stagger",
+				JSON.stringify(JSON.stringify(this)),
+			);
 
 			return "paint(text-stagger)";
 		}

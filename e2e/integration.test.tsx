@@ -82,12 +82,6 @@ async function testFrame(
 				frame.recordedEvents.at(-1)?.timestamp,
 			);
 
-			console.log(
-				frame.index,
-				mismatch,
-				frame.recordedEvents.at(-1)?.timestamp,
-			);
-
 			expect(mismatch).toBeLessThan(70);
 		}
 	}

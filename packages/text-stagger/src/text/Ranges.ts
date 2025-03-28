@@ -736,12 +736,13 @@ export function preserveOptimizeRects(
 	const optimizedRects = new Map<DOMRect, Set<DOMRect>>();
 
 	for (const inputRect of inputRectsIndexes.keys()) {
+		const inputRectKey = keys.get(inputRect);
+
 		// Try to find existing rectangle to merge with
 		const mergeWith = [...optimizedRects.entries()].find(
 			([existingRect, [existingInputRect]]) => {
-				if (keys.has(inputRect)) {
-					return keys.get(inputRect) === keys.get(existingInputRect!);
-				}
+				const existingInputRectKey = keys.get(existingInputRect!);
+				const sameKey = !inputRectKey || inputRectKey === existingInputRectKey;
 
 				const sameHeight =
 					Math.abs(existingRect.height - inputRect.height) <= TOLERANCE;
@@ -764,9 +765,10 @@ export function preserveOptimizeRects(
 					inputRect.bottom >= existingRect.bottom - TOLERANCE;
 
 				return (
-					(sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
-					rect1ContainsRect2 ||
-					rect2ContainsRect1
+					sameKey &&
+					((sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
+						rect1ContainsRect2 ||
+						rect2ContainsRect1)
 				);
 			},
 		);

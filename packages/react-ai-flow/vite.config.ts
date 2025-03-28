@@ -23,4 +23,7 @@ export default defineConfig({
 		port: 3001,
 		host: true,
 	},
+	build: {
+		outDir: "demo/dist",
+	},
 });

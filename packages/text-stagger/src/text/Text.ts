@@ -471,7 +471,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.container.text = this;
 		this.container.classList.add("ai-flow", this.className);
 
-		this.updateStyles(this.customAnimationClassName, "position", "absolute");
+		this.updateStyles(this.customAnimationClassName, "position", "relative");
 
 		if (!this.visualDebug) {
 			this.updateStyles(
@@ -757,7 +757,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		for (const childNode of this.childNodes) {
 			const lastSegment = continuousChildNodes.at(-1)!;
-			const lastRangeBox = lastSegment.boxes.at(-1);
 
 			if (typeof childNode === "string") {
 				lastSegment.nodes.push(childNode);
@@ -765,7 +764,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			}
 
 			const rangeBoxes = boxes[currentBoxIndex++]!;
-			const nextRangeBoxes = boxes[currentBoxIndex];
 			const range = childNode;
 
 			const startSubtext = this.subtexts.find((subtext) => {
@@ -776,32 +774,15 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 				);
 			});
 
-			let newStartOfSubtext = startSubtext ?? null;
-
-			if (!newStartOfSubtext || !lastRangeBox) {
-				newStartOfSubtext = null;
-			} else if (
-				// if the last range right equals the start text left (no gap)
-				lastRangeBox.right === newStartOfSubtext.left &&
-				// and there's no padding to left of the start text
-				Box.getBounds(rangeBoxes).left - newStartOfSubtext.left === 0
-			) {
-				newStartOfSubtext = null;
-			}
-
-			if (newStartOfSubtext) {
+			if (startSubtext) {
 				continuousChildNodes.push({
 					nodes: [range],
 					boxes: rangeBoxes,
-					subtext: newStartOfSubtext,
+					subtext: startSubtext,
 				});
 			} else {
 				lastSegment.nodes.push(range);
 				lastSegment.boxes.push(...rangeBoxes);
-
-				if (startSubtext && !lastRangeBox) {
-					lastSegment.subtext = startSubtext;
-				}
 			}
 
 			const endSubtext = this.subtexts.find((subtext) => {
@@ -810,20 +791,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 				return lastRange?.compareBoundaryPoints(Range.END_TO_END, range) === 0;
 			});
 
-			let newEndOfSubtext = endSubtext ?? null;
-
-			if (!nextRangeBoxes || !newEndOfSubtext || !rangeBoxes) {
-				newEndOfSubtext = null;
-			} else if (
-				// if the current range right equals the end text right (no gap)
-				newEndOfSubtext.right === Box.getBounds(nextRangeBoxes).left &&
-				// and there's no padding to right of the end text
-				Box.getBounds(rangeBoxes).right - newEndOfSubtext.right === 0
-			) {
-				newEndOfSubtext = null;
-			}
-
-			if (newEndOfSubtext) {
+			if (endSubtext) {
 				continuousChildNodes.push({ nodes: [], boxes: [], subtext: null });
 			}
 		}
@@ -927,6 +895,11 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		const oldElements = this.elements;
 		const newSplitElements = this.options.splitText(this, event);
+
+		// console.log(
+		// 	"foobar4",
+		// 	newSplitElements.map((a) => a.text),
+		// );
 
 		this.elements = [];
 

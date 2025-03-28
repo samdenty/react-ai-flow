@@ -3,9 +3,11 @@ import { doPaint } from "./canvas.js";
 
 const registered = new WeakSet<Window & typeof globalThis>();
 
-registerPaintWorklet();
+if (typeof window !== "undefined") {
+	registerPaintWorklet(window);
+}
 
-export function registerPaintWorklet({ CSS } = globalThis) {
+export function registerPaintWorklet(window: Window & typeof globalThis) {
 	if (registered.has(window)) {
 		return;
 	}
@@ -19,7 +21,7 @@ export function registerPaintWorklet({ CSS } = globalThis) {
 
 		const workletUrl = URL.createObjectURL(workletBlob);
 
-		CSS.paintWorklet
+		window.CSS?.paintWorklet
 			?.addModule(workletUrl)
 			.then(() => URL.revokeObjectURL(workletUrl));
 	} catch (error) {

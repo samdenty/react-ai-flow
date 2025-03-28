@@ -65,20 +65,29 @@ export const StaggerProvider = forwardRef<Stagger, StaggerProviderProps>(
 						texts.has(element.text.id),
 					);
 
-					const lastElement =
-						elements.findLast((element) => element.progress !== 0) ??
-						elements.at(-1);
+					const activeElements = elements.filter(
+						(element) => element.progress > 0 && element.progress < 1,
+					);
+
+					if (!activeElements.length && elements.length) {
+						activeElements.push(elements.at(-1)!);
+					}
+
+					const activeElement = activeElements.at(-1);
 
 					stickToBottomContext.targetScrollTop = (
 						target,
 						{ scrollElement, contentElement },
 					) => {
-						if (!lastElement) {
+						if (!activeElement) {
 							return target;
 						}
 
 						const scrollRect = scrollElement.getBoundingClientRect();
-						const relativePosition = lastElement.bottom - scrollRect.top;
+						const relativePosition =
+							activeElement.top +
+							activeElement.height * activeElement.progress -
+							scrollRect.top;
 
 						const newTarget =
 							scrollElement.scrollTop +

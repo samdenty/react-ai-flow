@@ -410,6 +410,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 				const position = this.getRangeOffsets(ranges, this.start);
 				const subtext = text instanceof Text ? text : null;
 
+				// console.log(
+				// 	"foobar2",
+				// 	this.text.id,
+				// 	ranges.map((a) => a.toString()),
+				// );
+
 				return new StaggerElementBox(
 					this,
 					this.options,

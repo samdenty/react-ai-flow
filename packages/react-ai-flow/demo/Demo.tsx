@@ -8,7 +8,7 @@ import {
 } from "react-ai-flow";
 import { useFakeMessages } from "./useFakeMessages.js";
 
-enableIOSVibrationWithPopup();
+// enableIOSVibrationWithPopup();
 
 function ScrollToBottom() {
 	const { isAtBottom, scrollToBottom } = useStickToBottomContext();
@@ -36,25 +36,26 @@ function MessagesContent({
 	return (
 		<>
 			<div className="relative w-full flex flex-col overflow-hidden">
-				{/* <StickToBottom.Content className="flex flex-col gap-4 p-6"> */}
-				{[...Array(1)].map((_, i) => (
-					<Message key={i}>
-						<h1 style={{ paddingLeft: 20 }}>
-							{"foo"}{" "}
-							<span>
-								this1 is2 a3 very4 long5 test6 <span>athis7</span> is8 a9 very10
-							</span>
-							long11 test12
-						</h1>
-						more testing text...
-					</Message>
-				))}
+				<StickToBottom.Content className="flex flex-col gap-4 p-6">
+					{[...Array(1)].map((_, i) => (
+						<Message key={i}>
+							<h1 style={{ paddingLeft: 20 }}>
+								{"foo"}{" "}
+								<span>
+									this1 is2 a3 very4 long5 test6 <span>athis7</span> is8 a9
+									very10
+								</span>
+								long11 test12
+							</h1>
+							more testing text...
+						</Message>
+					))}
 
-				{messages.map((message, i) => (
-					<Message key={i}>{message}</Message>
-				))}
-				{/* </StickToBottom.Content> */}
-				{/* <ScrollToBottom /> */}
+					{messages.map((message, i) => (
+						<Message key={i}>{message}</Message>
+					))}
+				</StickToBottom.Content>
+				<ScrollToBottom />
 			</div>
 
 			<div className="flex justify-center pt-4">
@@ -78,13 +79,15 @@ function Messages({ speed }: { speed: number }) {
 	return (
 		<StaggerProvider streaming>
 			<div className="prose flex flex-col gap-2 w-full overflow-hidden">
-				{/* <StickToBottom className="h-[50vh] flex flex-col" initial={false}> */}
-				<MessagesContent
-					messages={paused || messages}
-					paused={!!paused}
-					onPausePlay={() => (paused ? setPaused(false) : setPaused(messages))}
-				/>
-				{/* </StickToBottom> */}
+				<StickToBottom className="h-[50vh] flex flex-col">
+					<MessagesContent
+						messages={paused || messages}
+						paused={!!paused}
+						onPausePlay={() =>
+							paused ? setPaused(false) : setPaused(messages)
+						}
+					/>
+				</StickToBottom>
 			</div>
 		</StaggerProvider>
 	);
@@ -94,20 +97,21 @@ function Message({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
 			<StaggeredText
-				splitter="word"
+				splitter="line"
 				// visualDebug
 				delayTrailing
 				animation="blur-in"
 				// animation="blur-in"
 				// animation="bounce-in"
 				duration={(element) => {
-					return 200;
+					return 1000;
 				}}
-				stagger="100%"
+				vibration={false}
+				stagger="20%"
 				// animation="gradient-reveal"
 				gradientWidth={(box) => {
 					// return box.progress * box.width;
-					return "100%";
+					return "30%";
 				}}
 			>
 				{children}
@@ -117,7 +121,7 @@ function Message({ children }: { children: React.ReactNode }) {
 }
 
 export function Demo() {
-	const [speed, setSpeed] = useState(0.05);
+	const [speed, setSpeed] = useState(0.2);
 
 	return (
 		<div className="flex flex-col gap-10 p-10 items-center w-full">

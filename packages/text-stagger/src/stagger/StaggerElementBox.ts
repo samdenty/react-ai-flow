@@ -85,7 +85,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 		rects: { top: number; left: number; bottom: number; right: number }[][],
 	) {
 		if (this.subtext) {
-			return Box.getBounds([this.subtext]);
+			return Box.getBounds([this.text]);
 		}
 
 		return super.scanBounds(rects);
@@ -197,6 +197,10 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
 			this.text.insertCustomAnimationContainer();
 			this.text.customAnimationContainer.append(this.customAnimationElement);
+
+			// console.log("foobar", this.text.id, [
+			// 	this.ranges.map((a) => a.toString()),
+			// ]);
 
 			for (const range of this.ranges) {
 				cloneRangeWithStyles(

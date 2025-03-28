@@ -176,8 +176,8 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
       ios-vibrator-pro-max:
-        specifier: link:/Users/samdenty/Projects/ios-vibrator-pro-max
-        version: link:../../../ios-vibrator-pro-max
+        specifier: 1.0.21
+        version: 1.0.21
 
 packages:
 
@@ -1233,6 +1233,9 @@ packages:
   import-lazy@4.0.0:
     resolution: {integrity: sha512-rKtvo6a868b5Hu3heneU+L4yEQ4jYKLtjpnPeUdK7h0yzXGmyBTypknlkCvHFBqfX9YlorEiMM6Dnq/5atfHkw==}
     engines: {node: '>=8'}
+
+  ios-vibrator-pro-max@1.0.21:
+    resolution: {integrity: sha512-rwCnNXXpb8kunKIUAIHBfXT0ajbGRgolNKIN6fLAjoJsFUzQ2sAOtuMjdZCurTjpETyLEs63f6ugGQhMORzmTw==}
 
   is-binary-path@2.1.0:
     resolution: {integrity: sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==}
@@ -3004,6 +3007,8 @@ snapshots:
   headers-polyfill@4.0.3: {}
 
   import-lazy@4.0.0: {}
+
+  ios-vibrator-pro-max@1.0.21: {}
 
   is-binary-path@2.1.0:
     dependencies:

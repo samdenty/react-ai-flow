@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "pnpm -w lint",
     "lint:fix": "pnpm -w lint:fix",
-    "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
+    "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json && vite build",
     "dev": "vite",
     "test": "vitest",
     "prepublishOnly": "pnpm build"

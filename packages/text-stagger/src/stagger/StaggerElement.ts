@@ -241,6 +241,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		}
 
 		if (!this.lines[0] || !other.lines[0]) {
+			debugger;
 		}
 
 		const pos =
@@ -448,6 +449,30 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 				return line!;
 			},
 		);
+	}
+
+	#oldLines: TextLine[] | null = null;
+
+	updateBoundsIfLinesChanged() {
+		const oldLines = this.#oldLines;
+		this.#oldLines = this.lines;
+
+		if (!oldLines) {
+			return false;
+		}
+
+		const lines = this.lines;
+		const linesLength = Math.max(lines.length, oldLines.length);
+
+		for (let i = 0; i < linesLength; i++) {
+			if (lines[i] !== oldLines[i]) {
+				const b = this.updateBounds();
+				console.log(b);
+				return b;
+			}
+		}
+
+		return false;
 	}
 
 	get lines() {

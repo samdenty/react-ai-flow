@@ -107,6 +107,9 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	#maxFps?: number;
 	#closestCommonParent?: { rect: DOMRect; element: HTMLElement };
 
+	#parents: EventTarget[] = [];
+	updateBoundsOnPaint = false;
+
 	#lines: TextLine[] = [];
 	elements: StaggerElement[] = [];
 	trailingSplit: ParsedTextSplit | null = null;
@@ -247,13 +250,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	}
 
 	updateBounds(rects?: [[DOMRect]]) {
+		this.updateBoundsOnPaint = false;
 		let changed = super.updateBounds(rects);
 
 		if (changed) {
 			this.updateCustomAnimationPosition();
 		}
-
-		const changedLines = new Set<TextLine>();
 
 		for (let i = this.lines.length - 1; i >= 0; i--) {
 			const line = this.lines[i]!;
@@ -264,25 +266,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			}
 
 			changed = true;
-			changedLines.add(line);
-		}
-
-		for (const element of this.elements) {
-			const [line] = element.lines;
-
-			if (!line || !changedLines.has(line)) {
-				continue;
-			}
-
-			const bounds = new DOMRect(
-				element.left,
-				line.top,
-				element.width,
-				element.height,
-			);
-
-			const changedElement = element.updateBounds([[bounds]]);
-			changed ||= changedElement;
 		}
 
 		return changed;
@@ -441,6 +424,12 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			this.#positionObserver?.disconnect();
 			this.#resolvePendingReady?.();
 
+			this.#parents.forEach((parent) => {
+				parent.removeEventListener("scroll", this.handleScroll, true);
+			});
+
+			this.#parents = [];
+
 			return;
 		}
 
@@ -470,6 +459,21 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		this.container.text = this;
 		this.container.classList.add("ai-flow", this.className);
+
+		this.#parents = [];
+
+		let currentNode = this.container.parentNode;
+		while (
+			currentNode &&
+			currentNode !== this.window.document.documentElement
+		) {
+			this.#parents.push(currentNode);
+
+			currentNode.addEventListener("scroll", this.handleScroll, true);
+			currentNode = currentNode.parentNode;
+		}
+
+		this.#parents.push(window);
 
 		this.updateStyles(this.customAnimationClassName, "position", "relative");
 
@@ -562,6 +566,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			characterData: true,
 		});
 	}
+
+	private handleScroll = () => {
+		this.updateBoundsOnPaint = true;
+	};
 
 	revealTrailing() {
 		if (!this.trailingSplit) {
@@ -1068,6 +1076,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
 		this.diffElements(event, resized);
+
+		for (const element of this.elements) {
+			element.updateBoundsIfLinesChanged();
+		}
 
 		this.updateProperty("data-lines", `${this.lines.length}`);
 		this.updateProperty("data-elements", `${this.elements.length}`);

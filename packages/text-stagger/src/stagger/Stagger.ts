@@ -480,6 +480,12 @@ export class Stagger {
 			element.progress = Math.min(1, elapsed / element.duration);
 		}
 
+		for (const text of this.texts) {
+			if (text.updateBoundsOnPaint && !skippedFrames.has(text)) {
+				text.updateBounds();
+			}
+		}
+
 		if (queuedToPaint.size || this.#paintQueue.size) {
 			for (const text of queuedToPaint) {
 				text.paint();

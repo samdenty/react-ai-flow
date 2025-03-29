@@ -106,24 +106,12 @@ importers:
 
   packages/react-ai-flow:
     dependencies:
-      '@radix-ui/react-checkbox':
-        specifier: ^1.1.4
-        version: 1.1.4(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      lucide-react:
-        specifier: ^0.485.0
-        version: 0.485.0(react@19.1.0)
       optimistic-markdown:
         specifier: workspace:*
         version: link:../optimistic-markdown
       react-text-stagger:
         specifier: workspace:*
         version: link:../react-text-stagger
-      tailwind-merge:
-        specifier: ^3.0.2
-        version: 3.0.2
     devDependencies:
       '@egoist/tailwindcss-icons':
         specifier: ^1.8.1
@@ -131,6 +119,9 @@ importers:
       '@iconify-json/ph':
         specifier: ^1.2.0
         version: 1.2.2
+      '@radix-ui/react-checkbox':
+        specifier: ^1.1.4
+        version: 1.1.4(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@tailwindcss/typography':
         specifier: ^0.5.15
         version: 0.5.16(tailwindcss@3.4.17)
@@ -140,9 +131,18 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.5(@types/react@18.3.18)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       lorem-ipsum:
         specifier: ^2.0.8
         version: 2.0.8
+      lucide-react:
+        specifier: ^0.485.0
+        version: 0.485.0(react@19.1.0)
+      tailwind-merge:
+        specifier: ^3.0.2
+        version: 3.0.2
       text-stagger-record:
         specifier: workspace:*
         version: link:../record

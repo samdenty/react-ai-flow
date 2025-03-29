@@ -965,7 +965,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 			const newElements = splits.flatMap((split, i) => {
 				const isLastElement =
-					this === (this.stagger.elements.at(-1)?.text ?? this) &&
+					this === this.stagger.texts.at(-1) &&
 					isLastDiff &&
 					i === splits.length - 1;
 
@@ -1108,6 +1108,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	) {
 		if (typeof cssLiteral === "number") {
 			return cssLiteral;
+		}
+
+		if (cssLiteral.endsWith("px")) {
+			return Number.parseFloat(cssLiteral);
 		}
 
 		const key = `${height}:${width}:${cssLiteral}`;

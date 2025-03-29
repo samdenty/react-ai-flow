@@ -132,14 +132,14 @@ export class Stagger {
 					}
 				}
 			} else if (item instanceof Text) {
-				for (const element of item.elements) {
+				for (const element of this.#elements ?? []) {
 					const elementState = this.getPauseState(element);
 					if (elementState.time !== null) {
 						element.startTime = now + (element.startTime - elementState.time);
 					}
 				}
 			} else if (item instanceof Stagger) {
-				for (const element of item.elements) {
+				for (const element of this.#elements ?? []) {
 					const elementState = this.getPauseState(element);
 					if (elementState.time !== null) {
 						element.startTime = now + (element.startTime - elementState.time);
@@ -157,7 +157,7 @@ export class Stagger {
 			this.#pauseCache.delete(item);
 
 			if (item instanceof Stagger) {
-				for (const element of this.elements) {
+				for (const element of this.#elements ?? []) {
 					this.#pauseCache.delete(element);
 				}
 
@@ -211,7 +211,7 @@ export class Stagger {
 			this.#pauseCache.delete(item);
 
 			if (item instanceof Stagger) {
-				for (const element of this.elements) {
+				for (const element of this.#elements ?? []) {
 					this.#pauseCache.delete(element);
 				}
 
@@ -432,18 +432,20 @@ export class Stagger {
 	}
 
 	vibrate() {
-		const elementVibrations = this.elements.flatMap((element): Vibration[] => {
-			if (!element.vibration) {
-				return [];
-			}
+		const elementVibrations = this.#elements?.flatMap(
+			(element): Vibration[] => {
+				if (!element.vibration) {
+					return [];
+				}
 
-			return [[element.startTime + element.delay, element.vibration]];
-		});
+				return [[element.startTime + element.delay, element.vibration]];
+			},
+		);
 
 		if (
 			!isTouchDevice() ||
 			!navigator.vibrate ||
-			!elementVibrations.length ||
+			!elementVibrations?.length ||
 			this !== this.window.staggers?.at(-1)
 		) {
 			return;
@@ -465,7 +467,7 @@ export class Stagger {
 		const queuedToPaint = new Set(texts);
 		const skippedFrames = new Set<Text>();
 
-		for (const element of this.elements) {
+		for (const element of this.#elements ?? []) {
 			const elapsed = now - element.startTime - element.delay;
 
 			if (element.paused || elapsed < 0 || element.progress === 1) {
@@ -510,7 +512,8 @@ export class Stagger {
 
 		return (
 			skippedFrames.size ||
-			this.elements.some((element) => element.progress !== 1)
+			this.#elements?.some((element) => element.progress !== 1) ||
+			false
 		);
 	}
 

@@ -23,6 +23,6 @@
   },
   "dependencies": {
     "fast-myers-diff": "^3.2.0",
-    "ios-vibrator-pro-max": "1.0.22"
+    "ios-vibrator-pro-max": "1.0.24"
   }
 }

@@ -205,8 +205,8 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0
       ios-vibrator-pro-max:
-        specifier: 1.0.22
-        version: 1.0.22
+        specifier: 1.0.24
+        version: 1.0.24
 
 packages:
 
@@ -1475,8 +1475,8 @@ packages:
     resolution: {integrity: sha512-rKtvo6a868b5Hu3heneU+L4yEQ4jYKLtjpnPeUdK7h0yzXGmyBTypknlkCvHFBqfX9YlorEiMM6Dnq/5atfHkw==}
     engines: {node: '>=8'}
 
-  ios-vibrator-pro-max@1.0.22:
-    resolution: {integrity: sha512-RidkQhOfC60bMq7o1G4IVAfumkxTFLzcOg6m1M2Vxe2mtGx2wnZrMzFT5zTvPH2OqqJ/8hhYfMW2VVCclIjRxQ==}
+  ios-vibrator-pro-max@1.0.24:
+    resolution: {integrity: sha512-2ZlDhhUhxV8P3/xY/96iahJFWo7mZci3/+MY5JKtbgDWTKGXOV8W6Tp5J7lC90S02M0TagFRyfUbnuPYYr5hOQ==}
 
   is-binary-path@2.1.0:
     resolution: {integrity: sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==}
@@ -3474,7 +3474,7 @@ snapshots:
 
   import-lazy@4.0.0: {}
 
-  ios-vibrator-pro-max@1.0.22: {}
+  ios-vibrator-pro-max@1.0.24: {}
 
   is-binary-path@2.1.0:
     dependencies:

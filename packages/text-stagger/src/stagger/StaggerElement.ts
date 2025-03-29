@@ -470,11 +470,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			return cached;
 		}
 
-		const uniqueLines = new Set(
-			this.boxes.flatMap(([box]) => box?.lines ?? []),
-		);
-
-		const lines = [...uniqueLines].filter((line) => !!line);
+		const lines = TextLine.getLines(this.text, this);
 
 		this.#lines.set(this.text.lines, lines);
 

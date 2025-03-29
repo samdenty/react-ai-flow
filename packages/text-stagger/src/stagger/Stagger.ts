@@ -57,6 +57,7 @@ export class Stagger {
 	#optionsListeners = new Set<(options: ParsedStaggerOptions) => void>();
 	#paintListeners = new Set<() => void>();
 	#streaming: boolean | null = null;
+	#streamingListeners = new Set<(streaming: boolean | null) => void>();
 
 	#textsListeners = new Set<() => void>();
 	#painter?: ReturnType<typeof requestAnimationFrame>;
@@ -133,14 +134,14 @@ export class Stagger {
 					}
 				}
 			} else if (item instanceof Text) {
-				for (const element of this.#elements ?? []) {
+				for (const element of this.unsortedElements) {
 					const elementState = this.getPauseState(element);
 					if (elementState.time !== null) {
 						element.startTime = now + (element.startTime - elementState.time);
 					}
 				}
 			} else if (item instanceof Stagger) {
-				for (const element of this.#elements ?? []) {
+				for (const element of this.unsortedElements) {
 					const elementState = this.getPauseState(element);
 					if (elementState.time !== null) {
 						element.startTime = now + (element.startTime - elementState.time);
@@ -158,7 +159,7 @@ export class Stagger {
 			this.#pauseCache.delete(item);
 
 			if (item instanceof Stagger) {
-				for (const element of this.#elements ?? []) {
+				for (const element of this.unsortedElements) {
 					this.#pauseCache.delete(element);
 				}
 
@@ -212,7 +213,7 @@ export class Stagger {
 			this.#pauseCache.delete(item);
 
 			if (item instanceof Stagger) {
-				for (const element of this.#elements ?? []) {
+				for (const element of this.unsortedElements) {
 					this.#pauseCache.delete(element);
 				}
 
@@ -391,6 +392,16 @@ export class Stagger {
 				text.revealTrailing();
 			}
 		}
+
+		this.#streamingListeners.forEach((listener) => listener(streaming));
+	}
+
+	onDidChangeStreaming(listener: (streaming: boolean | null) => void) {
+		this.#streamingListeners.add(listener);
+
+		return () => {
+			this.#streamingListeners.delete(listener);
+		};
 	}
 
 	toString() {
@@ -414,9 +425,18 @@ export class Stagger {
 		this.#textsListeners.forEach((listener) => listener());
 	}
 
+	get unsortedElements() {
+		if (this.#elements) {
+			return this.#elements;
+		}
+
+		return this.texts.flatMap((text) => text.elements);
+	}
+
 	get elements() {
 		if (!this.#elements) {
-			this.#elements = this.texts.flatMap((text) => text.elements);
+			this.#elements = this.unsortedElements;
+
 			this.#elements.sort((a, b) => {
 				return a.comparePosition(b);
 			});
@@ -438,7 +458,7 @@ export class Stagger {
 	}
 
 	vibrate() {
-		const elementVibrations = this.#elements?.flatMap(
+		const elementVibrations = this.unsortedElements.flatMap(
 			(element): Vibration[] => {
 				if (!element.vibration) {
 					return [];
@@ -473,7 +493,7 @@ export class Stagger {
 		const queuedToPaint = new Set(texts);
 		const skippedFrames = new Set<Text>();
 
-		for (const element of this.#elements ?? []) {
+		for (const element of this.unsortedElements) {
 			const elapsed = now - element.startTime - element.delay;
 
 			if (element.paused || elapsed < 0 || element.progress === 1) {
@@ -518,8 +538,7 @@ export class Stagger {
 
 		return (
 			skippedFrames.size ||
-			this.#elements?.some((element) => element.progress !== 1) ||
-			false
+			this.unsortedElements.some((element) => element.progress !== 1)
 		);
 	}
 

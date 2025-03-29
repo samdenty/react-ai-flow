@@ -1,6 +1,13 @@
 import type { IMirror } from "@rrweb/types";
 import type { ReplayPlugin, Replayer, playerConfig } from "rrweb";
-import { Stagger, type Text } from "text-stagger";
+import {
+	Stagger,
+	type Text,
+	TextSplit,
+	type TextSplitter,
+	type TextSplitterOptions,
+	enableDataUriRendering,
+} from "text-stagger";
 import type { RecordedEvent, TextSnapshot } from "text-stagger-record";
 import { removeTextAnimation } from "./removeTextAnimation.js";
 import { ReplayMode, type ReplayOptions } from "./replay.js";
@@ -10,7 +17,7 @@ export function replayPlugin(
 	{
 		mode,
 		onFrame,
-		...options
+		...replayOptions
 	}: ReplayOptions<ReplayMode.Hydrated | ReplayMode.Recorded>,
 ): ReplayPlugin & {
 	options: Partial<playerConfig>;
@@ -19,7 +26,8 @@ export function replayPlugin(
 	ready(): Promise<void>;
 } {
 	if (mode === ReplayMode.Hydrated) {
-		removeTextAnimation(events, options);
+		removeTextAnimation(events, replayOptions);
+		enableDataUriRendering(true);
 	}
 
 	let nodeMirror: IMirror<Node>;
@@ -49,18 +57,21 @@ export function replayPlugin(
 	}
 
 	function hydrateTextSnapshot(snapshot: TextSnapshot) {
-		const hydrated = hydratedTexts.get(snapshot.id);
+		let hydrated = hydratedTexts.get(snapshot.id);
 		const initialized = initSnapshots.get(snapshot.elementId);
 
 		if (initialized && hydrated) {
-			if (snapshot.elements.length === hydrated.elements.length) {
+			requestAnimationFrame(() => {
 				snapshot.elements.forEach((elementSnapshot, i) => {
-					const hydratedElement = hydrated.elements[i]!;
-					hydratedElement.progress = elementSnapshot.progress;
+					const hydratedElement = hydrated!.elements[i]!;
+
+					if (hydratedElement) {
+						hydratedElement.progress = elementSnapshot.progress;
+					}
 				});
-			} else {
-				hydrated.progress = snapshot.progress;
-			}
+			});
+
+			hydrated.stagger.streaming = snapshot.stagger.streaming;
 
 			if (!snapshot.options && !snapshot.stagger.options) {
 				return;
@@ -83,25 +94,33 @@ export function replayPlugin(
 				...snapshot.stagger.options,
 			});
 
-			if (!options.recalculateProgress) {
+			if (!replayOptions.recalculateProgress) {
 				stagger.pause();
 			}
 
 			hydratedStaggers.set(snapshot.stagger.id, stagger);
 		}
 
-		const text = stagger.observeText(element, {
-			...snapshot.options,
+		const { splitText, ...textOptions } = snapshot.options || {};
+
+		let splitter: Exclude<TextSplitter, TextSplitterOptions> | undefined;
+
+		if (
+			splitText &&
+			Object.values(TextSplit).includes(splitText as TextSplit)
+		) {
+			splitter = splitText as TextSplit;
+		} else if (splitText) {
+			splitter = eval(`(${splitText})`);
+		}
+
+		hydrated = stagger.observeText(element, {
+			...textOptions,
 			id: snapshot.id,
-			// todo update
-			animation: "blur-in",
-			splitter: "word",
-			delayTrailing: true,
-			duration: 200,
-			stagger: "100%",
+			splitter,
 		});
 
-		hydratedTexts.set(snapshot.id, text);
+		hydratedTexts.set(snapshot.id, hydrated);
 	}
 
 	return {
@@ -128,6 +147,6 @@ export function replayPlugin(
 		getMirror: (mirrors) => {
 			nodeMirror = mirrors.nodeMirror;
 		},
-		options,
+		options: replayOptions,
 	};
 }

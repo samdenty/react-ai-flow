@@ -12,6 +12,9 @@
 				"noExplicitAny": "off",
 				"noAssignInExpressions": "off"
 			},
+			"security": {
+				"noGlobalEval": "off"
+			},
 			"complexity": {
 				"noForEach": "off"
 			},

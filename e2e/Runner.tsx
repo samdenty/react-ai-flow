@@ -41,6 +41,10 @@ export function Runner({
 				break;
 			}
 
+			(window.document.activeElement as HTMLElement)?.blur?.();
+
+			await new Promise(requestAnimationFrame);
+
 			onFrame(frame);
 
 			// we use clicks on body to signal callback done

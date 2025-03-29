@@ -801,6 +801,14 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			}
 		}
 
+		if (continuousChildNodes.at(0)?.nodes.length === 0) {
+			continuousChildNodes.shift();
+		}
+
+		if (continuousChildNodes.at(-1)?.nodes.length === 0) {
+			continuousChildNodes.pop();
+		}
+
 		return continuousChildNodes;
 	}
 

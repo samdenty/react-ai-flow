@@ -76,21 +76,31 @@ function splitCharacters(this: SplitterImpl<ElementOptions>, text: TextLike) {
 	return splitText(text, CHARACTER_REGEX, this);
 }
 
+splitCharacters.toString = () => TextSplit.Character;
+
 function splitWords(this: SplitterImpl<ElementOptions>, text: TextLike) {
 	return splitText(text, WORD_REGEX, this);
 }
+
+splitWords.toString = () => TextSplit.Word;
 
 function splitLines(this: SplitterImpl<ElementOptions>, text: TextLike) {
 	return splitText(text, LINE_REGEX, this);
 }
 
+splitLines.toString = () => TextSplit.Line;
+
 function splitSentences(this: SplitterImpl<ElementOptions>, text: TextLike) {
 	return splitText(text, SENTENCE_REGEX, this);
 }
 
+splitSentences.toString = () => TextSplit.Sentence;
+
 function splitParagraphs(this: SplitterImpl<ElementOptions>, text: TextLike) {
 	return splitText(text, PARAGRAPH_REGEX, this);
 }
+
+splitParagraphs.toString = () => TextSplit.Paragraph;
 
 export function getTextSplit<T extends ElementOptions>(
 	textSplit: TextSplit | `${TextSplit}`,

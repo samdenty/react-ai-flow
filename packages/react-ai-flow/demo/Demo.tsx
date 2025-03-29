@@ -1,3 +1,4 @@
+import { Bug } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
 	StaggerProvider,
@@ -13,12 +14,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "./components/ui/card.js";
+import { Checkbox } from "./components/ui/checkbox.js";
 import { Label } from "./components/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.js";
 import { Slider } from "./components/ui/slider.js";
-import { Checkbox } from "./components/ui/checkbox.js";
 import { useFakeMessages } from "./useFakeMessages.js";
-import { Bug } from "lucide-react";
 
 enableIOSVibrationWithPopup();
 

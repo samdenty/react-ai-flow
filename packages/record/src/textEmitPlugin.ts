@@ -33,13 +33,19 @@ export function textEmitPlugin() {
 	function getTextSnapshot(text: Text): TextSnapshot {
 		const stagger: StaggerSnapshot = {
 			id: text.stagger.id,
-			options: text.stagger.options,
+			streaming: text.stagger.streaming,
+			options: {
+				...text.stagger.options,
+			},
 		};
 
 		return {
 			id: text.id,
 			progress: text.progress,
-			options: text.options,
+			options: {
+				...text.options,
+				splitText: text.options.splitText.toString(),
+			},
 			elementId: nodeMirror.getId(text.container),
 			elements: text.elements.map((element) => ({
 				id: element.id,
@@ -164,9 +170,15 @@ export function textEmitPlugin() {
 		const options = latestSnapshot.options ?? recorded.lastSnapshot.options;
 		const stagger: StaggerSnapshot = {
 			id: latestSnapshot.stagger.id,
+			streaming: latestSnapshot.stagger.streaming,
 			options:
 				latestSnapshot.stagger.options ?? recorded.lastSnapshot.stagger.options,
 		};
+
+		const streamingEqual =
+			recorded.initSnapshot !== recorded.lastSnapshot &&
+			recorded.lastSnapshot.stagger.streaming ===
+				latestSnapshot.stagger.streaming;
 
 		const optionsEqual =
 			recorded.initSnapshot !== recorded.lastSnapshot &&
@@ -176,6 +188,7 @@ export function textEmitPlugin() {
 			equal(recorded.lastSnapshot.stagger, stagger);
 
 		if (
+			streamingEqual &&
 			optionsEqual &&
 			staggerEqual &&
 			recorded.lastSnapshot.progress === latestSnapshot.progress
@@ -196,7 +209,10 @@ export function textEmitPlugin() {
 			ignoredNodeIds: recorded.initSnapshot.ignoredNodeIds,
 			options: optionsEqual ? undefined : latestSnapshot.options,
 			stagger: staggerEqual
-				? { id: latestSnapshot.stagger.id }
+				? {
+						id: latestSnapshot.stagger.id,
+						streaming: latestSnapshot.stagger.streaming,
+					}
 				: latestSnapshot.stagger,
 		};
 	}

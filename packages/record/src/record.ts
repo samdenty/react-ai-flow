@@ -8,6 +8,7 @@ import { textEmitPlugin } from "./textEmitPlugin.js";
 
 export interface StaggerSnapshot {
 	id: number;
+	streaming: boolean | null;
 	options?: ParsedStaggerOptions;
 }
 
@@ -23,7 +24,7 @@ export interface TextSnapshot {
 	elements: ElementSnapshot[];
 	customAnimationClassName: string;
 	stagger: StaggerSnapshot;
-	options?: ParsedTextOptions;
+	options?: Omit<ParsedTextOptions, "splitText"> & { splitText: string };
 	ignoredNodeIds?: number[];
 }
 
@@ -38,6 +39,10 @@ export function record() {
 
 	const textEmitter = textEmitPlugin();
 
+	const style = window.document.createElement("style");
+	style.innerText = "* { font-family: Verdana !important }";
+	window.document.head.appendChild(style);
+
 	const stop = rrwebRecord({
 		recordCanvas: true,
 		plugins: [textEmitter],
@@ -48,7 +53,9 @@ export function record() {
 
 	return () => {
 		stop?.();
+
 		textEmitter.dispose();
+		style.remove();
 
 		recorders--;
 

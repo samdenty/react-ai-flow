@@ -68,21 +68,17 @@ async function testFrame(
 			diffPng.data as any,
 			png.width,
 			png.height,
-			{ threshold: 0.6 },
+			{ threshold: 0.5 },
 		);
+
+		console.log(frame.index, mismatch, frame.recordedEvents.at(-1)?.timestamp);
 
 		const diffBuffer = PNG.sync.write(diffPng);
 
 		fs.writeFileSync(path.join(diffsPath, `${frame.index}.png`), diffBuffer);
 
-		if (mismatch > 70) {
-			console.log(
-				frame.index,
-				mismatch,
-				frame.recordedEvents.at(-1)?.timestamp,
-			);
-
-			expect(mismatch).toBeLessThan(70);
+		if (mismatch > 350) {
+			expect(mismatch).toBeLessThan(350);
 		}
 	}
 

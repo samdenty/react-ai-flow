@@ -1052,7 +1052,8 @@
                         "70%",
                         10
                     ],
-                    "stagger": "100%"
+                    "stagger": "100%",
+                    "splitText": "word"
                 },
                 "elementId": 36,
                 "elements": [
@@ -10018,7 +10019,8 @@
                         "70%",
                         10
                     ],
-                    "stagger": "100%"
+                    "stagger": "100%",
+                    "splitText": "word"
                 },
                 "elementId": 58,
                 "elements": [

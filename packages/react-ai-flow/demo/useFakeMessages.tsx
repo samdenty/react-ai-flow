@@ -30,6 +30,11 @@ export function useFakeMessages(speed = 1) {
 			if (wordCount <= 0) {
 				wordCount = getWordCount();
 				setMessages((prevMessages) => [...prevMessages, []]);
+			} else {
+				setMessages((prevMessages) => [
+					...prevMessages,
+					...(prevMessages.length ? [] : [[]]),
+				]);
 			}
 
 			const Tag = Math.random() < 0.1 ? "h1" : null;

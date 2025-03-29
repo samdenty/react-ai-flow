@@ -1,9 +1,11 @@
-const { iconsPlugin } = require("@egoist/tailwindcss-icons");
-
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
 	darkMode: ["class"],
-  content: ["./index.html", "./demo/**/*.{ts,tsx}"],
+	content: [
+		"./index.tsx",
+		"./Demo.tsx",
+		"./components/**/*.{ts,tsx}",
+	],
 	theme: {
 		container: {
 			center: true,
@@ -69,5 +71,5 @@ export default {
 			},
 		},
 	},
-	plugins: [require("tailwindcss-animate"),require("@tailwindcss/typography"), iconsPlugin()],
+	plugins: [require("tailwindcss-animate")],
 };

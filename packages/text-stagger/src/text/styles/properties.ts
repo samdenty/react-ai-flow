@@ -25,6 +25,8 @@ export function updateStyles(
 	let rule = rules.get(className);
 
 	if (!property) {
+		rules.delete(className);
+
 		for (const styleSheet of window.document.adoptedStyleSheets) {
 			for (let i = 0; i < styleSheet.cssRules.length; i++) {
 				const rule = styleSheet.cssRules[i];

@@ -619,11 +619,11 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.updateStyles(this.className, "opacity", "0.001");
 	}
 
-	#stopRenderingModeListener?: VoidFunction;
+	#disposeRenderingModeListener?: VoidFunction;
 	updateRenderingMode() {
-		this.#stopRenderingModeListener?.();
+		this.#disposeRenderingModeListener?.();
 
-		this.#stopRenderingModeListener = getRenderingMode((mode) => {
+		this.#disposeRenderingModeListener = getRenderingMode((mode) => {
 			this.canvas?.remove();
 			this.canvas = undefined;
 
@@ -674,7 +674,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	dispose() {
 		this.container = undefined;
-		this.#stopRenderingModeListener?.();
+		this.#disposeRenderingModeListener?.();
 		this.updateStyles(this.className, null);
 		this.updateStyles(this.customAnimationClassName, null);
 	}

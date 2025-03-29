@@ -348,6 +348,10 @@ export class TextLine extends Ranges<Box, Text> {
 					lines.push(newLine);
 				}
 
+				if (start > range.endOffset) {
+					return;
+				}
+
 				// Move to next position
 				start = range.endOffset;
 			}

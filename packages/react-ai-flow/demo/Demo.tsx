@@ -19,8 +19,6 @@ import { Checkbox } from "./components/ui/checkbox.js";
 import { useFakeMessages } from "./useFakeMessages.js";
 import { Bug } from "lucide-react";
 
-// enableIOSVibrationWithPopup();
-
 function ScrollToBottom() {
 	const { isAtBottom, scrollToBottom } = useStickToBottomContext();
 

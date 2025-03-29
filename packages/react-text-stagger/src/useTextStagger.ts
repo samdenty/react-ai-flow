@@ -69,11 +69,14 @@ export function useTextStagger(textOptions: TextOptions = {}) {
 			return;
 		}
 
-		const dispose = stagger.observeText(elementRef.current, id, options);
+		const text = stagger.observeText(elementRef.current, {
+			...options,
+			id,
+		});
 
-		setText(stagger.getText(id));
+		setText(text);
 
-		return dispose;
+		return () => text.dispose();
 	}, [initialized, options, id, stagger]);
 
 	const ref = useCallback(

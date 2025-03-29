@@ -90,8 +90,9 @@ export function replayPlugin(
 			hydratedStaggers.set(snapshot.stagger.id, stagger);
 		}
 
-		stagger.observeText(element, snapshot.id, {
+		const text = stagger.observeText(element, {
 			...snapshot.options,
+			id: snapshot.id,
 			// todo update
 			animation: "blur-in",
 			splitter: "word",
@@ -99,7 +100,8 @@ export function replayPlugin(
 			duration: 200,
 			stagger: "100%",
 		});
-		hydratedTexts.set(snapshot.id, stagger.getText(snapshot.id)!);
+
+		hydratedTexts.set(snapshot.id, text);
 	}
 
 	return {

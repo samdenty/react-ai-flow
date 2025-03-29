@@ -107,7 +107,7 @@ function Messages({
 		stagger: "5%",
 		animation: "blur-in",
 		blurAmount: "5px",
-		splitter: "character",
+		splitter: "word",
 		duration: 1000,
 		visualDebug: false,
 		gradientWidth: "30%",
@@ -496,7 +496,7 @@ function Message({ children }: { children: React.ReactNode }) {
 }
 
 export function Demo() {
-	const [speed, setSpeed] = useState(0.15);
+	const [speed, setSpeed] = useState(0.1);
 
 	return (
 		<div className="flex flex-col gap-4 p-4 items-center w-full max-w-4xl mx-auto">

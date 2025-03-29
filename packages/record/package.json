@@ -1,6 +1,6 @@
 {
   "name": "text-stagger-record",
-  "version": "0.0.13",
+  "version": "0.1.0",
   "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
   "main": "dist/index.js",

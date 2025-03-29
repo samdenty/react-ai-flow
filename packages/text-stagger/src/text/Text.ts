@@ -50,6 +50,7 @@ export interface ParsedTextOptions
 	extends SplitterImpl<TextSplitterOptions>,
 		StaggerElementBoxOptions {
 	visualDebug: boolean;
+	id: number;
 	maxFps: number | null | ((text: Text) => boolean | number | null);
 	vibration:
 		| RelativeTimePeriod
@@ -65,6 +66,8 @@ export interface ParsedTextOptions
 }
 
 export interface TextOptions extends TextSplitterOptions {
+	id?: number;
+
 	/**
 	 * Display the canvas direclty instead of using mask-image,
 	 * useful for debugging
@@ -109,6 +112,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	#parents: EventTarget[] = [];
 	updateBoundsOnPaint = false;
+	id: number;
 
 	#lines: TextLine[] = [];
 	elements: StaggerElement[] = [];
@@ -251,21 +255,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	updateBounds(rects?: [[DOMRect]]) {
 		this.updateBoundsOnPaint = false;
-		let changed = super.updateBounds(rects);
+		const changed = super.updateBounds(rects);
 
 		if (changed) {
 			this.updateCustomAnimationPosition();
-		}
-
-		for (let i = this.lines.length - 1; i >= 0; i--) {
-			const line = this.lines[i]!;
-			const lineChanged = line.updateBounds();
-
-			if (!lineChanged) {
-				continue;
-			}
-
-			changed = true;
 		}
 
 		return changed;
@@ -597,13 +590,13 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	constructor(
 		parent: Stagger | Text,
-		public id: number,
 		element: HTMLElement,
 		public options: ParsedTextOptions,
 	) {
 		super(parent, options, undefined!);
 
-		this.className = `${this.options.classNamePrefix}-${id}`;
+		this.id = options.id;
+		this.className = `${this.options.classNamePrefix}-${this.id}`;
 
 		this.customAnimationClassName = `${this.options.classNamePrefix}-custom-${this.id}`;
 		this.customAnimationContainer = this.createIgnoredElement("div");
@@ -677,6 +670,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.#disposeRenderingModeListener?.();
 		this.updateStyles(this.className, null);
 		this.updateStyles(this.customAnimationClassName, null);
+
+		this.stagger.texts = this.stagger.texts.filter(
+			(text) => text.id !== this.id,
+		);
 	}
 
 	paint() {

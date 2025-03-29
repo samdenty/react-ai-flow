@@ -16,7 +16,7 @@ export interface StaggerOptions extends TextOptions {
 	window?: Window & typeof globalThis;
 }
 
-export interface ParsedStaggerOptions extends ParsedTextOptions {}
+export interface ParsedStaggerOptions extends Omit<ParsedTextOptions, "id"> {}
 
 declare global {
 	interface Window {
@@ -25,6 +25,7 @@ declare global {
 }
 
 let ID = 0;
+let TEXT_ID = 0;
 
 export type PausableItem<T = StaggerElement> =
 	| T
@@ -408,6 +409,11 @@ export class Stagger {
 		return this.#texts;
 	}
 
+	set texts(texts: Text[]) {
+		this.#texts = texts;
+		this.#textsListeners.forEach((listener) => listener());
+	}
+
 	get elements() {
 		if (!this.#elements) {
 			this.#elements = this.texts.flatMap((text) => text.elements);
@@ -617,18 +623,6 @@ export class Stagger {
 		return this.texts.find((text) => text.id === id) ?? null;
 	}
 
-	disposeText(id: number) {
-		const text = this.getText(id);
-		if (!text) {
-			return;
-		}
-
-		text.dispose();
-
-		this.texts.splice(this.texts.indexOf(text), 1);
-		this.#textsListeners.forEach((listener) => listener());
-	}
-
 	scanText({ id, ...props }: { id?: number } & (ScanEvent | object) = {}) {
 		const event: ScanEvent =
 			"reason" in props ? props : { reason: ScanReason.Force };
@@ -642,14 +636,15 @@ export class Stagger {
 
 	observeText(
 		element: HTMLElement,
-		id: number,
 		textOptions: TextOptions | null | undefined,
 	) {
 		const text = new Text(
 			this,
-			id,
 			element,
-			mergeTextSplitter<ParsedTextOptions>(this.options, textOptions ?? {}),
+			mergeTextSplitter<ParsedTextOptions>(
+				{ id: TEXT_ID++, ...this.options },
+				textOptions ?? {},
+			),
 		);
 
 		this.texts.push(text);
@@ -659,7 +654,7 @@ export class Stagger {
 			return (b && a?.comparePosition(b)) ?? 0;
 		});
 
-		return () => this.disposeText(id);
+		return text;
 	}
 }
 

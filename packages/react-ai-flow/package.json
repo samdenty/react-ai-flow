@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "optimistic-markdown": "workspace:*",
-    "react-text-stagger": "workspace:*",
+    "react-text-stagger": "workspace:*"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",

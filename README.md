@@ -1,6 +1,6 @@
-# What sets this library apart?
+[![Demo](https://raw.githubusercontent.com/samdenty/react-ai-flow/refs/heads/main/assets/demo.gif)](https://react-ai-flow.com/)
 
-[![Demo](./assets/demo.gif)](https://react-ai-flow.com/)
+# What sets this library apart?
 
 - This library uses a single canvas-rendered mask-image, so we can do pixel-level fade-in effects.
   - Other libraries can accomplish at most a per-character opacity animation with a HTML <span> soup
@@ -20,7 +20,7 @@ import { StaggerProvider, StaggeredText } from "react-ai-flow";
 
 function App() {
   return (
-    <StaggerProvider>
+    <StaggerProvider splitter="word" duration={500}>
       <StaggeredText>
         {/* Fades in text */}
         Hello World

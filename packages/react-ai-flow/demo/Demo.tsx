@@ -15,7 +15,9 @@ import {
 import { Label } from "./components/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.js";
 import { Slider } from "./components/ui/slider.js";
+import { Checkbox } from "./components/ui/checkbox.js";
 import { useFakeMessages } from "./useFakeMessages.js";
+import { Bug } from "lucide-react";
 
 // enableIOSVibrationWithPopup();
 
@@ -180,7 +182,7 @@ function Messages({
 											duration: 500,
 											stagger: "20%",
 										});
-										setSpeed(0.15);
+										setSpeed(0.4);
 									}}
 								>
 									Line Gradient Down
@@ -196,7 +198,7 @@ function Messages({
 											stagger: "16%",
 											duration: 500,
 										});
-										setSpeed(0.15);
+										setSpeed(0.4);
 									}}
 								>
 									Line Blur
@@ -228,7 +230,7 @@ function Messages({
 											stagger: "10%",
 											duration: 300,
 										});
-										setSpeed(0.15);
+										setSpeed(0.05);
 									}}
 								>
 									Character Blur Fast
@@ -448,6 +450,23 @@ function Messages({
 								</span>
 							</div>
 						</div>
+
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="visual-debug"
+								checked={options.visualDebug}
+								onCheckedChange={(checked: boolean) => {
+									updateOptions({ visualDebug: checked });
+								}}
+							/>
+							<Label
+								htmlFor="visual-debug"
+								className="text-xs flex items-center gap-1"
+							>
+								<Bug size={16} />
+								Debug Mode
+							</Label>
+						</div>
 					</CardContent>
 				</Card>
 
@@ -476,7 +495,7 @@ function Message({ children }: { children: React.ReactNode }) {
 }
 
 export function Demo() {
-	const [speed, setSpeed] = useState(0.2);
+	const [speed, setSpeed] = useState(0.15);
 
 	return (
 		<div className="flex flex-col gap-4 p-4 items-center w-full max-w-4xl mx-auto">

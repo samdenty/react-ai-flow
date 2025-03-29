@@ -25,10 +25,14 @@
   },
   "dependencies": {
     "optimistic-markdown": "workspace:*",
-    "react-text-stagger": "workspace:*"
+    "react-text-stagger": "workspace:*",
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",
+    "tailwind-merge": "^3.0.2",
+    "@radix-ui/react-checkbox": "^1.1.4",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.485.0",
     "@iconify-json/ph": "^1.2.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/react": "^18.3.3",

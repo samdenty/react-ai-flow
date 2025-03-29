@@ -4,6 +4,7 @@ import {
 	StaggeredText,
 	StickToBottom,
 	type TextOptions,
+	enableIOSVibrationWithPopup,
 	useStickToBottomContext,
 } from "react-ai-flow";
 import {
@@ -18,6 +19,8 @@ import { Slider } from "./components/ui/slider.js";
 import { Checkbox } from "./components/ui/checkbox.js";
 import { useFakeMessages } from "./useFakeMessages.js";
 import { Bug } from "lucide-react";
+
+enableIOSVibrationWithPopup();
 
 function ScrollToBottom() {
 	const { isAtBottom, scrollToBottom } = useStickToBottomContext();

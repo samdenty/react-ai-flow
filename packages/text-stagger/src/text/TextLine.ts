@@ -348,6 +348,7 @@ export class TextLine extends Ranges<Box, Text> {
 					lines.push(newLine);
 				}
 
+				// todo fix
 				if (start > range.endOffset) {
 					return;
 				}

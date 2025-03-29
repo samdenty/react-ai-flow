@@ -7,8 +7,8 @@ import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
 import React from "react";
 import type { RecordedEvent } from "text-stagger-record";
-import { Runner, type RunnerFrame } from "./Runner";
 import { getFrames } from "text-stagger-replay/dist/frames.js";
+import { Runner, type RunnerFrame } from "./Runner";
 
 const __dirname = path.resolve(fileURLToPath(import.meta.url), "..");
 const testsPath = path.resolve(__dirname, "./tests");

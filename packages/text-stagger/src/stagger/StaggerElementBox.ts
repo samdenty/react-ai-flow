@@ -9,8 +9,8 @@ import {
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
 import {
+	AnimationTiming,
 	ElementAnimation,
-	ElementAnimationTiming,
 	type ElementOptions,
 	type StaggerElement,
 	isGradient,
@@ -119,8 +119,8 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 		const animationTiming =
 			this.options.animationTiming ??
 			(this.element.animation === ElementAnimation.FadeIn
-				? ElementAnimationTiming.Linear
-				: ElementAnimationTiming.EaseInOut);
+				? AnimationTiming.Linear
+				: AnimationTiming.EaseInOut);
 
 		const resolvedTiming =
 			typeof animationTiming === "function"

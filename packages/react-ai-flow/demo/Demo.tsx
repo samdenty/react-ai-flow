@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+	type ElementAnimation,
+	type ElementStagger,
 	StaggerProvider,
 	StaggeredText,
 	StickToBottom,
+	type StickToBottomContext,
+	type TextSplitter,
 	enableIOSVibrationWithPopup,
 	useStickToBottomContext,
 } from "react-ai-flow";
@@ -75,9 +79,71 @@ function Messages({ speed }: { speed: number }) {
 	const messages = useFakeMessages(speed);
 
 	const [paused, setPaused] = useState<React.ReactNode[][] | false>(false);
+	const [splitter, setSplitter] =
+		useState<Extract<TextSplitter, string>>("line");
+	const [animation, setAnimation] = useState<`${ElementAnimation}`>("blur-in");
+	const [stagger, setStagger] =
+		useState<Extract<ElementStagger, string>>("80%");
+	const stickToBottomRef = useRef<StickToBottomContext>(null);
 
 	return (
-		<StaggerProvider streaming>
+		<StaggerProvider
+			streaming
+			splitter={splitter}
+			animation={animation}
+			stagger={stagger}
+		>
+			<div className="flex gap-2 mb-2">
+				<label>
+					Splitter:
+					<select
+						id="splitter"
+						defaultValue={splitter}
+						onChange={(e) => {
+							setSplitter(e.target.value as any);
+							stickToBottomRef.current?.scrollRef.current?.scrollTo(0, 0);
+						}}
+					>
+						<option value="character">Character</option>
+						<option value="word">Word</option>
+						<option value="line">Line</option>
+					</select>
+				</label>
+				<label>
+					Animation:
+					<select
+						id="animation"
+						defaultValue={animation}
+						onChange={(e) => {
+							setAnimation(e.target.value as any);
+							stickToBottomRef.current?.scrollRef.current?.scrollTo(0, 0);
+						}}
+					>
+						<option value="blur-in">Blur In</option>
+						<option value="gradient-reveal">Gradient Reveal</option>
+						<option value="bounce-in">Bounce In</option>
+					</select>
+				</label>
+				<label>
+					Stagger:
+					<select
+						id="stagger"
+						defaultValue={stagger}
+						onChange={(e) => {
+							setStagger(e.target.value as any);
+							stickToBottomRef.current?.scrollRef.current?.scrollTo(0, 0);
+						}}
+					>
+						<option value="100%">100%</option>
+						<option value="80%">80%</option>
+						<option value="50%">50%</option>
+						<option value="25%">25%</option>
+						<option value="10%">10%</option>
+						<option value="5%">5%</option>
+						<option value="2%">2%</option>
+					</select>
+				</label>
+			</div>
 			<div className="prose flex flex-col gap-2 w-full overflow-hidden">
 				<StickToBottom className="h-[50vh] flex flex-col">
 					<MessagesContent
@@ -97,20 +163,11 @@ function Message({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="bg-gray-100 rounded-lg p-4 shadow-md break-words">
 			<StaggeredText
-				splitter="line"
-				// visualDebug
 				delayTrailing
-				animation="blur-in"
-				// animation="blur-in"
-				// animation="bounce-in"
 				duration={(element) => {
 					return 1000;
 				}}
-				vibration={false}
-				stagger="20%"
-				// animation="gradient-reveal"
 				gradientWidth={(box) => {
-					// return box.progress * box.width;
 					return "30%";
 				}}
 			>

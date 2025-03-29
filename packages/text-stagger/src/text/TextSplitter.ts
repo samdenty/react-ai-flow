@@ -15,7 +15,7 @@ export type SplitterImpl<T extends ElementOptions> = T & {
 };
 
 export interface TextSplitterOptions extends ElementOptions {
-	splitter?: Exclude<TextSplitter<ElementOptions>, TextSplitterOptions>;
+	splitter?: Exclude<TextSplitter, TextSplitterOptions>;
 }
 
 export interface TextSplitElementOffset extends ElementOptions {
@@ -38,7 +38,7 @@ export interface ParsedTextSplit
 	animation: ElementAnimation;
 }
 
-export type TextSplitter<T extends ElementOptions> =
+export type TextSplitter<T extends ElementOptions = ElementOptions> =
 	| TextSplit
 	| `${TextSplit}`
 	| (Omit<T, "animation" | "splitText"> & TextSplitterOptions)

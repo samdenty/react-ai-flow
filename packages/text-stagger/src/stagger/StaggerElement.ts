@@ -34,7 +34,7 @@ export type GradientAnimation =
 	| ElementAnimation.GradientUp
 	| ElementAnimation.GradientDown;
 
-export enum ElementAnimationTiming {
+export enum AnimationTiming {
 	Linear = "linear",
 	Ease = "ease",
 	EaseIn = "ease-in",
@@ -49,53 +49,69 @@ export interface CustomStyles
 
 export type RelativeTimePeriod = number | `${number}%`;
 
+export type ElementStagger =
+	| RelativeTimePeriod
+	| ((
+			element: StaggerElement,
+			previousElement: StaggerElement | null,
+	  ) => RelativeTimePeriod);
+
+export type ElementVibration =
+	| RelativeTimePeriod
+	| RelativeTimePeriod[]
+	| false
+	| ((
+			element: StaggerElement,
+	  ) => RelativeTimePeriod | RelativeTimePeriod[] | false);
+
+export type ElementDuration = number | ((element: StaggerElement) => number);
+
+export type ElementDelay = (element: StaggerElement) => number;
+
+export type ElementGradientWidth =
+	| string
+	| number
+	| ((box: StaggerElementBox) => string | number | undefined);
+
+export type ElementAnimationTiming =
+	| AnimationTiming
+	| `${AnimationTiming}`
+	| ((
+			box: StaggerElementBox,
+	  ) => number | AnimationTiming | `${AnimationTiming}`);
+
+export type ElementCustomStyles = (
+	box: StaggerElementBox,
+) => CustomStyles | null | undefined;
+
+export type ElementBlurAmount =
+	| string
+	| number
+	| ((box: StaggerElementBox) => string | number);
+
 export interface ElementOptions {
 	animation?: ElementAnimation | `${ElementAnimation}`;
+	animationTiming?: ElementAnimationTiming;
+	customStyles?: ElementCustomStyles;
 
-	animationTiming?:
-		| ElementAnimationTiming
-		| `${ElementAnimationTiming}`
-		| ((
-				box: StaggerElementBox,
-		  ) => number | ElementAnimationTiming | `${ElementAnimationTiming}`);
-
-	customStyles?: (box: StaggerElementBox) => CustomStyles | null | undefined;
-
-	blurAmount?: string | number | ((box: StaggerElementBox) => string | number);
-
-	gradientWidth?:
-		| string
-		| number
-		| ((box: StaggerElementBox) => string | number | undefined);
+	blurAmount?: ElementBlurAmount;
+	gradientWidth?: ElementGradientWidth;
 
 	/**
 	 * @example
 	 * For 1 second:
 	 * duration: (element) => element.width / element.text.root.width * 1000
 	 */
-	duration?: number | ((element: StaggerElement) => number);
+	duration?: ElementDuration;
 
 	/**
 	 * @example
 	 * For half the duration of the animation:
 	 * stagger: '50%'
 	 */
-	stagger?:
-		| RelativeTimePeriod
-		| ((
-				element: StaggerElement,
-				previousElement: StaggerElement | null,
-		  ) => RelativeTimePeriod);
-
-	vibration?:
-		| RelativeTimePeriod
-		| RelativeTimePeriod[]
-		| false
-		| ((
-				element: StaggerElement,
-		  ) => RelativeTimePeriod | RelativeTimePeriod[] | false);
-
-	delay?: (element: StaggerElement) => number;
+	stagger?: ElementStagger;
+	vibration?: ElementVibration;
+	delay?: ElementDelay;
 }
 
 let ID = 0;
@@ -204,33 +220,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		this.start = textSplit.start;
 		this.end = textSplit.end;
 
-		if (!this.progress) {
-			this.childNodes = trimChildNodes(textSplit.start, textSplit.end);
-			return true;
-		}
-
-		const newNodes: RangesChildNode[] = [];
-		let currentStart = textSplit.start;
-		let remainingLength = textSplit.end - textSplit.start;
-
-		for (const text of this.childText) {
-			if (remainingLength <= 0) break;
-
-			const length = Math.min(text.length, remainingLength);
-			const boxNodes = trimChildNodes(currentStart, currentStart + length);
-			newNodes.push(...boxNodes);
-
-			currentStart += length;
-			remainingLength -= length;
-		}
-
-		if (textSplit.text !== this.innerText && startsWithPrevious) {
-			newNodes.push(
-				...trimChildNodes(textSplit.start + oldText.length, textSplit.end),
-			);
-		}
-
-		this.childNodes = newNodes;
+		this.childNodes = trimChildNodes(textSplit.start, textSplit.end);
 
 		return true;
 	}
@@ -466,9 +456,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 		for (let i = 0; i < linesLength; i++) {
 			if (lines[i] !== oldLines[i]) {
-				const b = this.updateBounds();
-				console.log(b);
-				return b;
+				return this.updateBounds();
 			}
 		}
 
@@ -620,9 +608,9 @@ const easeInOutTiming = (progress: number): number => {
 
 // Usage with timing enum:
 export const timingFunctions = {
-	[ElementAnimationTiming.Linear]: linearTiming,
-	[ElementAnimationTiming.Ease]: easeTiming,
-	[ElementAnimationTiming.EaseIn]: easeInTiming,
-	[ElementAnimationTiming.EaseOut]: easeOutTiming,
-	[ElementAnimationTiming.EaseInOut]: easeInOutTiming,
+	[AnimationTiming.Linear]: linearTiming,
+	[AnimationTiming.Ease]: easeTiming,
+	[AnimationTiming.EaseIn]: easeInTiming,
+	[AnimationTiming.EaseOut]: easeOutTiming,
+	[AnimationTiming.EaseInOut]: easeInOutTiming,
 };

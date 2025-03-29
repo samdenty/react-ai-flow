@@ -1,8 +1,8 @@
 import { Replayer } from "rrweb";
 import type { RecordedEvent, TextSnapshot } from "text-stagger-record";
+import { getFrames } from "./frames.js";
 import type { RemoveTextAnimationOptions } from "./removeTextAnimation.js";
 import { replayPlugin } from "./replayPlugin.js";
-import { getFrames } from "./frames.js";
 
 export enum ReplayMode {
 	Recorded = "recorded",

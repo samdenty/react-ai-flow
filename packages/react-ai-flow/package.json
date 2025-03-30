@@ -15,6 +15,7 @@
     "lint:fix": "pnpm -w lint:fix",
     "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json && vite build",
     "dev": "vite",
+    "dev:ai-search": "vite --config vite.config.ai-search.js",
     "test": "vitest",
     "prepublishOnly": "pnpm build"
   },
@@ -24,18 +25,25 @@
     "directory": "packages/react-ai-flow"
   },
   "dependencies": {
+    "@ai-sdk/react": "^1.2.3",
+    "@radix-ui/react-select": "^2.1.6",
+    "@radix-ui/react-toast": "^1.2.6",
+    "ai": "^4.2.8",
+    "dotenv": "^16.4.7",
+    "openai": "^4.90.0",
     "optimistic-markdown": "workspace:*",
-    "react-text-stagger": "workspace:*"
+    "react-text-stagger": "workspace:*",
+    "use-stick-to-bottom": "1.0.44"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.8.1",
-    "tailwind-merge": "^3.0.2",
-    "@radix-ui/react-checkbox": "^1.1.4",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.485.0",
     "@iconify-json/ph": "^1.2.0",
+    "@radix-ui/react-checkbox": "^1.1.4",
     "@tailwindcss/typography": "^0.5.15",
+    "clsx": "^2.1.1",
     "lorem-ipsum": "^2.0.8",
+    "lucide-react": "^0.485.0",
+    "tailwind-merge": "^3.0.2",
     "text-stagger-record": "workspace:*",
     "text-stagger-replay": "workspace:*"
   }

@@ -19,6 +19,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@biomejs/biome": "^1.9.4",
     "@playwright/experimental-ct-react": "^1.51.0",
     "@playwright/test": "^1.51.0",

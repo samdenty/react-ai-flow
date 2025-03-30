@@ -10,9 +10,9 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-} from "./components/ui/card.js";
-import { Label } from "./components/ui/label.js";
-import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.js";
+} from "./components/ui/card.jsx";
+import { Label } from "./components/ui/label.jsx";
+import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.jsx";
 
 const SAMPLE_TEXTS = [
   {

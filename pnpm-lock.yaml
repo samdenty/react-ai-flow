@@ -195,8 +195,6 @@ importers:
         specifier: 1.0.24
         version: 1.0.24
 
-  packages/textlines: {}
-
 packages:
 
   '@alloc/quick-lru@5.2.0':

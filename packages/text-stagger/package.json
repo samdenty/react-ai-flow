@@ -22,7 +22,6 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "textlines": "workspace:*",
     "fast-myers-diff": "^3.2.0",
     "ios-vibrator-pro-max": "1.0.24"
   }

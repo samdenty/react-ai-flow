@@ -881,40 +881,51 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		};
 	}
 
+	get isHiddenElement(): boolean {
+		if (!this.parentText) {
+			return false;
+		}
+
+		if (this.parentText.isHiddenElement) {
+			return true;
+		}
+
+		return this.parentText.elements.some((element) => {
+			const firstRange = this.ranges.at(0);
+			const lastRange = this.ranges.at(-1);
+
+			if (!firstRange || !lastRange || !element.ranges.length) {
+				return false;
+			}
+
+			return (
+				firstRange.compareBoundaryPoints(
+					Range.START_TO_START,
+					element.ranges[0]!,
+				) === 1 &&
+				lastRange.compareBoundaryPoints(
+					Range.END_TO_END,
+					element.ranges.at(-1)!,
+				) === -1
+			);
+		});
+	}
+
 	diffElements(
 		event: ScanEvent = { reason: ScanReason.Force },
 		resized?: boolean,
 	) {
-		if (this.parentText) {
-			const missingSplit = this.parentText.continuousChildNodes.every(
-				(continuous) => continuous.subtext !== this,
-			);
+		const oldElements = this.elements;
+		this.elements = [];
 
-			if (missingSplit) {
-				if (!this.elements.length) {
-					return;
-				}
-
-				this.elements = [];
-
-				this.stagger.restartAnimationFrom(this, false);
-
-				return;
-			}
+		if (this.isHiddenElement) {
+			return;
 		}
 
 		const trimChildNodes = this.createChildNodeTrimmer();
 		const forceReset = event.reason === ScanReason.Force && event.reset;
 
-		const oldElements = this.elements;
 		const newSplitElements = this.options.splitText(this, event);
-
-		// console.log(
-		// 	"foobar4",
-		// 	newSplitElements.map((a) => a.text),
-		// );
-
-		this.elements = [];
 
 		const diffs = [
 			...calcSlices(
@@ -933,7 +944,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			),
 		];
 
-		let restartFrom!: StaggerElement | Text | undefined;
+		let restartFrom: StaggerElement | Text | undefined;
 
 		diffs.forEach(([action, items], i) => {
 			const isLastDiff = i === diffs.length - 1;
@@ -995,6 +1006,35 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		if (restartFrom) {
 			this.stagger.restartAnimationFrom(restartFrom, false);
+			restartFrom = undefined;
+		}
+
+		function refreshSubtextElements(text: Text) {
+			for (const subtext of text.subtexts) {
+				if (
+					subtext.isHiddenElement
+						? !subtext.elements.length
+						: subtext.elements.length
+				) {
+					continue;
+				}
+
+				restartFrom ??= subtext;
+
+				subtext.diffElements({ reason: ScanReason.Force });
+
+				refreshSubtextElements(subtext);
+			}
+		}
+
+		refreshSubtextElements(this);
+
+		if (restartFrom) {
+			this.stagger.restartAnimationFrom(restartFrom, false);
+
+			for (const element of this.elements) {
+				element.rescan();
+			}
 		}
 	}
 

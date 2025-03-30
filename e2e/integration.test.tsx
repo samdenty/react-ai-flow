@@ -3,12 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/experimental-ct-react";
 import type { Page } from "@playwright/test";
-import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
 import React from "react";
 import type { RecordedEvent } from "text-stagger-record";
 import { getFrames } from "text-stagger-replay/dist/frames.js";
 import { Runner, type RunnerFrame } from "./Runner";
+import pixelmatch from "./pixelmatch";
 
 const __dirname = path.resolve(fileURLToPath(import.meta.url), "..");
 const testsPath = path.resolve(__dirname, "./tests");
@@ -62,23 +62,29 @@ async function testFrame(
 	const diffPng = new PNG({ width: png1.width, height: png1.height });
 
 	for (const png of pngs) {
-		const mismatch = pixelmatch(
+		const mismatchedPixels = pixelmatch(
 			png1.data as any,
 			png.data as any,
 			diffPng.data as any,
 			png.width,
 			png.height,
-			{ threshold: 0.5 },
+			{ threshold: 0.05 },
 		);
 
-		console.log(frame.index, mismatch, frame.recordedEvents.at(-1)?.timestamp);
+		const totalMismatch = mismatchedPixels.reduce((acc, curr) => acc + curr, 0);
+
+		console.log(
+			frame.index,
+			totalMismatch,
+			frame.recordedEvents.at(-1)?.timestamp,
+		);
 
 		const diffBuffer = PNG.sync.write(diffPng);
 
 		fs.writeFileSync(path.join(diffsPath, `${frame.index}.png`), diffBuffer);
 
-		if (mismatch > 350) {
-			expect(mismatch).toBeLessThan(350);
+		if (totalMismatch > 100) {
+			expect(totalMismatch).toBeLessThan(100);
 		}
 	}
 

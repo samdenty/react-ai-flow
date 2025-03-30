@@ -292,7 +292,7 @@ export abstract class Ranges<
 		}
 	}
 
-	comparePosition(other: this): number {
+	comparePosition(other: Ranges<any, any>): number {
 		const firstBox = this.uniqueBoxes[0];
 		const otherFirstBox = other.uniqueBoxes[0];
 
@@ -396,9 +396,7 @@ export abstract class Ranges<
 				if (pos) {
 					return pos;
 				}
-			}
-
-			if (firstBox && otherFirstBox) {
+			} else if (firstBox && otherFirstBox) {
 				return firstBox.left - otherFirstBox.left;
 			}
 		}
@@ -416,22 +414,6 @@ export abstract class Ranges<
 			Range.START_TO_START,
 			otherStartPointRange,
 		);
-
-		if (result === 0) {
-			const endPointRange = range.cloneRange();
-			endPointRange.setStart(range.endContainer, range.endOffset);
-
-			const otherEndPointRange = otherRange.cloneRange();
-			otherEndPointRange.setStart(
-				otherRange.endContainer,
-				otherRange.endOffset,
-			);
-
-			result = endPointRange.compareBoundaryPoints(
-				Range.START_TO_START,
-				otherEndPointRange,
-			);
-		}
 
 		endPositions.set(otherRange.endOffset, result);
 
@@ -742,7 +724,10 @@ export function preserveOptimizeRects(
 		const mergeWith = [...optimizedRects.entries()].find(
 			([existingRect, [existingInputRect]]) => {
 				const existingInputRectKey = keys.get(existingInputRect!);
-				const sameKey = !inputRectKey || inputRectKey === existingInputRectKey;
+
+				if (inputRectKey) {
+					return inputRectKey === existingInputRectKey;
+				}
 
 				const sameHeight =
 					Math.abs(existingRect.height - inputRect.height) <= TOLERANCE;
@@ -765,10 +750,9 @@ export function preserveOptimizeRects(
 					inputRect.bottom >= existingRect.bottom - TOLERANCE;
 
 				return (
-					sameKey &&
-					((sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
-						rect1ContainsRect2 ||
-						rect2ContainsRect1)
+					(sameHeight && sameTop && (isAdjacent || isOverlapping)) ||
+					rect1ContainsRect2 ||
+					rect2ContainsRect1
 				);
 			},
 		);

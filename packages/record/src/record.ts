@@ -45,6 +45,7 @@ export function record() {
 
 	const stop = rrwebRecord({
 		recordCanvas: true,
+		inlineImages: true,
 		plugins: [textEmitter],
 		emit(event: RecordedEvent) {
 			textEmitter.addSnapshots(event);
@@ -54,8 +55,9 @@ export function record() {
 	return () => {
 		stop?.();
 
-		textEmitter.dispose();
 		style.remove();
+
+		textEmitter.dispose();
 
 		recorders--;
 

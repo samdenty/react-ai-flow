@@ -225,38 +225,25 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		return true;
 	}
 
-	comparePosition(other: this) {
+	comparePosition(other: Ranges<any, any>) {
 		if (this.text !== other.text) {
 			return super.comparePosition(other);
 		}
 
-		if (!this.lines[0] || !other.lines[0]) {
-			debugger;
-		}
+		if (other instanceof StaggerElement) {
+			if (!this.lines[0] || !other.lines[0]) {
+				debugger;
+			}
 
-		const pos =
-			other.lines[0] && this.lines[0]?.comparePosition(other.lines[0]);
+			const pos =
+				other.lines[0] && this.lines[0]?.comparePosition(other.lines[0]);
 
-		if (pos) {
-			return pos;
+			if (pos) {
+				return pos;
+			}
 		}
 
 		return super.comparePosition(other);
-	}
-
-	scanBounds(rects: DOMRect[][]) {
-		if (this.text.parentText) {
-			const bounds = super.scanBounds(rects);
-
-			return {
-				top: Math.min(bounds.top, this.text.parentText.top),
-				bottom: Math.max(bounds.bottom, this.text.parentText.bottom),
-				left: bounds.left,
-				right: bounds.right,
-			};
-		}
-
-		return super.scanBounds([...rects, this.subtexts]);
 	}
 
 	restartAnimation(unpause = true) {
@@ -394,18 +381,29 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	}
 
 	scanBoxes(rects: DOMRect[][]) {
+		const positions = this.ranges.map((range) => {
+			const position = this.getRangeOffsets(range, this.start);
+
+			const subtext = this.text.continuousChildNodesOffsets.find(
+				({ nodes }) => {
+					return nodes.some(({ start, end }) => {
+						return (
+							(position.start >= start && position.end <= end) ||
+							(start >= position.start && end <= position.end)
+						);
+					});
+				},
+			)?.subtext;
+
+			return { subtext, position };
+		});
+
 		return preserveOptimizeRects<StaggerElementBox, [Text | TextLine]>(
 			rects,
 			(rect, indexes, text) => {
 				const ranges = [...new Set(indexes.map(([i]) => this.ranges[i]!))];
 				const position = this.getRangeOffsets(ranges, this.start);
 				const subtext = text instanceof Text ? text : null;
-
-				// console.log(
-				// 	"foobar2",
-				// 	this.text.id,
-				// 	ranges.map((a) => a.toString()),
-				// );
 
 				return new StaggerElementBox(
 					this,
@@ -418,19 +416,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 				);
 			},
 			(_, index) => {
-				const range = this.ranges[index]!;
-				const position = this.getRangeOffsets(range, this.start);
-				const subtext =
-					this.text.continuousChildNodesOffsets.find(({ nodes }) => {
-						return nodes.some(({ start, end }) => {
-							return (
-								(position.start >= start && position.end <= end) ||
-								(start >= position.start && end <= position.end)
-							);
-						});
-					})?.subtext ?? null;
+				const { subtext, position } = positions[index]!;
 
-				if (subtext) {
+				if (subtext && !subtext.isHiddenElement) {
 					return subtext;
 				}
 

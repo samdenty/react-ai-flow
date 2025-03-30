@@ -1,22 +1,24 @@
-export const originalRequestAnimationFrame = window.requestAnimationFrame;
-const originalCancelAnimationFrame = window.cancelAnimationFrame;
+export const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
 
 const pendingCallbacks = new Map<number, FrameRequestCallback>();
 
-window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
-	const requestId: number = originalRequestAnimationFrame((time) => {
+if (typeof window !== "undefined") {
+	window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+		const requestId: number = originalRequestAnimationFrame((time) => {
+			pendingCallbacks.delete(requestId);
+			callback(time);
+		});
+
+		pendingCallbacks.set(requestId, callback);
+		return requestId;
+	};
+
+	window.cancelAnimationFrame = (requestId: number) => {
 		pendingCallbacks.delete(requestId);
-		callback(time);
-	});
-
-	pendingCallbacks.set(requestId, callback);
-	return requestId;
-};
-
-window.cancelAnimationFrame = (requestId: number) => {
-	pendingCallbacks.delete(requestId);
-	originalCancelAnimationFrame(requestId);
-};
+		originalCancelAnimationFrame(requestId);
+	};
+}
 
 export function rafSyncFlush(): void {
 	const callbacks = [...pendingCallbacks.entries()];

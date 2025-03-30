@@ -3,6 +3,7 @@ import {
   StaggerProvider,
   StaggeredText,
 } from "../src/index.js";
+import ChatInterface from "./components/ChatInterface.js";
 import {
   Card,
   CardContent,
@@ -56,6 +57,7 @@ export function AISearchDemo() {
   const [selectedTextIndex, setSelectedTextIndex] = useState(0);
   const [customText, setCustomText] = useState("");
   const [showCustomText, setShowCustomText] = useState(false);
+  const [activeTab, setActiveTab] = useState<'animation' | 'chat'>('animation');
   const [animationOptions, setAnimationOptions] = useState({
     stagger: "5%",
     animation: "blur-in",
@@ -81,167 +83,207 @@ export function AISearchDemo() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Text Animation Demo</h1>
           <p className="text-gray-600">Explore different text animation effects using react-ai-flow</p>
+          
+          <div className="mt-4 border-b border-gray-200">
+            <div className="flex space-x-4">
+              <button
+                className={`py-2 px-4 font-medium ${
+                  activeTab === 'animation'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-blue-600'
+                }`}
+                onClick={() => setActiveTab('animation')}
+              >
+                Text Animation
+              </button>
+              <button
+                className={`py-2 px-4 font-medium ${
+                  activeTab === 'chat'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-blue-600'
+                }`}
+                onClick={() => setActiveTab('chat')}
+              >
+                AI Chat
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>Animation Controls</CardTitle>
-                <CardDescription>Customize your text animations</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <Label className="mb-2 block">Sample Text</Label>
-                    <div className="space-y-2">
-                      {SAMPLE_TEXTS.map((text, index) => (
-                        <div key={index} className="flex items-center">
-                          <input
-                            type="radio"
-                            id={`text-${index}`}
-                            name="sampleText"
-                            checked={selectedTextIndex === index && !showCustomText}
-                            onChange={() => handleTextChange(index)}
-                            className="mr-2"
-                          />
-                          <Label htmlFor={`text-${index}`} className="text-sm truncate">
-                            {text.title}
-                          </Label>
+          {activeTab === 'animation' ? (
+            <>
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Animation Controls</CardTitle>
+                    <CardDescription>Customize your text animations</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div>
+                        <Label className="mb-2 block">Sample Text</Label>
+                        <div className="space-y-2">
+                          {SAMPLE_TEXTS.map((text, index) => (
+                            <div key={index} className="flex items-center">
+                              <input
+                                type="radio"
+                                id={`text-${index}`}
+                                name="sampleText"
+                                checked={selectedTextIndex === index && !showCustomText}
+                                onChange={() => handleTextChange(index)}
+                                className="mr-2"
+                              />
+                              <Label htmlFor={`text-${index}`} className="text-sm truncate">
+                                {text.title}
+                              </Label>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+
+                      <div>
+                        <Label className="mb-2 block">Custom Text</Label>
+                        <textarea
+                          value={customText}
+                          onChange={(e) => setCustomText(e.target.value)}
+                          placeholder="Enter your own text to animate..."
+                          className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+                        />
+                        <button
+                          onClick={handleCustomTextSubmit}
+                          disabled={!customText.trim()}
+                          className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Animate Custom Text
+                        </button>
+                      </div>
+
+                      <div>
+                        <Label>Animation Style</Label>
+                        <RadioGroup
+                          value={animationOptions.animation}
+                          onValueChange={(value) => 
+                            setAnimationOptions({
+                              ...animationOptions,
+                              animation: value as any,
+                            })
+                          }
+                          className="grid grid-cols-2 gap-2 mt-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="blur-in" id="blur-in" />
+                            <Label htmlFor="blur-in">Blur In</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="gradient-reveal" id="gradient" />
+                            <Label htmlFor="gradient">Gradient</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="bounce-in" id="bounce-in" />
+                            <Label htmlFor="bounce-in">Bounce In</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="fade-in" id="fade-in" />
+                            <Label htmlFor="fade-in">Fade In</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      <div>
+                        <Label>Text Split Mode</Label>
+                        <RadioGroup
+                          value={animationOptions.splitter}
+                          onValueChange={(value) => 
+                            setAnimationOptions({
+                              ...animationOptions,
+                              splitter: value as any,
+                            })
+                          }
+                          className="grid grid-cols-2 gap-2 mt-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="character" id="character" />
+                            <Label htmlFor="character">Character</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="word" id="word" />
+                            <Label htmlFor="word">Word</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="line" id="line" />
+                            <Label htmlFor="line">Line</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sentence" id="sentence" />
+                            <Label htmlFor="sentence">Sentence</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          className="text-xs px-3 py-2 rounded bg-blue-100 hover:bg-blue-200 transition-colors"
+                          onClick={() => {
+                            setAnimationOptions({
+                              stagger: "5%",
+                              animation: "blur-in",
+                              blurAmount: "5px",
+                              splitter: "word",
+                              duration: 1000
+                            });
+                          }}
+                        >
+                          Reset to Default
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-                  <div>
-                    <Label className="mb-2 block">Custom Text</Label>
-                    <textarea
-                      value={customText}
-                      onChange={(e) => setCustomText(e.target.value)}
-                      placeholder="Enter your own text to animate..."
-                      className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
-                    />
-                    <button
-                      onClick={handleCustomTextSubmit}
-                      disabled={!customText.trim()}
-                      className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Animate Custom Text
-                    </button>
-                  </div>
-
-                  <div>
-                    <Label>Animation Style</Label>
-                    <RadioGroup
-                      value={animationOptions.animation}
-                      onValueChange={(value) => 
-                        setAnimationOptions({
-                          ...animationOptions,
-                          animation: value as any,
-                        })
-                      }
-                      className="grid grid-cols-2 gap-2 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="blur-in" id="blur-in" />
-                        <Label htmlFor="blur-in">Blur In</Label>
+              <div className="lg:col-span-2">
+                <StaggerProvider
+                  {...animationOptions as any}
+                >
+                  <Card className="h-full">
+                    <CardHeader>
+                      <CardTitle>
+                        {showCustomText ? "Custom Text Animation" : SAMPLE_TEXTS[selectedTextIndex]?.title || "Text Animation"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-h-[70vh] overflow-y-auto relative">
+                        {showCustomText ? (
+                          <AnimatedTextBlock 
+                            title="Custom Text" 
+                            content={customText}
+                          />
+                        ) : (
+                          <AnimatedTextBlock 
+                            title={SAMPLE_TEXTS[selectedTextIndex]?.title || "Text Animation"}
+                            content={SAMPLE_TEXTS[selectedTextIndex]?.content || "Sample text content for animation demonstration."}
+                          />
+                        )}
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="gradient-reveal" id="gradient" />
-                        <Label htmlFor="gradient">Gradient</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="bounce-in" id="bounce-in" />
-                        <Label htmlFor="bounce-in">Bounce In</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="fade-in" id="fade-in" />
-                        <Label htmlFor="fade-in">Fade In</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div>
-                    <Label>Text Split Mode</Label>
-                    <RadioGroup
-                      value={animationOptions.splitter}
-                      onValueChange={(value) => 
-                        setAnimationOptions({
-                          ...animationOptions,
-                          splitter: value as any,
-                        })
-                      }
-                      className="grid grid-cols-2 gap-2 mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="character" id="character" />
-                        <Label htmlFor="character">Character</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="word" id="word" />
-                        <Label htmlFor="word">Word</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="line" id="line" />
-                        <Label htmlFor="line">Line</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="sentence" id="sentence" />
-                        <Label htmlFor="sentence">Sentence</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <button
-                      type="button"
-                      className="text-xs px-3 py-2 rounded bg-blue-100 hover:bg-blue-200 transition-colors"
-                      onClick={() => {
-                        setAnimationOptions({
-                          stagger: "5%",
-                          animation: "blur-in",
-                          blurAmount: "5px",
-                          splitter: "word",
-                          duration: 1000
-                        });
-                      }}
-                    >
-                      Reset to Default
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="lg:col-span-2">
-            <StaggerProvider
-              {...animationOptions as any}
-            >
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>
-                    {showCustomText ? "Custom Text Animation" : SAMPLE_TEXTS[selectedTextIndex]?.title || "Text Animation"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-h-[70vh] overflow-y-auto relative">
-                    {showCustomText ? (
-                      <AnimatedTextBlock 
-                        title="Custom Text" 
-                        content={customText}
-                      />
-                    ) : (
-                      <AnimatedTextBlock 
-                        title={SAMPLE_TEXTS[selectedTextIndex]?.title || "Text Animation"}
-                        content={SAMPLE_TEXTS[selectedTextIndex]?.content || "Sample text content for animation demonstration."}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </StaggerProvider>
-          </div>
+                    </CardContent>
+                  </Card>
+                </StaggerProvider>
+              </div>
+            </>
+          ) : (
+            <div className="lg:col-span-3">
+              <StaggerProvider
+                animation="fade-in"
+                stagger="5%"
+                splitter="word"
+                duration={800}
+              >
+                <ChatInterface />
+              </StaggerProvider>
+            </div>
+          )}
         </div>
       </div>
     </div>

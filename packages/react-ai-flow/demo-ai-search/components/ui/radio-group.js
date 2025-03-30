@@ -19,7 +19,7 @@ RadioGroup.displayName = "RadioGroup";
 
 const RadioGroupItem = React.forwardRef(({ className, value, id, ...props }, ref) => {
   const context = React.useContext(RadioGroupContext);
-  
+
   return React.createElement("div", {
     className: "flex items-center space-x-2"
   }, React.createElement("input", {

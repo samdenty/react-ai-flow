@@ -20,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.js";
 import { Slider } from "./components/ui/slider.js";
 import { useFakeMessages } from "./useFakeMessages.js";
 
-enableIOSVibrationWithPopup();
+// enableIOSVibrationWithPopup();
 
 function ScrollToBottom() {
 	const { isAtBottom, scrollToBottom } = useStickToBottomContext();

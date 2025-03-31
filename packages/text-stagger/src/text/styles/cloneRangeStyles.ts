@@ -24,7 +24,7 @@ export function cloneRangeWithStyles(
 	window: Window & typeof globalThis,
 	range: Range,
 	target: HTMLElement,
-	onElement?: (element: HTMLElement, styles: CSSStyleDeclaration) => void,
+	onElement?: (element: HTMLElement) => void,
 ) {
 	// Get the common ancestor container
 	const ancestorContainer = range.commonAncestorContainer;
@@ -44,15 +44,19 @@ export function cloneRangeWithStyles(
 		style: CSSStyleDeclaration,
 		targetElement: HTMLElement,
 	) {
+		onElement?.(targetElement);
+
 		const targetStyle = window.getComputedStyle(targetElement);
+		const styles = window.document.createElement("div");
+		styles.setAttribute("style", targetElement.getAttribute("style") || "");
 
 		for (const prop of COPY_STYLES) {
 			if (style[prop] !== targetStyle[prop]) {
-				targetElement.style[prop] = style[prop];
+				styles.style[prop] = style[prop];
 			}
 		}
 
-		onElement?.(targetElement, style);
+		targetElement.setAttribute("style", styles.getAttribute("style")!);
 	}
 
 	// Helper function to copy computed styles to an element

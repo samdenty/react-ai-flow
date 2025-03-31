@@ -16,10 +16,12 @@ export interface StaggerOptions extends TextOptions {
 	id?: number;
 	window?: Window & typeof globalThis;
 	restartOnSelection?: boolean;
+	revealOnSelection?: boolean;
 }
 
 export interface ParsedStaggerOptions extends Omit<ParsedTextOptions, "id"> {
 	restartOnSelection: boolean;
+	revealOnSelection: boolean;
 }
 
 declare global {
@@ -105,77 +107,78 @@ export class Stagger {
 		registerPaintWorklet(window);
 
 		// Instantly reveal text on selection
-		this.window.document.addEventListener("selectionchange", () => {
-			const selection = this.window.getSelection();
-			if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-				return;
-			}
+		if (this.options.revealOnSelection) {
+			this.window.document.addEventListener("selectionchange", () => {
+				this.revealSelection();
+			});
+		}
+	}
 
-			const selectionRange = selection.getRangeAt(0);
-			const elements = this.elements;
+	revealSelection(restart = this.options.restartOnSelection) {
+		const selection = this.window.getSelection();
+		if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+			return;
+		}
 
-			let left = 0;
-			let right = elements.length - 1;
-			let firstOverlap = -1;
+		const selectionRange = selection.getRangeAt(0);
+		const elements = this.elements;
 
-			// Binary search for first potential overlap
-			while (left <= right) {
-				const mid = Math.floor((left + right) / 2);
-				const element = elements[mid]!;
-				const lastRange = element.ranges[0]!;
+		let left = 0;
+		let right = elements.length - 1;
+		let firstOverlap = -1;
 
-				if (
-					lastRange.compareBoundaryPoints(Range.START_TO_END, selectionRange) <
-					0
-				) {
-					left = mid + 1;
-				} else {
-					firstOverlap = mid;
-					right = mid - 1;
-				}
-			}
-
-			if (firstOverlap === -1) {
-				return;
-			}
-
-			left = firstOverlap;
-			right = elements.length - 1;
-			let lastOverlap = firstOverlap;
-
-			while (left <= right) {
-				const mid = Math.floor((left + right) / 2);
-				const element = elements[mid]!;
-				const firstRange = element.ranges.at(-1)!;
-
-				if (
-					selectionRange.compareBoundaryPoints(Range.START_TO_END, firstRange) <
-					0
-				) {
-					right = mid - 1;
-				} else {
-					lastOverlap = mid;
-					left = mid + 1;
-				}
-			}
-
-			for (let i = firstOverlap; i <= lastOverlap; i++) {
-				const element = elements[i];
-
-				if (element) {
-					element.progress = 1;
-				}
-			}
-
-			const lastElement = elements[lastOverlap];
+		// Binary search for first potential overlap
+		while (left <= right) {
+			const mid = Math.floor((left + right) / 2);
+			const element = elements[mid]!;
+			const lastRange = element.ranges[0]!;
 
 			if (
-				lastElement &&
-				(lastElement.active || this.options.restartOnSelection)
+				lastRange.compareBoundaryPoints(Range.START_TO_END, selectionRange) < 0
 			) {
-				this.restartAnimationFrom(lastElement, { offset: 1 });
+				left = mid + 1;
+			} else {
+				firstOverlap = mid;
+				right = mid - 1;
 			}
-		});
+		}
+
+		if (firstOverlap === -1) {
+			return;
+		}
+
+		left = firstOverlap;
+		right = elements.length - 1;
+		let lastOverlap = firstOverlap;
+
+		while (left <= right) {
+			const mid = Math.floor((left + right) / 2);
+			const element = elements[mid]!;
+			const firstRange = element.ranges.at(-1)!;
+
+			if (
+				selectionRange.compareBoundaryPoints(Range.START_TO_END, firstRange) < 0
+			) {
+				right = mid - 1;
+			} else {
+				lastOverlap = mid;
+				left = mid + 1;
+			}
+		}
+
+		for (let i = firstOverlap; i <= lastOverlap; i++) {
+			const element = elements[i];
+
+			if (element) {
+				element.progress = 1;
+			}
+		}
+
+		const lastElement = elements[lastOverlap];
+
+		if (lastElement && (lastElement.active || restart)) {
+			this.restartAnimationFrom(lastElement, { offset: 1 });
+		}
 	}
 
 	play(items: PausableItem[] | PausableItem = this) {
@@ -691,6 +694,7 @@ export class Stagger {
 				delayTrailing: false,
 				vibration: [0, "70%", 10],
 				restartOnSelection: false,
+				revealOnSelection: true,
 				stagger: "100%",
 			},
 			options,

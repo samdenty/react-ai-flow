@@ -14,7 +14,7 @@ import {
 	StaggerElementBox,
 } from "./StaggerElementBox.js";
 
-export enum ElementAnimation {
+export enum AnimationKind {
 	FadeIn = "fade-in",
 
 	GradientReveal = "gradient-reveal",
@@ -29,10 +29,10 @@ export enum ElementAnimation {
 }
 
 export type GradientAnimation =
-	| ElementAnimation.GradientReveal
-	| ElementAnimation.GradientLeft
-	| ElementAnimation.GradientUp
-	| ElementAnimation.GradientDown;
+	| AnimationKind.GradientReveal
+	| AnimationKind.GradientLeft
+	| AnimationKind.GradientUp
+	| AnimationKind.GradientDown;
 
 export enum AnimationTiming {
 	Linear = "linear",
@@ -42,7 +42,7 @@ export enum AnimationTiming {
 	EaseInOut = "ease-in-out",
 }
 
-export type MaskAnimation = GradientAnimation | ElementAnimation.FadeIn;
+export type MaskAnimation = GradientAnimation | AnimationKind.FadeIn;
 
 export interface CustomStyles
 	extends Partial<Record<keyof CSSStyleDeclaration, string>> {}
@@ -89,8 +89,13 @@ export type ElementBlurAmount =
 	| number
 	| ((box: StaggerElementBox) => string | number);
 
+export type ElementAnimation =
+	| AnimationKind
+	| `${AnimationKind}`
+	| ((element: StaggerElement) => AnimationKind | `${AnimationKind}`);
+
 export interface ElementOptions {
-	animation?: ElementAnimation | `${ElementAnimation}`;
+	animation?: ElementAnimation;
 	animationTiming?: ElementAnimationTiming;
 	customStyles?: ElementCustomStyles;
 
@@ -124,6 +129,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 	startTime!: number;
 	duration!: number;
+	animation!: AnimationKind;
 	vibration!: number[] | null;
 	#delay: number | null = null;
 	staggerDelay: number | null = null;
@@ -151,6 +157,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 		this.childNodes = childNodes;
 		text.elements.push(this);
+
+		this.stagger.revealSelection();
 	}
 
 	get elapsed() {
@@ -277,6 +285,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		} else {
 			this.startTime = now;
 			this.index = lastActiveElement ? 1 : 0;
+		}
+
+		if (typeof this.options.animation === "function") {
+			this.animation = this.options.animation(this) as AnimationKind;
+		} else {
+			this.animation = this.options.animation as AnimationKind;
 		}
 
 		this.duration = this.calculateDuration();
@@ -419,20 +433,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 				const position = this.getRangeOffsets(ranges, this.start);
 				const subtext = text instanceof Text ? text : null;
 
-				return new StaggerElementBox(
-					this,
-					this.options,
-					this.container,
-					ranges,
-					position,
-					subtext,
-					rect,
-				);
+				return new StaggerElementBox(this, ranges, position, subtext, rect);
 			},
 			(_, index) => {
 				const { subtext, position } = positions[index]!;
 
-				if (subtext && !subtext.isHiddenElement) {
+				if (subtext && !subtext.isBypassedElement) {
 					return subtext;
 				}
 
@@ -539,10 +545,6 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		}
 	}
 
-	get animation() {
-		return this.options.animation;
-	}
-
 	get relativeToText() {
 		return this.relativeTo(this.text);
 	}
@@ -567,14 +569,12 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 export type SerializedStaggerElement = ReturnType<StaggerElement["toJSON"]>;
 
-export function isGradient(
-	animation: ElementAnimation | `${ElementAnimation}`,
-) {
+export function isGradient(animation: AnimationKind | `${AnimationKind}`) {
 	return (
-		animation === ElementAnimation.GradientLeft ||
-		animation === ElementAnimation.GradientReveal ||
-		animation === ElementAnimation.GradientUp ||
-		animation === ElementAnimation.GradientDown
+		animation === AnimationKind.GradientLeft ||
+		animation === AnimationKind.GradientReveal ||
+		animation === AnimationKind.GradientUp ||
+		animation === AnimationKind.GradientDown
 	);
 }
 

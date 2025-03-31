@@ -68,13 +68,14 @@ export interface TextLines<
 	options: object;
 	document: Document;
 	window: Window & typeof globalThis;
-	ignoreNextMutation: boolean;
+	ignoreNextMutation(): void;
 	ignoredNodes: Set<Node>;
 	parents: Set<EventTarget>;
 
-	createIgnoredElement(element: HTMLElement): void;
+	createIgnoredElement(element: HTMLElement, global?: boolean): void;
 	createIgnoredElement<K extends keyof HTMLElementTagNameMap>(
 		element: K,
+		global?: boolean,
 	): HTMLElementTagNameMap[K];
 	isIgnoredNode(
 		node: Node,
@@ -139,8 +140,11 @@ export function createTextLines<T>(
 			height: number;
 		};
 		#resolvePendingReady?: VoidFunction;
+		#pixelContainer: HTMLElement;
+		#pixelTarget: HTMLElement;
 
 		ignoredNodes = new Set<Node>();
+		#globalIgnoredNodes = new Set<Node>();
 		ready = Promise.resolve();
 		text = this;
 		parentText: this | undefined;
@@ -159,16 +163,26 @@ export function createTextLines<T>(
 			return super.parent;
 		}
 
-		createIgnoredElement(element: HTMLElement): void;
+		createIgnoredElement(element: HTMLElement, global?: boolean): void;
 		createIgnoredElement<K extends keyof HTMLElementTagNameMap>(
 			element: K,
+			global?: boolean,
 		): HTMLElementTagNameMap[K];
-		createIgnoredElement(element: HTMLElement | keyof HTMLElementTagNameMap) {
+		createIgnoredElement(
+			element: HTMLElement | keyof HTMLElementTagNameMap,
+			global = false,
+		) {
 			if (typeof element === "string") {
 				element = this.document.createElement(element);
 			}
 
-			this.ignoredNodes.add(element);
+			if (global) {
+				this.#globalIgnoredNodes.add(element);
+			}
+
+			for (const text of global ? this.texts : [this]) {
+				text.ignoredNodes.add(element);
+			}
 
 			return element;
 		}
@@ -479,7 +493,15 @@ export function createTextLines<T>(
 		#resizeObserver?: ResizeObserver;
 		#mutationObserver?: MutationObserver;
 		#positionObserver?: PositionObserver;
-		ignoreNextMutation = false;
+		#ignoreNextMutation = false;
+
+		ignoreNextMutation() {
+			let text = this;
+
+			do {
+				text.#ignoreNextMutation = true;
+			} while (text.parentText && (text = text.parentText));
+		}
 
 		get container(): HTMLElement {
 			return super.container;
@@ -520,6 +542,12 @@ export function createTextLines<T>(
 				this.parents = new Set();
 
 				this.#resolvePendingReady?.();
+
+				for (const text of this.texts) {
+					for (const node of text.#globalIgnoredNodes) {
+						text.ignoredNodes.delete(node);
+					}
+				}
 
 				return;
 			}
@@ -569,18 +597,12 @@ export function createTextLines<T>(
 				this.updateBounds();
 			});
 
-			this.ready = new Promise<void>((r) => (this.#resolvePendingReady = r));
-
 			this.updateBounds();
 			this.scanElementLines({ reason: ScanReason.Mounted });
 
 			this.#resizeObserver = new ResizeObserver((entries) => {
 				if (mounted) {
 					this.scanElementLines({ reason: ScanReason.Resize, entries });
-				} else {
-					this.updateBounds();
-					this.scanElementLines({ reason: ScanReason.Mounted });
-					this.#resolvePendingReady?.();
 				}
 
 				mounted = true;
@@ -590,8 +612,8 @@ export function createTextLines<T>(
 			let mutationScanner: number | undefined;
 
 			this.#mutationObserver = new MutationObserver((entries) => {
-				if (this.ignoreNextMutation) {
-					this.ignoreNextMutation = false;
+				if (this.#ignoreNextMutation) {
+					this.#ignoreNextMutation = false;
 
 					return;
 				}
@@ -653,6 +675,16 @@ export function createTextLines<T>(
 		) {
 			super(parent, options, undefined!);
 
+			this.#pixelContainer = this.createIgnoredElement("div", true);
+			this.#pixelTarget = this.createIgnoredElement("div", true);
+			this.#pixelContainer.appendChild(this.#pixelTarget);
+
+			for (const text of this.texts) {
+				for (const node of text.#globalIgnoredNodes) {
+					this.ignoredNodes.add(node);
+				}
+			}
+
 			this.parent = parent;
 
 			this.container = element;
@@ -704,7 +736,7 @@ export function createTextLines<T>(
 				return;
 			}
 
-			this.ignoreNextMutation = true;
+			this.ignoreNextMutation();
 			this.container.setAttribute(name, value);
 		}
 
@@ -725,18 +757,13 @@ export function createTextLines<T>(
 			const key = `${height}:${width}:${cssLiteral}`;
 
 			if (!this.#pixelCache.has(key)) {
-				const container = this.createIgnoredElement("div");
-				container.style.height = `${height}px`;
-				container.style.width = `${width}px`;
+				this.#pixelContainer.style.height = `${height}px`;
+				this.#pixelContainer.style.width = `${width}px`;
+				this.#pixelTarget.style.width = cssLiteral;
+				this.container.appendChild(this.#pixelContainer);
 
-				const target = this.createIgnoredElement("div");
-				target.style.width = cssLiteral;
-				container.appendChild(target);
-				this.container.appendChild(container);
-
-				this.#pixelCache.set(key, target.offsetWidth);
-
-				container.remove();
+				this.#pixelCache.set(key, this.#pixelTarget.offsetWidth);
+				this.#pixelTarget.remove();
 			}
 
 			return this.#pixelCache.get(key)!;

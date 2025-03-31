@@ -1,13 +1,14 @@
 import {
 	type CustomStyles,
-	ElementAnimation,
+	AnimationKind,
 } from "../../stagger/StaggerElement.js";
 import type { StaggerElementBox } from "../../stagger/StaggerElementBox.js";
 
 export function getCustomAnimationStyles(
 	box: StaggerElementBox,
 ): CustomStyles | null {
-	let { animation, blurAmount = 8, customStyles } = box.options;
+	const { animation } = box.element;
+	let { blurAmount = 8, customStyles } = box.options;
 
 	if (box.timing === 1) {
 		return null;
@@ -15,7 +16,7 @@ export function getCustomAnimationStyles(
 
 	const styles = { ...customStyles?.(box) };
 
-	if (animation === ElementAnimation.Custom) {
+	if (animation === AnimationKind.Custom) {
 		if (typeof customStyles !== "function") {
 			throw new Error(
 				"customStyles must be a function when animation is set to custom",
@@ -25,7 +26,7 @@ export function getCustomAnimationStyles(
 		return styles;
 	}
 
-	if (animation === ElementAnimation.BlurIn) {
+	if (animation === AnimationKind.BlurIn) {
 		if (typeof blurAmount === "function") {
 			blurAmount = blurAmount(box);
 		}
@@ -40,7 +41,7 @@ export function getCustomAnimationStyles(
 		return styles;
 	}
 
-	if (animation === ElementAnimation.BounceIn) {
+	if (animation === AnimationKind.BounceIn) {
 		// Ensure progress is between 0 and 1
 		const clampedProgress = Math.max(0, Math.min(1, box.progress));
 

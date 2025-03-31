@@ -10,7 +10,7 @@ import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
 import {
 	AnimationTiming,
-	ElementAnimation,
+	AnimationKind,
 	type ElementOptions,
 	type StaggerElement,
 	isGradient,
@@ -44,14 +44,13 @@ export class StaggerElementBox extends Ranges<
 
 	constructor(
 		parent: StaggerElement,
-		options: StaggerElementBoxOptions,
-		element: HTMLElement,
 		ranges: Range[],
 		position: { start: number; end: number },
 		public subtext: Text | null,
 		rect: DOMRect,
 	) {
-		super(parent, options, element);
+		super(parent, parent.options, parent.container);
+
 		this.#rect = rect;
 		this.childNodes = ranges;
 
@@ -66,10 +65,12 @@ export class StaggerElementBox extends Ranges<
 
 		this.customAnimationElement?.remove();
 
-		const { closestCommonParent } = this.subtext || {};
-
-		if (closestCommonParent && this.initialStyle != null) {
-			closestCommonParent.element.setAttribute("style", this.initialStyle);
+		if (this.subtext?.closestCommonParent && this.initialStyle != null) {
+			this.subtext.updateProperty(
+				"style",
+				this.initialStyle,
+				this.subtext.closestCommonParent,
+			);
 		}
 	}
 
@@ -125,7 +126,7 @@ export class StaggerElementBox extends Ranges<
 	timingFunction(progress: number) {
 		const animationTiming =
 			this.options.animationTiming ??
-			(this.element.animation === ElementAnimation.FadeIn
+			(this.element.animation === AnimationKind.FadeIn
 				? AnimationTiming.Linear
 				: AnimationTiming.EaseInOut);
 
@@ -166,23 +167,23 @@ export class StaggerElementBox extends Ranges<
 	updateCustomAnimation() {
 		const styles = getCustomAnimationStyles(this);
 
-		const { closestCommonParent } = this.subtext || {};
-
-		if (closestCommonParent) {
+		if (this.subtext?.closestCommonParent) {
 			this.initialStyle ??=
-				closestCommonParent.element.getAttribute("style") || "";
+				this.subtext.closestCommonParent.getAttribute("style") || "";
 
-			closestCommonParent.element.setAttribute("style", this.initialStyle);
+			const styles = this.document.createElement("div");
 
-			if (!styles) {
-				return;
-			}
+			styles.setAttribute("style", this.initialStyle);
 
-			for (const [key, value] of Object.entries(styles)) {
-				if (value != null) {
-					closestCommonParent.element.style.setProperty(key, value);
+			if (styles) {
+				for (const [key, value] of Object.entries(styles)) {
+					if (value != null) {
+						styles.style.setProperty(key, value);
+					}
 				}
 			}
+
+			this.subtext.updateProperty("style", styles.getAttribute("style")!);
 
 			return;
 		}
@@ -199,7 +200,7 @@ export class StaggerElementBox extends Ranges<
 		}
 
 		if (!this.customAnimationElement) {
-			this.customAnimationElement = this.text.createIgnoredElement("div");
+			this.customAnimationElement = this.text.createIgnoredElement("div", true);
 			this.customAnimationElement.className = this.className;
 
 			this.text.insertCustomAnimationContainer();
@@ -214,6 +215,8 @@ export class StaggerElementBox extends Ranges<
 						if (!this.text.options.visualDebug) {
 							element.style.pointerEvents = "none";
 						}
+
+						this.text.ignoreNextMutation();
 					},
 				);
 			}
@@ -228,7 +231,11 @@ export class StaggerElementBox extends Ranges<
 		this.initialStyle ??=
 			this.customAnimationElement.getAttribute("style") || "";
 
-		this.customAnimationElement.setAttribute("style", this.initialStyle);
+		this.text.updateProperty(
+			"style",
+			this.initialStyle,
+			this.customAnimationElement,
+		);
 
 		this.customAnimationElement.style.boxSizing = "content-box";
 		this.customAnimationElement.style.lineHeight = `${this.height}px`;
@@ -279,7 +286,7 @@ export class StaggerElementBox extends Ranges<
 	}
 
 	get isGradient() {
-		return isGradient(this.options.animation);
+		return isGradient(this.element.animation);
 	}
 
 	comparePosition(other: this) {

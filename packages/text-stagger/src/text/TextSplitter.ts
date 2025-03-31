@@ -1,5 +1,9 @@
 import type { ScanEvent } from "text-element-lines";
-import { ElementAnimation, type ElementOptions } from "../stagger/index.js";
+import {
+	AnimationKind,
+	type ElementAnimation,
+	type ElementOptions,
+} from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import type { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";
@@ -106,8 +110,8 @@ export function getTextSplit<T extends ElementOptions>(
 	const animation = [TextSplit.Character, TextSplit.Word].includes(
 		textSplit as TextSplit,
 	)
-		? ElementAnimation.FadeIn
-		: ElementAnimation.GradientReveal;
+		? AnimationKind.FadeIn
+		: AnimationKind.GradientReveal;
 
 	const splitText = {
 		[TextSplit.Character]: splitCharacters,
@@ -214,7 +218,7 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
 
 		return {
 			...currentSplitter,
-			animation: ElementAnimation.FadeIn,
+			animation: AnimationKind.FadeIn,
 			splitText: customTextSplitter,
 		};
 	}
@@ -276,9 +280,9 @@ export function splitText(
 
 	const {
 		separateDelimiters,
-		animation = ElementAnimation.FadeIn,
+		animation = AnimationKind.FadeIn,
 		...options
-	} = splitOptions as SplitOptions & { animation?: ElementAnimation };
+	} = splitOptions as SplitOptions & { animation?: AnimationKind };
 
 	if (typeof textLike !== "string") {
 		const fullSplits = splitText(textLike.innerText, splitter, splitOptions);

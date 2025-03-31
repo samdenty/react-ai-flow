@@ -90,7 +90,7 @@ const BaseTextLines = createTextLines(Ranges);
 
 export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	#maxFps?: number;
-	#closestCommonParent?: { rect: DOMRect; element: HTMLElement };
+	#closestCommonParent?: HTMLElement;
 
 	override uniqueBoxes: Box<Text | Stagger>[] = [];
 	override boxes: Box<Text | Stagger>[][] = [];
@@ -123,10 +123,6 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	set parent(parent: Text | Stagger) {
 		const existingParent = this.parent;
 
-		if (parent instanceof Text) {
-			parent.createIgnoredElement(this.customAnimationContainer);
-		}
-
 		super.parent = parent;
 
 		if (parent === existingParent) {
@@ -135,12 +131,10 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 
 		this.parentText?.scanElementLines({
 			reason: ScanReason.Force,
-			reset: true,
 		});
 
 		this.scanElementLines({
 			reason: ScanReason.Force,
-			reset: true,
 		});
 	}
 
@@ -219,6 +213,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		const changed = super.updateBounds(rects);
 
 		if (changed) {
+			console.log(this.innerText, this.top, this.left);
 			this.updateCustomAnimationPosition();
 		}
 
@@ -293,8 +288,8 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		let offsetTop = Number.parseFloat(styles.marginTop) || 0;
 		let offsetLeft = Number.parseFloat(styles.marginLeft) || 0;
 
-		offsetTop -= top - this.top;
-		offsetLeft -= left - this.left;
+		offsetTop += this.top - top;
+		offsetLeft += this.left - left;
 
 		this.updateStyles(
 			this.customAnimationClassName,
@@ -409,7 +404,8 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		this.container.text = this;
 		this.container.classList.add("ai-flow", this.className);
 
-		this.updateStyles(this.customAnimationClassName, "position", "relative");
+		this.updateStyles(this.customAnimationClassName, "position", "absolute");
+		this.updateStyles(this.customAnimationClassName, "display", "block");
 
 		if (!this.visualDebug) {
 			this.updateStyles(
@@ -466,7 +462,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		this.className = `${options.classNamePrefix}-text-${this.id}`;
 
 		this.customAnimationClassName = `${options.classNamePrefix}-custom-${this.id}`;
-		this.customAnimationContainer = this.createIgnoredElement("div");
+		this.customAnimationContainer = this.createIgnoredElement("div", true);
 		this.customAnimationContainer.className = this.customAnimationClassName;
 
 		this.updateStyles(this.className, null);
@@ -486,7 +482,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 			this.canvas = undefined;
 
 			if (this.visualDebug) {
-				this.canvas = this.createIgnoredElement("canvas");
+				this.canvas = this.createIgnoredElement("canvas", true);
 				this.canvas.style.position = "absolute";
 				this.canvas.style.pointerEvents = "none";
 				this.canvas.style.top = "0";
@@ -497,10 +493,10 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 
 				this.updateStyles(this.className, "mask-image", null);
 			} else if (mode === CanvasMaskRenderMode.DataUri) {
-				this.canvas = this.createIgnoredElement("canvas");
+				this.canvas = this.createIgnoredElement("canvas", true);
 				this.updateStyles(this.className, "will-change", "mask-image");
 			} else if (mode === CanvasMaskRenderMode.MozElement) {
-				this.canvas = this.createIgnoredElement("canvas");
+				this.canvas = this.createIgnoredElement("canvas", true);
 				this.canvas.style.display = "none";
 				this.canvas.id = this.className;
 				this.document.head.prepend(this.canvas);
@@ -531,7 +527,8 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	}
 
 	dispose() {
-		this.container = undefined;
+		super.dispose();
+
 		this.#disposeRenderingModeListener?.();
 		this.updateStyles(this.className, null);
 		this.updateStyles(this.customAnimationClassName, null);
@@ -726,9 +723,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 			(node) => !this.isIgnoredNode(node, false),
 		);
 
-		const rect = element.getBoundingClientRect();
-
-		return (this.#closestCommonParent = { element, rect });
+		return (this.#closestCommonParent = element);
 	}
 
 	toJSON() {
@@ -750,12 +745,12 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		};
 	}
 
-	get isHiddenElement(): boolean {
+	get isBypassedElement(): boolean {
 		if (!this.parentText) {
 			return false;
 		}
 
-		if (this.parentText.isHiddenElement) {
+		if (this.parentText.isBypassedElement) {
 			return true;
 		}
 
@@ -791,7 +786,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		const oldElements = this.elements;
 		this.elements = [];
 
-		if (this.isHiddenElement) {
+		if (this.isBypassedElement) {
 			return;
 		}
 
@@ -885,7 +880,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		function refreshSubtextElements(text: Text) {
 			for (const subtext of text.subtexts) {
 				if (
-					subtext.isHiddenElement
+					subtext.isBypassedElement
 						? !subtext.elements.length
 						: subtext.elements.length
 				) {
@@ -979,15 +974,19 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		return resized;
 	}
 
-	updateProperty(name: string, value: string | number) {
+	updateProperty(
+		name: string,
+		value: string | number,
+		target = this.container,
+	) {
 		value = String(value);
 
-		if (value === this.container.getAttribute(name)) {
+		if (value === target.getAttribute(name)) {
 			return;
 		}
 
-		this.ignoreNextMutation = true;
-		this.container.setAttribute(name, value);
+		this.ignoreNextMutation();
+		target.setAttribute(name, value);
 	}
 
 	override createLine(

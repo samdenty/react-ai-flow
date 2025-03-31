@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	ElementAnimation,
+	AnimationKind,
 	type ElementOptions,
 	TextSplit,
 	getTextSplit,
@@ -14,7 +14,7 @@ describe.skip("getTextSplit", () => {
 		expect(splitter("hello world", undefined!)).toMatchSnapshot("splits");
 		expect(options).toMatchSnapshot("options");
 
-		expect(options.animation).toEqual(ElementAnimation.FadeIn);
+		expect(options.animation).toEqual(AnimationKind.FadeIn);
 	});
 
 	it("word", () => {
@@ -25,7 +25,7 @@ describe.skip("getTextSplit", () => {
 		).toMatchSnapshot("splits");
 
 		expect(options).toMatchSnapshot("options");
-		expect(options.animation).toEqual(ElementAnimation.FadeIn);
+		expect(options.animation).toEqual(AnimationKind.FadeIn);
 	});
 
 	it("line", () => {
@@ -39,7 +39,7 @@ describe.skip("getTextSplit", () => {
 		).toMatchSnapshot("splits");
 
 		expect(options).toMatchSnapshot("options");
-		expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+		expect(options.animation).toEqual(AnimationKind.GradientReveal);
 	});
 
 	it("sentence", () => {
@@ -53,7 +53,7 @@ describe.skip("getTextSplit", () => {
 		).toMatchSnapshot("splits");
 
 		expect(options).toMatchSnapshot("options");
-		expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+		expect(options.animation).toEqual(AnimationKind.GradientReveal);
 	});
 
 	it("paragraph", () => {
@@ -67,19 +67,19 @@ describe.skip("getTextSplit", () => {
 		).toMatchSnapshot("splits");
 
 		expect(options).toMatchSnapshot("options");
-		expect(options.animation).toEqual(ElementAnimation.GradientReveal);
+		expect(options.animation).toEqual(AnimationKind.GradientReveal);
 	});
 
 	it("allows overriding with custom animation", () => {
 		expect(getTextSplit(TextSplit.Word).animation).toEqual(
-			ElementAnimation.FadeIn,
+			AnimationKind.FadeIn,
 		);
 
 		expect(
 			getTextSplit(TextSplit.Word, {
-				animation: ElementAnimation.GradientReveal,
+				animation: AnimationKind.GradientReveal,
 			}).animation,
-		).toEqual(ElementAnimation.GradientReveal);
+		).toEqual(AnimationKind.GradientReveal);
 	});
 
 	it("forwards all options", () => {

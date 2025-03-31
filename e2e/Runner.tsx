@@ -1,8 +1,11 @@
 import { useCallback } from "react";
 import { useEffect } from "react";
-import { enableDataUriRendering } from "text-stagger";
 import type { RecordedEvent } from "text-stagger-record";
 import { replay } from "text-stagger-replay";
+
+setInterval(() => {
+	(window.document.activeElement as HTMLElement)?.blur?.();
+});
 
 export interface RunnerFrame {
 	index: number;
@@ -40,8 +43,6 @@ export function Runner({
 			if (endFrame && frame.index > endFrame) {
 				break;
 			}
-
-			(window.document.activeElement as HTMLElement)?.blur?.();
 
 			await new Promise(requestAnimationFrame);
 

@@ -9,6 +9,7 @@ import {
 	resolveTextSplitter,
 } from "../text/index.js";
 import { StaggerElement } from "./StaggerElement.js";
+import { ScanReason, type ScanEvent } from "textlines";
 
 export interface StaggerOptions extends TextOptions {
 	streaming?: boolean | null;
@@ -654,20 +655,19 @@ export class Stagger {
 	}
 
 	observeText(
-		element: HTMLElement,
+		container: HTMLElement,
 		textOptions: TextOptions | null | undefined,
 	) {
 		const text = new Text(
 			this,
-			element,
 			mergeTextSplitter<ParsedTextOptions>(
 				{ id: TEXT_ID++, ...this.options },
 				textOptions ?? {},
 			),
 		);
 
-		this.texts.push(text);
-		this.#textsListeners.forEach((listener) => listener());
+		this.texts = [...this.texts, text];
+		text.container = container;
 
 		this.window.staggers?.sort(({ texts: [a] }, { texts: [b] }) => {
 			return (b && a?.comparePosition(b)) ?? 0;
@@ -676,39 +676,6 @@ export class Stagger {
 		return text;
 	}
 }
-
-export enum ScanReason {
-	Resize = "resize",
-	Mounted = "mounted",
-	Mutation = "mutation",
-	Force = "force",
-}
-
-export interface ForcedScanEvent {
-	reason: ScanReason.Force;
-	reset?: boolean;
-	data?: any;
-}
-
-export interface MutationScanEvent {
-	reason: ScanReason.Mutation;
-	entries: MutationRecord[];
-}
-
-export interface MountedScanEvent {
-	reason: ScanReason.Mounted;
-}
-
-export interface ResizeScanEvent {
-	reason: ScanReason.Resize;
-	entries: ResizeObserverEntry[];
-}
-
-export type ScanEvent =
-	| MountedScanEvent
-	| MutationScanEvent
-	| ResizeScanEvent
-	| ForcedScanEvent;
 
 function isTouchDevice() {
 	return (

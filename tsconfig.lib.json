@@ -9,6 +9,7 @@
 	"references": [
 		{ "path": "./packages/react-ai-flow/tsconfig.lib.json" },
 		{ "path": "./packages/record/tsconfig.lib.json" },
+		{ "path": "./packages/textlines/tsconfig.lib.json" },
 		{ "path": "./packages/replay/tsconfig.lib.json" }
 	]
 }

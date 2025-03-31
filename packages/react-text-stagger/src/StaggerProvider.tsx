@@ -46,9 +46,15 @@ export const StaggerProvider = forwardRef<Stagger, StaggerProviderProps>(
 
 		// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 		useEffect(() => {
-			const stagger = new Stagger({ ...options, streaming }) as StaggerProvider;
+			const stagger = new Stagger({
+				...options,
+				streaming,
+			}) as StaggerProvider;
+
 			stagger.stickToBottom = new Map();
+
 			setStagger(stagger);
+
 			return () => stagger.dispose();
 		}, []);
 

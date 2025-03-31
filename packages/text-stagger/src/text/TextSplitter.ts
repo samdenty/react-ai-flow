@@ -1,8 +1,5 @@
-import {
-	ElementAnimation,
-	type ElementOptions,
-	type ScanEvent,
-} from "../stagger/index.js";
+import type { ScanEvent } from "textlines";
+import { ElementAnimation, type ElementOptions } from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import type { Ranges } from "./Ranges.js";
 import { Text } from "./Text.js";

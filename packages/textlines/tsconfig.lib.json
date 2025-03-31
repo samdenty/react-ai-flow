@@ -5,10 +5,5 @@
 		"rootDir": "src"
 	},
 	"include": ["src"],
-	"exclude": ["**/*.test.ts", "**/*.test.tsx"],
-	"references": [
-		{
-			"path": "../textlines/tsconfig.lib.json"
-		}
-	]
+	"exclude": ["**/*.test.ts", "**/*.test.tsx"]
 }

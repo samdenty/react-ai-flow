@@ -1,6 +1,6 @@
 {
-  "name": "text-stagger",
-  "version": "0.1.1",
+  "name": "textlines",
+  "version": "0.1.0",
   "author": "Sam Denty <samddenty@gmail.com> (http://samdenty.com/)",
   "license": "MIT",
   "main": "dist/index.js",
@@ -13,17 +13,13 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/samdenty/react-ai-flow.git",
-    "directory": "packages/text-stagger"
+    "directory": "packages/element-lines"
   },
   "scripts": {
     "lint": "pnpm -w lint",
     "lint:fix": "pnpm -w lint:fix",
+    "dev": "vite",
     "build": "rm -rf dist *.tsbuildinfo > /dev/null 2>&1; tsc -b tsconfig.lib.json",
     "prepublishOnly": "pnpm build"
-  },
-  "dependencies": {
-    "textlines": "workspace:*",
-    "fast-myers-diff": "^3.2.0",
-    "ios-vibrator-pro-max": "1.0.24"
   }
 }

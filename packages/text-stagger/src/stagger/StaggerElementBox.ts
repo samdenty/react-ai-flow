@@ -1,10 +1,10 @@
+import { preserveOptimizeRects } from "textlines";
 import {
 	Box,
 	Ranges,
 	type SplitterImpl,
 	type Text,
 	TextLine,
-	preserveOptimizeRects,
 } from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
@@ -22,7 +22,10 @@ export interface StaggerElementBoxOptions
 
 let ID = 0;
 
-export class StaggerElementBox extends Ranges<Box, StaggerElement> {
+export class StaggerElementBox extends Ranges<
+	Box<StaggerElementBox>,
+	StaggerElement
+> {
 	static DEFAULT_GRADIENT_WIDTH = 100;
 
 	#lines = new WeakMap<TextLine[], TextLine[]>();
@@ -41,7 +44,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 
 	constructor(
 		parent: StaggerElement,
-		public options: StaggerElementBoxOptions,
+		options: StaggerElementBoxOptions,
 		element: HTMLElement,
 		ranges: Range[],
 		position: { start: number; end: number },
@@ -257,7 +260,7 @@ export class StaggerElementBox extends Ranges<Box, StaggerElement> {
 		return this.element.text;
 	}
 
-	get lines() {
+	get lines(): TextLine[] {
 		const cached = this.#lines.get(this.text.lines);
 
 		if (cached) {

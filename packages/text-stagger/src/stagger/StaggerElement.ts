@@ -1,3 +1,4 @@
+import { preserveOptimizeRects } from "textlines";
 import {
 	type ParsedTextOptions,
 	type ParsedTextSplit,
@@ -5,7 +6,6 @@ import {
 	type RangesChildNode,
 	Text,
 	TextLine,
-	preserveOptimizeRects,
 } from "../text/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import { type PausableItem, PauseFlags } from "./Stagger.js";

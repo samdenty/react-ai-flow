@@ -1,10 +1,5 @@
 import { calcSlices } from "fast-myers-diff";
-import {
-	PauseFlags,
-	type ScanEvent,
-	ScanReason,
-	type Stagger,
-} from "../stagger/Stagger.js";
+import { PauseFlags, type Stagger } from "../stagger/Stagger.js";
 import {
 	type ElementOptions,
 	type RelativeTimePeriod,
@@ -12,7 +7,6 @@ import {
 	StaggerElement,
 	type StaggerElementBoxOptions,
 } from "../stagger/index.js";
-import PositionObserver from "../utils/positionObserver.js";
 import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { TextLine } from "./TextLine.js";
 import type {
@@ -25,26 +19,10 @@ import {
 	doPaint,
 	getRenderingMode,
 } from "./canvas/index.js";
+import { createTextLines, ScanReason, type ScanEvent } from "textlines";
 
 // text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
 const { requestAnimationFrame } = globalThis;
-
-const LAYOUT_AFFECTING_ATTRIBUTES = new Set([
-	"style",
-	"class",
-	"width",
-	"height",
-	"font",
-	"font-size",
-	"font-family",
-	"line-height",
-	"white-space",
-	"word-break",
-	"word-wrap",
-	"text-align",
-	"direction",
-	"writing-mode",
-]);
 
 export interface ParsedTextOptions
 	extends SplitterImpl<TextSplitterOptions>,
@@ -104,30 +82,27 @@ export interface TextOptions extends TextSplitterOptions {
 	delayTrailing?: boolean;
 }
 
-export class Text extends Ranges<Box<Text>, Stagger | Text> {
-	#mutationCache = new WeakMap<Node, number>();
-	ignoredNodes = new Set<Node>();
+const BaseTextLines = createTextLines(Ranges);
+
+export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	#maxFps?: number;
 	#closestCommonParent?: { rect: DOMRect; element: HTMLElement };
 
-	#parents: EventTarget[] = [];
+	override uniqueBoxes: Box<Text | Stagger>[] = [];
+	override boxes: Box<Text | Stagger>[][] = [];
+
 	updateBoundsOnPaint = false;
 	id: number;
 
-	#lines: TextLine[] = [];
 	elements: StaggerElement[] = [];
 	trailingSplit: ParsedTextSplit | null = null;
 
-	#resolvePendingReady?: VoidFunction;
-	ready = Promise.resolve();
 	canvas?: HTMLCanvasElement;
 	canvasContext?: PaintRenderingContext2D | null;
 	canvasRect = new DOMRect();
-	#scannedDimensions?: {
+	#scannedCanvasDimensions?: {
 		width: number;
 		height: number;
-		canvasWidth: number;
-		canvasHeight: number;
 	};
 	customAnimationClassName: string;
 	customAnimationContainer: HTMLElement;
@@ -136,6 +111,34 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	text = this;
 
 	readonly className: string;
+
+	get parent() {
+		return super.parent;
+	}
+
+	set parent(parent: Text | Stagger) {
+		const existingParent = this.parent;
+
+		if (parent instanceof Text) {
+			parent.createIgnoredElement(this.customAnimationContainer);
+		}
+
+		super.parent = parent;
+
+		if (parent === existingParent) {
+			return;
+		}
+
+		this.parentText?.scanElementLines({
+			reason: ScanReason.Force,
+			reset: true,
+		});
+
+		this.scanElementLines({
+			reason: ScanReason.Force,
+			reset: true,
+		});
+	}
 
 	pause() {
 		this.stagger.pause(this);
@@ -158,52 +161,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 	get pausedBy() {
 		const state = this.stagger.getPauseState(this);
 		return state.items;
-	}
-
-	createIgnoredElement(element: HTMLElement): void;
-	createIgnoredElement<K extends keyof HTMLElementTagNameMap>(
-		element: K,
-	): HTMLElementTagNameMap[K];
-	createIgnoredElement(element: HTMLElement | keyof HTMLElementTagNameMap) {
-		if (typeof element === "string") {
-			element = this.document.createElement(element);
-		}
-
-		this.ignoredNodes.add(element);
-
-		return element;
-	}
-
-	isIgnoredNode(node: Node, recursive: boolean | ((node: Node) => boolean)) {
-		let currentElement: Node | null = node;
-
-		while (currentElement) {
-			let ignored = this.ignoredNodes.has(currentElement);
-
-			if (typeof recursive === "function") {
-				ignored &&= recursive(currentElement);
-			}
-
-			if (ignored || !recursive) {
-				return ignored;
-			}
-
-			currentElement = currentElement.parentElement;
-		}
-
-		return false;
-	}
-
-	get lines(): TextLine[] {
-		return this.#lines;
-	}
-
-	get root(): Text {
-		return this.parentText?.root ?? this;
-	}
-
-	get parentText(): Text | undefined {
-		return this.parent instanceof Text ? this.parent : undefined;
 	}
 
 	scanBounds() {
@@ -393,11 +350,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		});
 	}
 
-	#resizeObserver?: ResizeObserver;
-	#mutationObserver?: MutationObserver;
-	#positionObserver?: PositionObserver;
-	#ignoreNextMutation = false;
-
 	get container(): HTMLElement & { text?: Text } {
 		return super.container;
 	}
@@ -407,66 +359,51 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return;
 		}
 
+		super.container = container;
+
+		for (let i = this.stagger.texts.length - 1; i >= 0; i--) {
+			const text = this.stagger.texts[i]!;
+
+			if (text === this) {
+				continue;
+			}
+
+			if (!container) {
+				if (text.parent === this) {
+					text.parent = this.stagger;
+				}
+				continue;
+			}
+
+			if (
+				text.parentText?.parents.has(container) ||
+				this.parentText?.parents.has(text.container)
+			) {
+				continue;
+			}
+
+			if (text.parents.has(container)) {
+				text.parent = this;
+			}
+
+			if (this.parents.has(text.container)) {
+				this.parent = text;
+				break;
+			}
+		}
+
 		if (!container) {
 			this.canvas?.remove();
 			this.customAnimationContainer.remove();
 			this.container.text = undefined;
 
-			this.#mutationObserver?.disconnect();
-			this.#resizeObserver?.disconnect();
-			this.#positionObserver?.disconnect();
-			this.#resolvePendingReady?.();
-
-			this.#parents.forEach((parent) => {
-				parent.removeEventListener("scroll", this.handleScroll, true);
-			});
-
-			this.#parents = [];
-
 			return;
-		}
-
-		this.container &&= undefined;
-
-		super.container = container;
-
-		const walker = this.document.createTreeWalker(
-			container,
-			NodeFilter.SHOW_TEXT,
-		);
-
-		const firstNode = walker.nextNode();
-		walker.currentNode = container;
-		const lastNode = walker.lastChild();
-
-		if (firstNode && lastNode?.textContent != null) {
-			const range = this.document.createRange();
-
-			range.setStart(firstNode, 0);
-			range.setEnd(lastNode, lastNode.textContent.length);
-
-			this.childNodes = [range];
 		}
 
 		this.stagger.invalidatePositions();
 
 		this.container.text = this;
 		this.container.classList.add("ai-flow", this.className);
-
-		this.#parents = [];
-
-		let currentNode = this.container.parentNode;
-		while (
-			currentNode &&
-			currentNode !== this.window.document.documentElement
-		) {
-			this.#parents.push(currentNode);
-
-			currentNode.addEventListener("scroll", this.handleScroll, true);
-			currentNode = currentNode.parentNode;
-		}
-
-		this.#parents.push(window);
 
 		this.updateStyles(this.customAnimationClassName, "position", "relative");
 
@@ -485,84 +422,11 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.updateBlockDisplay();
 
 		this.updateRenderingMode();
-
-		let mounted = false;
-
-		this.#positionObserver = new PositionObserver(this.window, () => {
-			this.updateBounds();
-		});
-
-		this.ready = new Promise<void>((r) => (this.#resolvePendingReady = r));
-
-		this.#resizeObserver = new ResizeObserver((entries) => {
-			if (!mounted) {
-				this.updateBounds();
-				this.scanElementLines({ reason: ScanReason.Mounted });
-				this.#resolvePendingReady?.();
-			} else {
-				this.scanElementLines({ reason: ScanReason.Resize, entries });
-			}
-
-			mounted = true;
-		});
-
-		let mutations: MutationRecord[] = [];
-		let mutationScanner: number | undefined;
-
-		this.#mutationObserver = new MutationObserver((entries) => {
-			if (this.#ignoreNextMutation) {
-				this.#ignoreNextMutation = false;
-
-				return;
-			}
-
-			mutations.push(...entries);
-
-			mutations = mutations.filter((mutation) => {
-				if (this.isIgnoredNode(mutation.target, true)) {
-					return false;
-				}
-
-				const nodes = mutation.addedNodes.length
-					? [...mutation.addedNodes]
-					: [...mutation.removedNodes];
-
-				if (!nodes.length) {
-					return true;
-				}
-
-				return nodes.some((node) => !this.isIgnoredNode(node, false));
-			});
-
-			if (!mutations.length) {
-				return;
-			}
-
-			mutationScanner ??= requestAnimationFrame(() => {
-				this.scanElementLines({
-					reason: ScanReason.Mutation,
-					entries: mutations,
-				});
-
-				mutations = [];
-				mutationScanner = undefined;
-			});
-		});
-
-		this.#positionObserver.observe(this.container);
-		this.#resizeObserver.observe(this.container);
-
-		this.#mutationObserver.observe(this.container, {
-			childList: true,
-			subtree: true,
-			attributes: true,
-			characterData: true,
-		});
 	}
 
-	private handleScroll = () => {
+	updateBoundsOnNextFrame() {
 		this.updateBoundsOnPaint = true;
-	};
+	}
 
 	revealTrailing() {
 		if (!this.trailingSplit) {
@@ -590,22 +454,19 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	constructor(
 		parent: Stagger | Text,
-		element: HTMLElement,
 		public options: ParsedTextOptions,
 	) {
-		super(parent, options, undefined!);
+		super(parent, undefined!);
 
 		this.id = options.id;
-		this.className = `${this.options.classNamePrefix}-${this.id}`;
+		this.className = `${options.classNamePrefix}-text-${this.id}`;
 
-		this.customAnimationClassName = `${this.options.classNamePrefix}-custom-${this.id}`;
+		this.customAnimationClassName = `${options.classNamePrefix}-custom-${this.id}`;
 		this.customAnimationContainer = this.createIgnoredElement("div");
 		this.customAnimationContainer.className = this.customAnimationClassName;
 
 		this.updateStyles(this.className, null);
 		this.updateStyles(this.customAnimationClassName, null);
-
-		this.container = element;
 
 		// hide until first render, but don't set to zero otherwise it
 		// won't be scanned by the layout engine
@@ -676,6 +537,10 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		);
 	}
 
+	get texts() {
+		return this.stagger.texts as this[];
+	}
+
 	paint() {
 		this.lastPaint = Date.now();
 		this.stagger.lastPaint = this.lastPaint;
@@ -738,7 +603,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	get continuousChildNodes(): {
 		nodes: readonly RangesChildNode[];
-		boxes: Box<Text>[];
+		boxes: Box<Text | Stagger>[];
 		subtext: Text | null;
 	}[] {
 		if (!this.childNodes.length) {
@@ -753,7 +618,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 		const continuousChildNodes: {
 			nodes: RangesChildNode[];
-			boxes: Box<Text>[];
+			boxes: Box<Text | Stagger>[];
 			subtext: Text | null;
 		}[] = [{ nodes: [], boxes: [], subtext: null }];
 
@@ -890,11 +755,15 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return true;
 		}
 
-		return this.parentText.elements.some((element) => {
-			const firstRange = this.ranges.at(0);
-			const lastRange = this.ranges.at(-1);
+		const firstRange = this.ranges.at(0);
+		const lastRange = this.ranges.at(-1);
 
-			if (!firstRange || !lastRange || !element.ranges.length) {
+		if (!firstRange || !lastRange) {
+			return false;
+		}
+
+		return this.parentText.elements.some((element) => {
+			if (!element.ranges.length) {
 				return false;
 			}
 
@@ -1038,16 +907,6 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		}
 	}
 
-	get previousTexts() {
-		const index = this.stagger.texts.indexOf(this);
-		return this.stagger.texts.slice(0, index);
-	}
-
-	get nextTexts() {
-		const index = this.stagger.texts.indexOf(this);
-		return this.stagger.texts.slice(index + 1);
-	}
-
 	private updateBlockDisplay() {
 		const isBlock = hasBlockElement(
 			this.window,
@@ -1064,30 +923,19 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 
 	scanElementLines(event: ScanEvent = { reason: ScanReason.Force }) {
 		if (event.reason === ScanReason.Mutation) {
-			const impacts = this.analyzeMutationImpact(event.entries);
-
-			if (impacts.requiresFullRescan) {
-				this.#lines = [];
-			} else {
-				this.#lines = this.lines.slice(0, impacts.firstAffectedLine);
-				// todo handle subtext
-			}
-
 			this.updateBlockDisplay();
 		}
 
-		const oldDimensions = this.#scannedDimensions;
+		const oldDimensions = this.#scannedCanvasDimensions;
 
-		this.#scannedDimensions = {
-			width: this.width,
-			height: this.height,
-			canvasWidth: this.canvasRect.width,
-			canvasHeight: this.canvasRect.height,
+		this.#scannedCanvasDimensions = {
+			width: this.canvasRect.width,
+			height: this.canvasRect.height,
 		};
 
 		if (
-			oldDimensions?.canvasWidth !== this.canvasRect.width ||
-			oldDimensions.canvasHeight !== this.canvasRect.height
+			oldDimensions?.width !== this.canvasRect.width ||
+			oldDimensions.height !== this.canvasRect.height
 		) {
 			if (this.canvas) {
 				this.canvas.width = this.canvasRect.width;
@@ -1109,16 +957,7 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			}
 		}
 
-		const resized =
-			oldDimensions?.width !== this.width ||
-			oldDimensions.height !== this.height;
-
-		if (resized || (event.reason === ScanReason.Force && event.reset)) {
-			this.#lines = [];
-		}
-
-		this.#lines = TextLine.scanLines(this);
-		this.childNodes = this.lines.flatMap((line) => line.childNodes);
+		const resized = super.scanElementLines(event);
 
 		this.diffElements(event, resized);
 
@@ -1132,6 +971,8 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 		this.paint();
 
 		this.stagger.requestAnimation([this]);
+
+		return resized;
 	}
 
 	updateProperty(name: string, value: string | number) {
@@ -1141,138 +982,25 @@ export class Text extends Ranges<Box<Text>, Stagger | Text> {
 			return;
 		}
 
-		this.#ignoreNextMutation = true;
+		this.ignoreNextMutation = true;
 		this.container.setAttribute(name, value);
 	}
 
-	#pixelCache = new Map<string, number>();
-
-	convertToPx(
-		cssLiteral: string | number,
-		{ height, width }: { height: number; width: number },
-	) {
-		if (typeof cssLiteral === "number") {
-			return cssLiteral;
-		}
-
-		if (cssLiteral.endsWith("px")) {
-			return Number.parseFloat(cssLiteral);
-		}
-
-		const key = `${height}:${width}:${cssLiteral}`;
-
-		if (!this.#pixelCache.has(key)) {
-			const container = this.createIgnoredElement("div");
-			container.style.height = `${height}px`;
-			container.style.width = `${width}px`;
-
-			const target = this.createIgnoredElement("div");
-			target.style.width = cssLiteral;
-			container.appendChild(target);
-			this.container.appendChild(container);
-
-			this.#pixelCache.set(key, target.offsetWidth);
-
-			container.remove();
-		}
-
-		return this.#pixelCache.get(key)!;
-	}
-
-	private analyzeMutationImpact(
-		mutations: MutationRecord[],
-	):
-		| { requiresFullRescan: true; firstAffectedLine?: undefined }
-		| { requiresFullRescan: false; firstAffectedLine: number } {
-		let firstAffectedLine = null;
-
-		for (const mutation of mutations) {
-			switch (mutation.type) {
-				// Text content changed
-				case "characterData": {
-					if (mutation.target instanceof this.window.Text) {
-						const lineIndex = this.findLineContainingNode(mutation.target);
-
-						if (lineIndex === -1) {
-							return { requiresFullRescan: true };
-						}
-
-						firstAffectedLine = Math.min(
-							firstAffectedLine ?? lineIndex,
-							lineIndex,
-						);
-					}
-
-					break;
-				}
-
-				// Nodes added or removed
-				case "childList": {
-					for (const node of mutation.addedNodes) {
-						const lineIndex = this.findLineContainingNode(
-							node.previousSibling ?? node.parentElement ?? this.document.body,
-						);
-
-						if (lineIndex === -1) {
-							return { requiresFullRescan: true };
-						}
-
-						firstAffectedLine = Math.min(
-							firstAffectedLine ?? lineIndex,
-							lineIndex,
-						);
-					}
-
-					break;
-				}
-
-				// Style changes that might affect layout
-				case "attributes": {
-					const element = mutation.target as HTMLElement;
-
-					if (this.doesAttributeAffectLayout(mutation.attributeName!)) {
-						const lineIndex = this.findLineContainingNode(element);
-
-						if (lineIndex === -1) {
-							return { requiresFullRescan: true };
-						}
-
-						firstAffectedLine = Math.min(
-							firstAffectedLine ?? lineIndex,
-							lineIndex,
-						);
-					}
-
-					break;
-				}
-			}
-		}
-
-		if (firstAffectedLine == null) {
-			return { requiresFullRescan: true };
-		}
-
-		return { requiresFullRescan: false, firstAffectedLine };
-	}
-
-	private findLineContainingNode(node: Node): number {
-		// First check cache
-		const cachedIndex = this.#mutationCache.get(node);
-		if (cachedIndex != null) {
-			return cachedIndex;
-		}
-
-		const index = this.lines.findIndex((line) =>
-			line.ranges.some((range) => range.intersectsNode(node)),
+	override createLine(
+		blockParent: HTMLElement,
+		startOfBlock: boolean,
+		endOfBlock: boolean,
+		ranges: Range[],
+	): TextLine {
+		return new TextLine(
+			this,
+			this.lines.length,
+			blockParent,
+			startOfBlock,
+			endOfBlock,
+			ranges,
+			this.options,
 		);
-
-		this.#mutationCache.set(node, index);
-
-		return index;
-	}
-
-	private doesAttributeAffectLayout(attributeName: string): boolean {
-		return LAYOUT_AFFECTING_ATTRIBUTES.has(attributeName.toLowerCase());
 	}
 }
 

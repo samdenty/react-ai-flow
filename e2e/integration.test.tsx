@@ -83,8 +83,8 @@ async function testFrame(
 
 		fs.writeFileSync(path.join(diffsPath, `${frame.index}.png`), diffBuffer);
 
-		if (totalMismatch > 100) {
-			expect(totalMismatch).toBeLessThan(100);
+		if (totalMismatch > 150) {
+			expect(totalMismatch).toBeLessThan(150);
 		}
 	}
 

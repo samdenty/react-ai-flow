@@ -75,15 +75,15 @@ export default function pixelmatch(
                 if (!includeAA && isAA) {
                     // one of the pixels is anti-aliasing; draw as yellow and do not count as difference
                     // note that we do not include such pixels in a mask
-                    if (output && !diffMask) drawPixel(output, pos, aaR, aaG, aaB, 255 * deltaPercentage);
+                    if (output && !diffMask) drawPixel(output, pos, Math.min(255, aaR + (255 * deltaPercentage)), Math.min(255, aaG + (255 * deltaPercentage)), Math.min(255, aaB + (255 * deltaPercentage)));
 
                 } else {
                     // found substantial difference not caused by anti-aliasing; draw it as such
                     if (output) {
                         if (delta < 0) {
-                            drawPixel(output, pos, altR, altG, altB,255 * deltaPercentage);
+                            drawPixel(output, pos, Math.min(255, altR + (255 * deltaPercentage)), Math.min(255, altG + (255 * deltaPercentage)), Math.min(255, altB + (255 * deltaPercentage)));
                         } else {
-                            drawPixel(output, pos, diffR, diffG, diffB,255 * deltaPercentage);
+                            drawPixel(output, pos, Math.min(255, diffR + (255 * deltaPercentage)), Math.min(255, diffG + (255 * deltaPercentage)), Math.min(255, diffB + (255 * deltaPercentage)));
                         }
                     }
                     diff.push(deltaPercentage);
@@ -235,14 +235,13 @@ function drawPixel(
     pos: number,
     r: number,
     g: number,
-    b: number,
-    a: number
+    b: number
 ): void {
 
     output[pos + 0] = r;
     output[pos + 1] = g;
     output[pos + 2] = b;
-    output[pos + 3] = a;
+    output[pos + 3] = 255;
 }
 
 function drawGrayPixel(
@@ -252,5 +251,5 @@ function drawGrayPixel(
     output: PixelData
 ): void {
     const val = 255 + (img[i] * 0.29889531 + img[i + 1] * 0.58662247 + img[i + 2] * 0.11448223 - 255) * alpha * img[i + 3] / 255;
-    drawPixel(output, i, val, val, val,255);
+    drawPixel(output, i, val, val, val);
 }

@@ -100,6 +100,46 @@ export class Stagger {
 		window.staggers.push(this);
 
 		registerPaintWorklet(window);
+
+		this.window.document.addEventListener("selectionchange", () => {
+			const selection = this.window.getSelection();
+			if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+				return;
+			}
+
+			const selectionRange = selection.getRangeAt(0);
+			const elements = this.elements.filter(
+				(element) => element.progress !== 1,
+			);
+
+			// Binary search for last potential overlap
+			let left = 0;
+			let right = elements.length - 1;
+			let lastOverlap = 0;
+
+			while (left <= right) {
+				const mid = Math.floor((left + right) / 2);
+				const element = elements[mid]!;
+				const firstRange = element.ranges[0]!;
+
+				if (
+					selectionRange.compareBoundaryPoints(Range.START_TO_END, firstRange) <
+					0
+				) {
+					right = mid - 1;
+				} else {
+					lastOverlap = mid;
+					left = mid + 1;
+				}
+			}
+
+			// Now check each potentially overlapping element to see if ANY of its ranges actually overlap
+			for (let i = 0; i <= lastOverlap; i++) {
+				const element = elements[i]!;
+
+				element.progress = 1;
+			}
+		});
 	}
 
 	play(items: PausableItem[] | PausableItem = this) {

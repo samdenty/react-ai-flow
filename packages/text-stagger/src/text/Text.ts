@@ -878,7 +878,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		});
 
 		if (restartFrom) {
-			this.stagger.restartAnimationFrom(restartFrom, false);
+			this.stagger.restartAnimationFrom(restartFrom, { unpause: false });
 			restartFrom = undefined;
 		}
 
@@ -903,7 +903,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		refreshSubtextElements(this);
 
 		if (restartFrom) {
-			this.stagger.restartAnimationFrom(restartFrom, false);
+			this.stagger.restartAnimationFrom(restartFrom, { unpause: false });
 
 			for (const element of this.elements) {
 				element.rescan();

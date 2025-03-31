@@ -15,9 +15,12 @@ export interface StaggerOptions extends TextOptions {
 	streaming?: boolean | null;
 	id?: number;
 	window?: Window & typeof globalThis;
+	restartOnSelection?: boolean;
 }
 
-export interface ParsedStaggerOptions extends Omit<ParsedTextOptions, "id"> {}
+export interface ParsedStaggerOptions extends Omit<ParsedTextOptions, "id"> {
+	restartOnSelection: boolean;
+}
 
 declare global {
 	interface Window {
@@ -101,6 +104,7 @@ export class Stagger {
 
 		registerPaintWorklet(window);
 
+		// Instantly reveal text on selection
 		this.window.document.addEventListener("selectionchange", () => {
 			const selection = this.window.getSelection();
 			if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -108,19 +112,41 @@ export class Stagger {
 			}
 
 			const selectionRange = selection.getRangeAt(0);
-			const elements = this.elements.filter(
-				(element) => element.progress !== 1,
-			);
+			const elements = this.elements;
 
-			// Binary search for last potential overlap
 			let left = 0;
 			let right = elements.length - 1;
-			let lastOverlap = 0;
+			let firstOverlap = -1;
+
+			// Binary search for first potential overlap
+			while (left <= right) {
+				const mid = Math.floor((left + right) / 2);
+				const element = elements[mid]!;
+				const lastRange = element.ranges[0]!;
+
+				if (
+					lastRange.compareBoundaryPoints(Range.START_TO_END, selectionRange) <
+					0
+				) {
+					left = mid + 1;
+				} else {
+					firstOverlap = mid;
+					right = mid - 1;
+				}
+			}
+
+			if (firstOverlap === -1) {
+				return;
+			}
+
+			left = firstOverlap;
+			right = elements.length - 1;
+			let lastOverlap = firstOverlap;
 
 			while (left <= right) {
 				const mid = Math.floor((left + right) / 2);
 				const element = elements[mid]!;
-				const firstRange = element.ranges[0]!;
+				const firstRange = element.ranges.at(-1)!;
 
 				if (
 					selectionRange.compareBoundaryPoints(Range.START_TO_END, firstRange) <
@@ -133,11 +159,21 @@ export class Stagger {
 				}
 			}
 
-			// Now check each potentially overlapping element to see if ANY of its ranges actually overlap
-			for (let i = 0; i <= lastOverlap; i++) {
-				const element = elements[i]!;
+			for (let i = firstOverlap; i <= lastOverlap; i++) {
+				const element = elements[i];
 
-				element.progress = 1;
+				if (element) {
+					element.progress = 1;
+				}
+			}
+
+			const lastElement = elements[lastOverlap];
+
+			if (
+				lastElement &&
+				(lastElement.active || this.options.restartOnSelection)
+			) {
+				this.restartAnimationFrom(lastElement, { offset: 1 });
 			}
 		});
 	}
@@ -529,13 +565,11 @@ export class Stagger {
 	paint(texts: Text[] = []) {
 		this.#painting = true;
 
-		const now = Date.now();
-
 		const queuedToPaint = new Set(texts);
 		const skippedFrames = new Set<Text>();
 
 		for (const element of this.unsortedElements) {
-			const elapsed = now - element.startTime - element.delay;
+			const elapsed = element.elapsed;
 
 			if (element.paused || elapsed < 0 || element.progress === 1) {
 				continue;
@@ -583,7 +617,10 @@ export class Stagger {
 		);
 	}
 
-	restartAnimationFrom(restartFrom: StaggerElement | Text, unpause = true) {
+	restartAnimationFrom(
+		restartFrom: StaggerElement | Text,
+		{ unpause = true, offset = 0 }: { unpause?: boolean; offset?: number } = {},
+	) {
 		let element!: StaggerElement | undefined;
 
 		if (restartFrom instanceof Text) {
@@ -598,9 +635,15 @@ export class Stagger {
 			element = restartFrom;
 		}
 
-		const restartFromElementIndex = element && this.elements.indexOf(element);
+		let restartFromElementIndex = element && this.elements.indexOf(element);
 
 		if (restartFromElementIndex == null || restartFromElementIndex === -1) {
+			return false;
+		}
+
+		restartFromElementIndex += offset;
+
+		if (!this.elements[restartFromElementIndex]) {
 			return false;
 		}
 
@@ -647,6 +690,7 @@ export class Stagger {
 				classNamePrefix: Stagger.classNamePrefix,
 				delayTrailing: false,
 				vibration: [0, "70%", 10],
+				restartOnSelection: false,
 				stagger: "100%",
 			},
 			options,

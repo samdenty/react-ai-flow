@@ -153,6 +153,10 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		text.elements.push(this);
 	}
 
+	get elapsed() {
+		return Date.now() - this.startTime - this.delay;
+	}
+
 	dispose() {
 		super.dispose();
 
@@ -263,8 +267,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		);
 
 		const lastActiveElement = previousElements.findLast((element) => {
-			const elapsedTime = now - element.startTime - element.delay;
-			return elapsedTime < element.duration;
+			return element.active;
 		});
 
 		if (latestElementInBatch) {
@@ -278,6 +281,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 		this.duration = this.calculateDuration();
 		this.vibration = this.calculateVibration();
+		this.#delay = 0;
+		this.staggerDelay = 0;
 
 		if (typeof this.options.delay === "number") {
 			this.#delay = this.options.delay;
@@ -315,6 +320,15 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		if (typeof this.options.delay === "function") {
 			this.#delay = this.options.delay(this);
 		}
+	}
+
+	get active() {
+		return (
+			!this.paused &&
+			this.elapsed > 0 &&
+			this.elapsed < this.duration &&
+			this.progress !== 1
+		);
 	}
 
 	get previousElements() {
@@ -496,10 +510,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 				0,
 			);
 
-			const elapsed = now - this.startTime - this.delay;
-
 			this.staggerDelay =
-				this.staggerDelay && Math.max(0, this.staggerDelay - elapsed);
+				this.staggerDelay && Math.max(0, this.staggerDelay - this.elapsed);
 			this.startTime = now - totalElapsedTime;
 			this.batchId = this.stagger.batchId;
 		}

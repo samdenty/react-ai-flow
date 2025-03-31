@@ -45,6 +45,7 @@ export function useCachedOptions({
 	delayTrailing,
 	visualDebug,
 	maxFps: currentMaxFps,
+	restartOnSelection,
 	disabled,
 	classNamePrefix,
 }: StaggerOptions): StaggerOptions {
@@ -76,6 +77,7 @@ export function useCachedOptions({
 			delayTrailing,
 			disabled,
 			classNamePrefix,
+			restartOnSelection,
 		}),
 		[
 			animation,
@@ -93,6 +95,7 @@ export function useCachedOptions({
 			delayTrailing,
 			disabled,
 			classNamePrefix,
+			restartOnSelection,
 		],
 	);
 }

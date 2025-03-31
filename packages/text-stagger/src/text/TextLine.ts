@@ -1,7 +1,7 @@
 import { type ElementOptions, PauseFlags } from "../stagger/index.js";
 import { Box, Ranges } from "./Ranges.js";
 import type { Text } from "./Text.js";
-import { createTextLine, preserveOptimizeRects } from "textlines";
+import { createTextLine, preserveOptimizeRects } from "text-element-lines";
 
 const BaseTextLine = createTextLine(Ranges);
 

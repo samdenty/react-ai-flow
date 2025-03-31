@@ -19,7 +19,11 @@ import {
 	doPaint,
 	getRenderingMode,
 } from "./canvas/index.js";
-import { createTextLines, ScanReason, type ScanEvent } from "textlines";
+import {
+	createTextLines,
+	ScanReason,
+	type ScanEvent,
+} from "text-element-lines";
 
 // text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
 const { requestAnimationFrame } = globalThis;

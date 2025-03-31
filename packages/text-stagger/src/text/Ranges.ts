@@ -5,7 +5,7 @@ import type {
 } from "../stagger/index.js";
 import type { Text } from "./Text.js";
 import { updateStyles } from "./styles/properties.js";
-import { Box as BaseBox, createRanges } from "textlines";
+import { Box as BaseBox, createRanges } from "text-element-lines";
 
 export class Box<
 	T extends Ranges<any, any> | Stagger = Ranges<any, any> | Stagger,

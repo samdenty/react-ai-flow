@@ -8,7 +8,7 @@
 	"exclude": ["**/*.test.ts", "**/*.test.tsx"],
 	"references": [
 		{
-			"path": "../textlines/tsconfig.lib.json"
+			"path": "../text-element-lines/tsconfig.lib.json"
 		}
 	]
 }

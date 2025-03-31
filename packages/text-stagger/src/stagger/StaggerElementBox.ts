@@ -1,4 +1,4 @@
-import { preserveOptimizeRects } from "textlines";
+import { preserveOptimizeRects } from "text-element-lines";
 import {
 	Box,
 	Ranges,

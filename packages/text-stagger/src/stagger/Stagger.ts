@@ -9,7 +9,7 @@ import {
 	resolveTextSplitter,
 } from "../text/index.js";
 import { StaggerElement } from "./StaggerElement.js";
-import { ScanReason, type ScanEvent } from "textlines";
+import { ScanReason, type ScanEvent } from "text-element-lines";
 
 export interface StaggerOptions extends TextOptions {
 	streaming?: boolean | null;

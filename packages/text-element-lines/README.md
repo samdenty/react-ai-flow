@@ -1,4 +1,4 @@
-# `textlines`
+# `text-element-lines`
 
 An efficient library for extracting text lines from a DOM element.
 
@@ -10,7 +10,7 @@ An efficient library for extracting text lines from a DOM element.
 ## Usage
 
 ```ts
-import { extractLines, extractTextFromLines } from "textlines";
+import { extractLines, extractTextFromLines } from "text-element-lines";
 
 for (const line of extractLines(element)) {
   console.log(line.index, line.blockParent, line.innerText);

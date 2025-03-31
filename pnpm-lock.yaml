@@ -186,6 +186,8 @@ importers:
         specifier: workspace:*
         version: link:../record
 
+  packages/text-element-lines: {}
+
   packages/text-stagger:
     dependencies:
       fast-myers-diff:
@@ -194,11 +196,9 @@ importers:
       ios-vibrator-pro-max:
         specifier: 1.0.24
         version: 1.0.24
-      textlines:
+      text-element-lines:
         specifier: workspace:*
-        version: link:../textlines
-
-  packages/textlines: {}
+        version: link:../text-element-lines
 
 packages:
 

@@ -1,8 +1,9 @@
-import { PositionObserver } from "./utils/positionObserver.js";
 import { Ranges } from "./Ranges.js";
 import { TextLine } from "./TextLine.js";
-import { Box, type BoxParent } from "./Box.js";
 import { createParentChecker } from "./utils/parentChecker.js";
+import { PositionObserver } from "./utils/positionObserver.js";
+
+import { Box, type BoxParent } from "./Box.js";
 
 export enum ScanReason {
 	Resize = "resize",

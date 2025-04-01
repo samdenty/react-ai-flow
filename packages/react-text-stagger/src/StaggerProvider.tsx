@@ -6,7 +6,11 @@ import {
 	useImperativeHandle,
 	useState,
 } from "react";
-import { Stagger, type StaggerOptions } from "text-stagger";
+import {
+	Stagger,
+	type StaggerElement,
+	type StaggerOptions,
+} from "text-stagger";
 import type {
 	GetTargetScrollTop,
 	StickToBottomContext,
@@ -65,21 +69,18 @@ export const StaggerProvider = forwardRef<Stagger, StaggerProviderProps>(
 				return;
 			}
 
+			let lastActiveElement: StaggerElement;
+
 			return stagger.onDidPaint(() => {
 				for (const [stickToBottomContext, texts] of stagger.stickToBottom) {
 					const elements = stagger.elements.filter((element) =>
 						texts.has(element.text.id),
 					);
 
-					const activeElements = elements.filter(
-						(element) => element.progress > 0 && element.progress < 1,
-					);
+					const activeElements = elements.filter((element) => element.active);
+					const activeElement = activeElements.at(-1) ?? lastActiveElement;
 
-					if (!activeElements.length && elements.length) {
-						activeElements.push(elements.at(-1)!);
-					}
-
-					const activeElement = activeElements.at(-1);
+					lastActiveElement = activeElement;
 
 					stickToBottomContext.targetScrollTop = (
 						target,

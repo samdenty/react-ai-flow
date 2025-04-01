@@ -1,6 +1,6 @@
-import type { TextLines } from "./TextLines.js";
-import type { TextLine } from "./TextLine.js";
 import { Box, type BoxParent } from "./Box.js";
+import type { TextLine } from "./TextLine.js";
+import type { TextLines } from "./TextLines.js";
 import { optimizeRects } from "./utils/optimizeRects.js";
 
 export type RangesChildNode = Range | string;

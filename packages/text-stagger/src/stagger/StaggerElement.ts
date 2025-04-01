@@ -275,7 +275,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		);
 
 		const lastActiveElement = previousElements.findLast((element) => {
-			return element.elapsed < element.duration;
+			return element.elapsed < element.duration && element.progress !== 1;
 		});
 
 		if (latestElementInBatch) {
@@ -337,7 +337,11 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	}
 
 	get active() {
-		return !this.paused && this.elapsed < this.duration && this.progress !== 1;
+		return (
+			!this.paused &&
+			this.elapsed >= 0 &&
+			(this.elapsed < this.duration || this.progress !== 1)
+		);
 	}
 
 	get previousElements() {

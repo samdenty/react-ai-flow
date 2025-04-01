@@ -9,8 +9,8 @@ import {
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
 import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
 import {
-	AnimationTiming,
 	AnimationKind,
+	AnimationTiming,
 	type ElementOptions,
 	type StaggerElement,
 	isGradient,

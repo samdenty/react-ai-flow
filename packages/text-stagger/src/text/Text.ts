@@ -1,4 +1,9 @@
 import { calcSlices } from "fast-myers-diff";
+import {
+	type ScanEvent,
+	ScanReason,
+	createTextLines,
+} from "text-element-lines";
 import { PauseFlags, type Stagger } from "../stagger/Stagger.js";
 import {
 	type ElementOptions,
@@ -19,11 +24,6 @@ import {
 	doPaint,
 	getRenderingMode,
 } from "./canvas/index.js";
-import {
-	createTextLines,
-	ScanReason,
-	type ScanEvent,
-} from "text-element-lines";
 
 // text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
 const { requestAnimationFrame } = globalThis;

@@ -1,6 +1,6 @@
 import {
-	type CustomStyles,
 	AnimationKind,
+	type CustomStyles,
 } from "../../stagger/StaggerElement.js";
 import type { StaggerElementBox } from "../../stagger/StaggerElementBox.js";
 

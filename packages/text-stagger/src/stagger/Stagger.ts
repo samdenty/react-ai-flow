@@ -1,4 +1,5 @@
 import { type Vibration, mergeVibrations } from "ios-vibrator-pro-max";
+import { type ScanEvent, ScanReason } from "text-element-lines";
 import { registerPaintWorklet } from "../text/canvas/paint-worklet.js";
 import {
 	type ParsedTextOptions,
@@ -9,7 +10,6 @@ import {
 	resolveTextSplitter,
 } from "../text/index.js";
 import { StaggerElement } from "./StaggerElement.js";
-import { ScanReason, type ScanEvent } from "text-element-lines";
 
 export interface StaggerOptions extends TextOptions {
 	streaming?: boolean | null;
@@ -191,6 +191,10 @@ export class Stagger {
 		const lastElement = elements[lastOverlap];
 
 		if (lastElement && (lastElement.active || restart)) {
+			for (const element of this.elements) {
+				element.progress = 1;
+			}
+
 			this.restartAnimationFrom(lastElement, {
 				offset: 1,
 			});
@@ -334,6 +338,16 @@ export class Stagger {
 				}
 			}
 		}
+	}
+
+	get paused(): boolean {
+		const state = this.getPauseState(this);
+		return state.flags !== PauseFlags.None;
+	}
+
+	get pauseTime(): number | null {
+		const state = this.getPauseState(this);
+		return state.time;
 	}
 
 	getPauseState<T extends PausableItem>(

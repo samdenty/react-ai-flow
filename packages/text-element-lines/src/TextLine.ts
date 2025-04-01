@@ -28,7 +28,6 @@ export function createTextLine<T>(
 ): new (
 	text: TextLines<any, any>,
 	options: object,
-	index: number,
 	blockParent: HTMLElement,
 	startOfBlock: boolean,
 	endOfBlock: boolean,
@@ -98,11 +97,11 @@ export function createTextLine<T>(
 
 		start = 0;
 		end = 0;
+		index = 0;
 
 		constructor(
 			public text: TextLines,
 			public options: object,
-			public index: number,
 			public blockParent: HTMLElement,
 			public startOfBlock: boolean,
 			endOfBlock: boolean,

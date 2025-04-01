@@ -35,20 +35,15 @@ export class TextLine extends BaseTextLine {
 		});
 	}
 
-	// Add ID property specific to text-stagger
-	id: string;
-
 	constructor(
 		public override text: Text,
-		index: number,
 		blockParent: HTMLElement,
 		startOfBlock: boolean,
 		endOfBlock: boolean,
 		ranges: Range[],
 		options: ElementOptions = {},
 	) {
-		super(text, options, index, blockParent, startOfBlock, endOfBlock, ranges);
-		this.id = `${this.text.id}:${index}`;
+		super(text, options, blockParent, startOfBlock, endOfBlock, ranges);
 	}
 
 	override scanBoxes(rects: DOMRect[][]) {

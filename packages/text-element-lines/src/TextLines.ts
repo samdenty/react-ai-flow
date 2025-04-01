@@ -98,7 +98,6 @@ export interface TextLines<
 		cssLiteral: string | number,
 		dimensions: { height: number; width: number },
 	): number;
-	updateBoundsOnNextFrame(): void;
 	dispose(): void;
 	findLineContainingNode(node: Node): LineType | undefined;
 
@@ -132,8 +131,9 @@ export function createTextLines<T>(
 			);
 		}
 
-		#mutationCache = new WeakMap<Node, number>();
 		parents = new Set<EventTarget>();
+
+		#mutationCache = new WeakMap<Node, number>();
 		#lines: LineType[] = [];
 		#scannedDimensions?: {
 			width: number;
@@ -216,7 +216,6 @@ export function createTextLines<T>(
 			return new TextLine(
 				this,
 				this.options,
-				this.lines.length,
 				blockParent,
 				startOfBlock,
 				endOfBlock,
@@ -356,6 +355,7 @@ export function createTextLines<T>(
 
 					// Handle the case where the node has no content
 					if (!firstBox) {
+						newLine.dispose();
 						return;
 					}
 
@@ -417,25 +417,15 @@ export function createTextLines<T>(
 
 					if (existingLine) {
 						const ranges = [...existingLine.ranges];
+						const lastRange = newRange ? null : ranges.pop();
+						ranges.push(...this.combineAdjoining([lastRange, range]));
 
-						if (!newRange) {
-							const lastRange = ranges.at(-1);
-							const rangeToExtend = lastRange?.cloneRange();
-
-							rangeToExtend?.setEnd(range.endContainer, range.endOffset);
-
-							if (rangeToExtend?.toString() === `${lastRange}${range}`) {
-								ranges[ranges.length - 1] = rangeToExtend;
-							} else {
-								ranges.push(range);
-								newRange = false;
-							}
-						} else {
-							ranges.push(range);
+						if (existingLine.ranges.length !== ranges.length) {
 							newRange = false;
 						}
 
 						existingLine.childNodes = ranges;
+						newLine.dispose();
 					} else {
 						newRange = false;
 						lines.push(newLine);
@@ -460,6 +450,7 @@ export function createTextLines<T>(
 				line.startOfText = i === 0;
 				line.endOfText = i === lines.length - 1;
 
+				line.index = i;
 				line.start = offset;
 				line.end = offset + line.innerText.length;
 				offset = line.end;
@@ -532,11 +523,7 @@ export function createTextLines<T>(
 				this.#positionObserver?.disconnect();
 
 				this.parents.forEach((parent) => {
-					parent.removeEventListener(
-						"scroll",
-						this.updateBoundsOnNextFrame,
-						true,
-					);
+					parent.removeEventListener("scroll", this.handleScroll as any, true);
 				});
 
 				this.parents = new Set();
@@ -581,15 +568,12 @@ export function createTextLines<T>(
 			) {
 				this.parents.add(currentNode);
 
-				currentNode.addEventListener(
-					"scroll",
-					this.updateBoundsOnNextFrame,
-					true,
-				);
+				currentNode.addEventListener("scroll", this.handleScroll as any, true);
 				currentNode = currentNode.parentNode;
 			}
 
-			this.parents.add(window);
+			this.parents.add(this.window);
+			this.window.addEventListener("scroll", this.handleScroll as any, true);
 
 			let mounted = false;
 
@@ -597,12 +581,18 @@ export function createTextLines<T>(
 				this.updateBounds();
 			});
 
+			this.ready = new Promise<void>((r) => (this.#resolvePendingReady = r));
+
 			this.updateBounds();
 			this.scanElementLines({ reason: ScanReason.Mounted });
 
 			this.#resizeObserver = new ResizeObserver((entries) => {
 				if (mounted) {
 					this.scanElementLines({ reason: ScanReason.Resize, entries });
+				} else {
+					this.updateBounds();
+					this.scanElementLines({ reason: ScanReason.Mounted });
+					this.#resolvePendingReady?.();
 				}
 
 				mounted = true;
@@ -668,6 +658,10 @@ export function createTextLines<T>(
 			});
 		}
 
+		handleScroll = () => {
+			this.updateBoundsOnNextFrame();
+		};
+
 		constructor(
 			parent: Parent,
 			element: HTMLElement,
@@ -676,6 +670,7 @@ export function createTextLines<T>(
 			super(parent, options, undefined!);
 
 			this.#pixelContainer = this.createIgnoredElement("div", true);
+			this.#pixelContainer.style.position = "absolute";
 			this.#pixelTarget = this.createIgnoredElement("div", true);
 			this.#pixelContainer.appendChild(this.#pixelTarget);
 
@@ -688,11 +683,11 @@ export function createTextLines<T>(
 			this.parent = parent;
 
 			this.container = element;
-
-			this.updateBoundsOnNextFrame = this.updateBoundsOnNextFrame.bind(this);
 		}
 
 		dispose() {
+			super.dispose();
+
 			this.container = undefined;
 		}
 
@@ -701,10 +696,14 @@ export function createTextLines<T>(
 				const impacts = this.analyzeMutationImpact(event.entries);
 
 				if (impacts.requiresFullRescan) {
+					this.#lines.forEach((line) => line.dispose());
 					this.#lines = [];
 				} else {
-					this.#lines = this.lines.slice(0, impacts.firstAffectedLine);
-					// todo handle subtext
+					const retainedLines = this.lines.slice(0, impacts.firstAffectedLine);
+					const removedLines = this.lines.slice(impacts.firstAffectedLine);
+					removedLines.forEach((line) => line.dispose());
+
+					this.#lines = retainedLines;
 				}
 			}
 
@@ -720,9 +719,9 @@ export function createTextLines<T>(
 				oldDimensions.height !== this.height;
 
 			if (resized || (event.reason === ScanReason.Force && event.reset)) {
+				this.#lines.forEach((line) => line.dispose());
 				this.#lines = [];
 			}
-
 			this.#lines = this.scanLines();
 			this.childNodes = this.lines.flatMap((line) => line.childNodes);
 
@@ -731,11 +730,6 @@ export function createTextLines<T>(
 
 		updateProperty(name: string, value: string | number) {
 			value = String(value);
-
-			if (value === this.container.getAttribute(name)) {
-				return;
-			}
-
 			this.ignoreNextMutation();
 			this.container.setAttribute(name, value);
 		}
@@ -763,7 +757,7 @@ export function createTextLines<T>(
 				this.container.appendChild(this.#pixelContainer);
 
 				this.#pixelCache.set(key, this.#pixelTarget.offsetWidth);
-				this.#pixelTarget.remove();
+				this.#pixelContainer.remove();
 			}
 
 			return this.#pixelCache.get(key)!;
@@ -857,7 +851,7 @@ export function createTextLines<T>(
 				return this.lines[cachedIndex];
 			}
 
-			const line = this.lines.find((line) =>
+			const line = this.lines.findLast((line) =>
 				line.ranges.some((range) => range.intersectsNode(node)),
 			);
 

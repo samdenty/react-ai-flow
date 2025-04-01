@@ -258,8 +258,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		return super.comparePosition(other);
 	}
 
-	restartAnimation(unpause = true) {
-		if (unpause) {
+	restartAnimation(resume = true) {
+		if (resume) {
 			this.stagger.play(this);
 		}
 
@@ -275,7 +275,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		);
 
 		const lastActiveElement = previousElements.findLast((element) => {
-			return element.active;
+			return element.elapsed < element.duration;
 		});
 
 		if (latestElementInBatch) {
@@ -337,12 +337,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	}
 
 	get active() {
-		return (
-			!this.paused &&
-			this.elapsed > 0 &&
-			this.elapsed < this.duration &&
-			this.progress !== 1
-		);
+		return !this.paused && this.elapsed < this.duration && this.progress !== 1;
 	}
 
 	get previousElements() {
@@ -438,7 +433,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			(_, index) => {
 				const { subtext, position } = positions[index]!;
 
-				if (subtext && !subtext.isBypassedElement) {
+				if (subtext && !subtext.isBypassed(false)) {
 					return subtext;
 				}
 

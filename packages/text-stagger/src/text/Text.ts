@@ -110,6 +110,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	};
 	customAnimationClassName: string;
 	customAnimationContainer: HTMLElement;
+	customAnimation: HTMLElement;
 	lastPaint?: number;
 
 	text = this;
@@ -129,12 +130,30 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 			return;
 		}
 
-		this.parentText?.scanElementLines({
-			reason: ScanReason.Force,
-		});
+		const parentTexts: Text[] = [];
+		let parentText = this.parentText;
+
+		while (parentText) {
+			parentTexts.unshift(parentText);
+			parentText = parentText.parentText;
+		}
+
+		for (const parentText of parentTexts) {
+			parentText.scanElementLines({
+				reason: ScanReason.Force,
+			});
+
+			parentText.elements.forEach((element) => {
+				element.updateBoxes();
+			});
+		}
 
 		this.scanElementLines({
 			reason: ScanReason.Force,
+		});
+
+		this.elements.forEach((element) => {
+			element.updateBoxes();
 		});
 	}
 
@@ -162,6 +181,34 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	}
 
 	scanBounds() {
+		const rect = this.container.getBoundingClientRect();
+		const styles = this.window.getComputedStyle(this.container);
+
+		const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
+		const paddingRight = Number.parseFloat(styles.paddingRight) || 0;
+
+		if (
+			rect.width - paddingLeft - paddingRight === this.width &&
+			rect.height === this.height
+		) {
+			const offsetTop = rect.top - this.top;
+			const offsetLeft = rect.left + paddingLeft - this.left;
+
+			this.canvasRect = new DOMRect(
+				this.canvasRect.x + offsetLeft,
+				this.canvasRect.y + offsetTop,
+				this.canvasRect.width,
+				this.canvasRect.height,
+			);
+
+			return {
+				top: this.top + offsetTop,
+				left: this.left + offsetLeft,
+				bottom: this.bottom + offsetTop,
+				right: this.right + offsetLeft,
+			};
+		}
+
 		this.updateStyles(this.className, "padding", "0px");
 		this.updateStyles(this.className, "margin", "0px");
 
@@ -213,7 +260,6 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		const changed = super.updateBounds(rects);
 
 		if (changed) {
-			console.log(this.innerText, this.top, this.left);
 			this.updateCustomAnimationPosition();
 		}
 
@@ -221,13 +267,13 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	}
 
 	insertCustomAnimationContainer() {
-		if (this.text.customAnimationContainer.parentElement) {
+		if (this.customAnimationContainer.parentElement) {
 			return;
 		}
 
-		this.text.container.insertAdjacentElement(
+		this.container.insertAdjacentElement(
 			"afterend",
-			this.text.customAnimationContainer,
+			this.customAnimationContainer,
 		);
 
 		this.updateCustomAnimationPosition(true);
@@ -273,17 +319,17 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	}
 
 	private updateCustomAnimationPosition(force?: boolean) {
-		if (!force && !this.customAnimationContainer.childNodes.length) {
+		if (!force && !this.customAnimation.childNodes.length) {
 			return;
 		}
 
-		const { top, left } = this.customAnimationContainer.getBoundingClientRect();
+		const { top, left } = this.customAnimation.getBoundingClientRect();
 
 		if (top === this.top && left === this.left) {
 			return;
 		}
 
-		const styles = this.window.getComputedStyle(this.customAnimationContainer);
+		const styles = this.window.getComputedStyle(this.customAnimation);
 
 		let offsetTop = Number.parseFloat(styles.marginTop) || 0;
 		let offsetLeft = Number.parseFloat(styles.marginLeft) || 0;
@@ -429,25 +475,23 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	}
 
 	revealTrailing() {
-		if (!this.trailingSplit) {
+		const trailingSplit = this.trailingSplit;
+		if (!trailingSplit) {
 			return;
 		}
 
+		this.trailingSplit = null;
+
 		const trimChildNodes = this.createChildNodeTrimmer();
 
-		const childNodes = trimChildNodes(
-			this.trailingSplit.start,
-			this.trailingSplit.end,
-		);
+		const childNodes = trimChildNodes(trailingSplit.start, trailingSplit.end);
 
 		// childNodes can be empty if a mutation has occurred in meantime
 		if (childNodes.length) {
-			const element = new StaggerElement(this, childNodes, this.trailingSplit);
+			const element = new StaggerElement(this, childNodes, trailingSplit);
 			element.restartAnimation(false);
 			this.stagger.vibrate();
 		}
-
-		this.trailingSplit = null;
 
 		this.stagger.requestAnimation([this]);
 	}
@@ -462,8 +506,28 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		this.className = `${options.classNamePrefix}-text-${this.id}`;
 
 		this.customAnimationClassName = `${options.classNamePrefix}-custom-${this.id}`;
+
+		const customAnimationContainerClassName = `${options.classNamePrefix}-custom-container-${this.id}`;
+
 		this.customAnimationContainer = this.createIgnoredElement("div", true);
-		this.customAnimationContainer.className = this.customAnimationClassName;
+		this.customAnimationContainer.classList.add(
+			customAnimationContainerClassName,
+		);
+
+		this.updateStyles(
+			customAnimationContainerClassName,
+			"display",
+			"inline-block",
+		);
+		this.updateStyles(
+			customAnimationContainerClassName,
+			"position",
+			"relative",
+		);
+
+		this.customAnimation = this.createIgnoredElement("div", true);
+		this.customAnimationContainer.appendChild(this.customAnimation);
+		this.customAnimation.className = this.customAnimationClassName;
 
 		this.updateStyles(this.className, null);
 		this.updateStyles(this.customAnimationClassName, null);
@@ -745,12 +809,28 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		};
 	}
 
-	get isBypassedElement(): boolean {
+	get sameDimensionsAsParent() {
+		return (
+			this.top === this.parentText?.top &&
+			this.left === this.parentText?.left &&
+			this.width === this.parentText?.width &&
+			this.height === this.parentText?.height
+		);
+	}
+
+	isBypassed(bypassSameDimensions: boolean): boolean {
 		if (!this.parentText) {
 			return false;
 		}
 
-		if (this.parentText.isBypassedElement) {
+		if (
+			this.parentText.isBypassed(bypassSameDimensions) &&
+			!this.parentText.sameDimensionsAsParent
+		) {
+			return true;
+		}
+
+		if (bypassSameDimensions && this.sameDimensionsAsParent) {
 			return true;
 		}
 
@@ -786,7 +866,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		const oldElements = this.elements;
 		this.elements = [];
 
-		if (this.isBypassedElement) {
+		if (this.isBypassed(true)) {
 			return;
 		}
 
@@ -873,14 +953,16 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		});
 
 		if (restartFrom) {
-			this.stagger.restartAnimationFrom(restartFrom, { unpause: false });
+			this.stagger.restartAnimationFrom(restartFrom, {
+				resume: false,
+			});
 			restartFrom = undefined;
 		}
 
 		function refreshSubtextElements(text: Text) {
 			for (const subtext of text.subtexts) {
 				if (
-					subtext.isBypassedElement
+					subtext.isBypassed(true)
 						? !subtext.elements.length
 						: subtext.elements.length
 				) {
@@ -898,7 +980,9 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		refreshSubtextElements(this);
 
 		if (restartFrom) {
-			this.stagger.restartAnimationFrom(restartFrom, { unpause: false });
+			this.stagger.restartAnimationFrom(restartFrom, {
+				resume: false,
+			});
 
 			for (const element of this.elements) {
 				element.rescan();
@@ -980,11 +1064,6 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		target = this.container,
 	) {
 		value = String(value);
-
-		if (value === target.getAttribute(name)) {
-			return;
-		}
-
 		this.ignoreNextMutation();
 		target.setAttribute(name, value);
 	}
@@ -997,7 +1076,6 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 	): TextLine {
 		return new TextLine(
 			this,
-			this.lines.length,
 			blockParent,
 			startOfBlock,
 			endOfBlock,

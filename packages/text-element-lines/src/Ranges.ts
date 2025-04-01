@@ -28,17 +28,22 @@ export interface Ranges<T extends Box, Parent extends BoxParent = BoxParent>
 	}[];
 
 	rescan(): void;
-	updateBounds(rects?: DOMRect[][]): boolean;
+	scanRanges(): DOMRect[][];
+
 	scanBounds(
 		rects: { top: number; left: number; bottom: number; right: number }[][],
 	): { top: number; left: number; bottom: number; right: number };
-	scanRanges(): DOMRect[][];
+	updateBounds(rects?: DOMRect[][]): boolean;
+
 	scanBoxes(rects: DOMRect[][]): T[][];
+	updateBoxes(rects?: DOMRect[][]): void;
+
 	comparePosition(other: Ranges<any, any>): number;
 	getRangeOffsets(
 		ranges: Range[] | Range,
 		startPosition?: number,
 	): { start: number; end: number };
+	combineAdjoining(ranges: (Range | undefined | null)[]): Range[];
 	createChildNodeTrimmer(): (start: number, end: number) => RangesChildNode[];
 	toString(): string;
 }
@@ -71,6 +76,7 @@ export function createRanges<BoxType>(
 			Map<number, WeakMap<Node, Map<number, number>>>
 		>();
 		ranges: Range[] = [];
+		continuousRanges: Range[] = [];
 
 		/**
 		 * The text of *just* the childNodes that are ranges,
@@ -104,6 +110,12 @@ export function createRanges<BoxType>(
 			if (childNodes) {
 				this.childNodes = childNodes;
 			}
+		}
+
+		dispose() {
+			super.dispose();
+
+			this.uniqueBoxes.forEach((box) => box.dispose());
 		}
 
 		comparePosition(other: Ranges<any, any>): number {
@@ -256,15 +268,18 @@ export function createRanges<BoxType>(
 			this.ranges = this.childNodes.filter(
 				(content) => typeof content !== "string",
 			);
+			this.continuousRanges = this.combineAdjoining(this.ranges);
 
 			this.rescan();
 		}
 
 		rescan() {
 			const rects = this.scanRanges();
-
 			this.updateBounds(rects);
+			this.updateBoxes(rects);
+		}
 
+		updateBoxes(rects = this.scanRanges()) {
 			this.uniqueBoxes.forEach((box) => box.dispose());
 			this.boxes = this.scanBoxes(rects);
 			this.uniqueBoxes = [...new Set(this.boxes.flat())];
@@ -275,10 +290,6 @@ export function createRanges<BoxType>(
 		}
 
 		updateBounds(rects?: DOMRect[][]): boolean {
-			if (!rects) {
-				rects = this.scanRanges();
-			}
-
 			const bounds = this.scanBounds(rects);
 
 			const changed =
@@ -292,9 +303,49 @@ export function createRanges<BoxType>(
 			return changed;
 		}
 
+		combineAdjoining(ranges: (Range | undefined | null)[]): Range[] {
+			ranges = ranges.filter(Boolean) as Range[];
+
+			if (!ranges.length) {
+				return [];
+			}
+
+			const mergedRanges = [ranges[0]!.cloneRange()];
+
+			for (let i = 1; i < ranges.length; i++) {
+				const currentRange = ranges[i]!;
+				const lastMergedRange = mergedRanges[mergedRanges.length - 1]!;
+				const potentialMergedRange = lastMergedRange.cloneRange();
+
+				potentialMergedRange.setEnd(
+					currentRange.endContainer,
+					currentRange.endOffset,
+				);
+
+				if (`${potentialMergedRange}` === `${lastMergedRange}${currentRange}`) {
+					mergedRanges[mergedRanges.length - 1] = potentialMergedRange;
+				} else {
+					mergedRanges.push(currentRange.cloneRange());
+				}
+			}
+
+			return mergedRanges;
+		}
+
 		scanBounds(
-			rects: { top: number; left: number; bottom: number; right: number }[][],
+			rects?: {
+				top: number;
+				left: number;
+				bottom: number;
+				right: number;
+			}[][],
 		) {
+			if (!rects) {
+				return Box.getBounds(
+					this.continuousRanges.map((range) => range.getBoundingClientRect()),
+				);
+			}
+
 			return Box.getBounds(rects.flat());
 		}
 

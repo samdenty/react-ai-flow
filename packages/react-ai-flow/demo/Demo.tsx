@@ -496,7 +496,7 @@ function Message({ children }: { children: React.ReactNode }) {
 }
 
 export function Demo() {
-	const [speed, setSpeed] = useState(0.1);
+	const [speed, setSpeed] = useState(0.5);
 
 	return (
 		<div className="flex flex-col gap-4 p-4 items-center w-full max-w-4xl mx-auto">

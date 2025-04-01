@@ -33,18 +33,7 @@ export function useTextStagger(textOptions: TextOptions = {}) {
 			return;
 		}
 
-		const dispose = () => {
-			for (const [stickToBottomContext, texts] of stagger.stickToBottom) {
-				texts.delete(id);
-
-				if (!texts.size) {
-					stagger.stickToBottom.delete(stickToBottomContext);
-				}
-			}
-		};
-
 		if (!stickToBottomContext) {
-			dispose();
 			return;
 		}
 
@@ -56,6 +45,14 @@ export function useTextStagger(textOptions: TextOptions = {}) {
 		}
 
 		texts.add(id);
+
+		return () => {
+			texts.delete(id);
+
+			if (!texts.size) {
+				stagger.stickToBottom.delete(stickToBottomContext);
+			}
+		};
 	}, [id, stagger, stickToBottomContext]);
 
 	useEffect(() => {

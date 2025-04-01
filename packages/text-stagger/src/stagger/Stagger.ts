@@ -114,6 +114,8 @@ export class Stagger {
 		}
 	}
 
+	#previousSelectionText?: string;
+
 	revealSelection(restart = this.options.restartOnSelection) {
 		const selection = this.window.getSelection();
 		if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -121,6 +123,14 @@ export class Stagger {
 		}
 
 		const selectionRange = selection.getRangeAt(0);
+		const selectionText = selection.toString();
+
+		if (selectionText === this.#previousSelectionText) {
+			return;
+		}
+
+		this.#previousSelectionText = selectionText;
+
 		const elements = this.elements;
 
 		let left = 0;
@@ -171,13 +181,19 @@ export class Stagger {
 
 			if (element) {
 				element.progress = 1;
+
+				if (element.isLast) {
+					element.text.revealTrailing();
+				}
 			}
 		}
 
 		const lastElement = elements[lastOverlap];
 
 		if (lastElement && (lastElement.active || restart)) {
-			this.restartAnimationFrom(lastElement, { offset: 1 });
+			this.restartAnimationFrom(lastElement, {
+				offset: 1,
+			});
 		}
 	}
 
@@ -568,6 +584,8 @@ export class Stagger {
 	paint(texts: Text[] = []) {
 		this.#painting = true;
 
+		this.revealSelection();
+
 		const queuedToPaint = new Set(texts);
 		const skippedFrames = new Set<Text>();
 
@@ -622,7 +640,13 @@ export class Stagger {
 
 	restartAnimationFrom(
 		restartFrom: StaggerElement | Text,
-		{ unpause = true, offset = 0 }: { unpause?: boolean; offset?: number } = {},
+		{
+			resume = true,
+			offset = 0,
+		}: {
+			resume?: boolean;
+			offset?: number;
+		} = {},
 	) {
 		let element!: StaggerElement | undefined;
 
@@ -651,7 +675,7 @@ export class Stagger {
 		}
 
 		for (let i = restartFromElementIndex; i < this.elements.length; i++) {
-			this.elements[i]!.restartAnimation(unpause);
+			this.elements[i]!.restartAnimation(resume);
 		}
 
 		this.vibrate();

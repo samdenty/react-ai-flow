@@ -166,24 +166,25 @@ export class StaggerElementBox extends Ranges<
 
 	updateCustomAnimation() {
 		const styles = getCustomAnimationStyles(this);
+		const batchedStyles: string[] = [];
 
 		if (this.subtext?.closestCommonParent) {
 			this.initialStyle ??=
-				this.subtext.closestCommonParent.getAttribute("style") || "";
-
-			const styles = this.document.createElement("div");
-
-			styles.setAttribute("style", this.initialStyle);
+				this.subtext.closestCommonParent.style.cssText || "";
 
 			if (styles) {
 				for (const [key, value] of Object.entries(styles)) {
 					if (value != null) {
-						styles.style.setProperty(key, value);
+						batchedStyles.push(`${key}: ${value}`);
 					}
 				}
 			}
 
-			this.subtext.updateProperty("style", styles.getAttribute("style")!);
+			this.subtext.updateProperty(
+				"style",
+				this.initialStyle + batchedStyles.join(";"),
+				this.subtext.closestCommonParent,
+			);
 
 			return;
 		}
@@ -192,7 +193,7 @@ export class StaggerElementBox extends Ranges<
 			this.customAnimationElement?.remove();
 			this.customAnimationElement = undefined;
 
-			if (!this.text.customAnimationContainer.childNodes.length) {
+			if (!this.text.customAnimation.childNodes.length) {
 				this.text.customAnimationContainer.remove();
 			}
 
@@ -204,7 +205,7 @@ export class StaggerElementBox extends Ranges<
 			this.customAnimationElement.className = this.className;
 
 			this.text.insertCustomAnimationContainer();
-			this.text.customAnimationContainer.append(this.customAnimationElement);
+			this.text.customAnimation.append(this.customAnimationElement);
 
 			for (const range of this.ranges) {
 				cloneRangeWithStyles(
@@ -212,7 +213,7 @@ export class StaggerElementBox extends Ranges<
 					range,
 					this.customAnimationElement,
 					(element) => {
-						if (!this.text.options.visualDebug) {
+						if (!this.text.visualDebug) {
 							element.style.pointerEvents = "none";
 						}
 
@@ -228,39 +229,41 @@ export class StaggerElementBox extends Ranges<
 			this.initialStyle = undefined;
 		}
 
-		this.initialStyle ??=
-			this.customAnimationElement.getAttribute("style") || "";
+		this.initialStyle ??= this.customAnimationElement.style.cssText || "";
 
-		this.text.updateProperty(
-			"style",
-			this.initialStyle,
-			this.customAnimationElement,
-		);
+		batchedStyles.push("box-sizing: content-box");
+		batchedStyles.push(`line-height: ${this.height}px`);
+		batchedStyles.push(`height: ${this.height}px`);
+		batchedStyles.push(`width: ${this.width}px`);
 
-		this.customAnimationElement.style.boxSizing = "content-box";
-		this.customAnimationElement.style.lineHeight = `${this.height}px`;
-		this.customAnimationElement.style.height = `${this.height}px`;
-		this.customAnimationElement.style.width = `${this.width}px`;
-
-		if (this.text.options.visualDebug) {
-			this.customAnimationElement.style.padding = "0";
-			this.customAnimationElement.style.margin = "0";
+		if (this.text.visualDebug) {
+			batchedStyles.push("padding: 0");
+			batchedStyles.push("margin: 0");
 		} else {
-			this.customAnimationElement.style.padding = `${this.height}px ${this.width}px`;
-			this.customAnimationElement.style.margin = `-${this.height}px -${this.width}px`;
+			batchedStyles.push(`padding: ${this.height}px ${this.width}px`);
+			batchedStyles.push(`margin: -${this.height}px -${this.width}px`);
 		}
 
 		for (const [key, value] of Object.entries(styles)) {
-			(this.customAnimationElement.style as any)[key] = value;
+			if (value != null) {
+				batchedStyles.push(`${key}: ${value}`);
+			}
 		}
 
-		if (this.text.options.visualDebug) {
-			this.customAnimationElement.style.background = "rgba(0, 255, 0, 0.6)";
+		if (this.text.visualDebug) {
+			batchedStyles.push("background: rgba(0, 255, 0, 0.6)");
 		}
 
-		this.customAnimationElement.style.position = "absolute";
-		this.customAnimationElement.style.top = `${this.top - this.text.top}px`;
-		this.customAnimationElement.style.left = `${this.left - this.text.left}px`;
+		batchedStyles.push("position: absolute");
+		batchedStyles.push(`top: ${this.top - this.text.top}px`);
+		batchedStyles.push(`left: ${this.left - this.text.left}px`);
+
+		this.text.ignoreNextMutation();
+		this.text.updateProperty(
+			"style",
+			this.initialStyle + batchedStyles.join(";"),
+			this.customAnimationElement,
+		);
 	}
 
 	get text() {

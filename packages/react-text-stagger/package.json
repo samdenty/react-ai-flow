@@ -27,6 +27,6 @@
   },
   "dependencies": {
     "text-stagger": "workspace:^",
-    "use-stick-to-bottom": "1.0.49"
+    "use-stick-to-bottom": "1.0.52"
   }
 }

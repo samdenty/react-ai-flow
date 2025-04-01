@@ -46,7 +46,7 @@
     "text-stagger": "workspace:^",
     "text-stagger-record": "workspace:^",
     "text-stagger-replay": "workspace:^",
-    "typescript": "^5.5.3",
+    "typescript": "^5.8.2",
     "vite": "^5.4.1",
     "vite-plugin-dts": "^4.2.1",
     "vitest": "^2.1.8"

@@ -108,8 +108,6 @@ export const StaggerProvider = forwardRef<Stagger, StaggerProviderProps>(
 
 						return newTarget + 32;
 					};
-
-					stickToBottomContext.scrollToBottom();
 				}
 			});
 		}, [stagger, targetScrollTop]);

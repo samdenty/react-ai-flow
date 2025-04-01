@@ -1,21 +1,21 @@
 const COPY_STYLES = [
 	"color",
-	"fontFamily",
-	"fontSize",
-	"fontStyle",
-	"fontWeight",
-	"letterSpacing",
-	"lineHeight",
-	"textAlign",
-	"textDecoration",
-	"textTransform",
-	"whiteSpace",
-	"wordSpacing",
+	"font-family",
+	"font-size",
+	"font-style",
+	"font-weight",
+	"letter-spacing",
+	"line-height",
+	"text-align",
+	"text-decoration",
+	"text-transform",
+	"white-space",
+	"word-spacing",
 	"margin",
 	"padding",
-	"borderWidth",
-	"borderStyle",
-	"borderColor",
+	"border-width",
+	"border-style",
+	"border-color",
 	"display",
 	"opacity",
 ] as const;
@@ -47,16 +47,16 @@ export function cloneRangeWithStyles(
 		onElement?.(targetElement);
 
 		const targetStyle = window.getComputedStyle(targetElement);
-		const styles = window.document.createElement("div");
-		styles.setAttribute("style", targetElement.getAttribute("style") || "");
+		const batchedStyles: string[] = [];
 
 		for (const prop of COPY_STYLES) {
-			if (style[prop] !== targetStyle[prop]) {
-				styles.style[prop] = style[prop];
+			const value = style.getPropertyValue(prop);
+			if (value !== targetStyle.getPropertyValue(prop)) {
+				batchedStyles.push(`${prop}: ${value}`);
 			}
 		}
 
-		targetElement.setAttribute("style", styles.getAttribute("style")!);
+		targetElement.style += batchedStyles.join(";");
 	}
 
 	// Helper function to copy computed styles to an element

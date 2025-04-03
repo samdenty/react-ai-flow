@@ -76,7 +76,7 @@ export function createRanges<BoxType>(
 			Map<number, WeakMap<Node, Map<number, number>>>
 		>();
 		ranges: Range[] = [];
-		continuousRanges: Range[] = [];
+		#continuousRanges?: Range[];
 
 		/**
 		 * The text of *just* the childNodes that are ranges,
@@ -268,9 +268,19 @@ export function createRanges<BoxType>(
 			this.ranges = this.childNodes.filter(
 				(content) => typeof content !== "string",
 			);
-			this.continuousRanges = this.combineAdjoining(this.ranges);
+			this.#continuousRanges = undefined;
 
 			this.rescan();
+		}
+
+		get continuousRanges() {
+			if (this.#continuousRanges) {
+				return this.#continuousRanges;
+			}
+
+			this.#continuousRanges = this.combineAdjoining(this.ranges);
+
+			return this.#continuousRanges;
 		}
 
 		rescan() {

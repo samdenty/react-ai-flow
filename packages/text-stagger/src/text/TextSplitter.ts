@@ -68,7 +68,7 @@ export enum TextSplit {
 const DEFAULT_TEXT_SPLIT = TextSplit.Line;
 
 const CHARACTER_REGEX = /(?!\s)(?=.)/g;
-const WORD_REGEX = /\s+/g;
+const WORD_REGEX = /[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]|\s+/gm;
 const LINE_REGEX = /\r\n|\r|\n/g;
 const SENTENCE_REGEX = /\r\n/g;
 const PARAGRAPH_REGEX = /\n\s*\n/g;

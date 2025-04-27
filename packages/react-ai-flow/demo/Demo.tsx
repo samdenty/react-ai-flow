@@ -18,6 +18,7 @@ import { Checkbox } from "./components/ui/checkbox.js";
 import { Label } from "./components/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group.js";
 import { Slider } from "./components/ui/slider.js";
+import { Analytics } from "@vercel/analytics/react";
 import { useFakeMessages } from "./useFakeMessages.js";
 
 // enableIOSVibrationWithPopup();
@@ -500,6 +501,7 @@ export function Demo() {
 
 	return (
 		<div className="flex flex-col gap-4 p-4 items-center w-full max-w-4xl mx-auto">
+			<Analytics />
 			<Card className="w-full">
 				<CardHeader className="py-2">
 					<CardTitle className="text-base">Speed Control</CardTitle>

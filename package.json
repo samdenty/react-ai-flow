@@ -29,6 +29,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@vercel/analytics": "^1.5.0",
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/browser": "^2.1.8",
     "autoprefixer": "^10.4.20",

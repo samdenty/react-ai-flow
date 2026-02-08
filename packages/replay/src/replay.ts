@@ -40,6 +40,7 @@ export interface Frame<T extends ReplayMode> {
 		? (frame: ReplayMode | `${ReplayMode}`) => Promise<void>
 		: () => void;
 	snapshots: TextSnapshot[];
+	currentSnapshots: TextSnapshot[];
 }
 
 export interface Player<T extends ReplayMode> {
@@ -75,9 +76,10 @@ export function replay<T extends ReplayMode = ReplayMode.Hydrated>(
 	let recorded = null as Player<T>["recorded"];
 	let hydrated = null as Player<T>["hydrated"];
 	let hydratedReplay: ReturnType<typeof replayPlugin> | null = null;
+	let recordedReplay: ReturnType<typeof replayPlugin> | null = null;
 
 	if (mode === "compare" || mode === "recorded") {
-		const recordedReplay = replayPlugin(events, {
+		recordedReplay = replayPlugin(events, {
 			...options,
 			mode: ReplayMode.Recorded,
 		});
@@ -199,6 +201,10 @@ export function replay<T extends ReplayMode = ReplayMode.Hydrated>(
 				hydratedEvents: frame.hydratedEvents,
 				recordedEvents: frame.recordedEvents,
 				snapshots: frame.snapshots,
+				currentSnapshots: [
+					...(hydratedReplay?.currentSnapshots.values() ??
+						recordedReplay!.currentSnapshots.values()),
+				],
 			};
 		}
 	}

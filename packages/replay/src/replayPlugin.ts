@@ -23,6 +23,7 @@ export function replayPlugin(
 	options: Partial<playerConfig>;
 	hydratedTexts: Map<number, Text>;
 	hydratedStaggers: Map<number, Stagger>;
+	currentSnapshots: Map<number, TextSnapshot>;
 	ready(): Promise<void>;
 } {
 	if (mode === ReplayMode.Hydrated) {
@@ -37,17 +38,30 @@ export function replayPlugin(
 	const hydratedStaggers = new Map<number, Stagger>();
 	const hydratedTexts = new Map<number, Text>();
 	const initSnapshots = new Map<number, TextSnapshot>();
+	const currentSnapshots = new Map<number, TextSnapshot>();
 
 	function processEvent(event: RecordedEvent) {
 		const { snapshots } = event;
 
-		if (mode === ReplayMode.Hydrated) {
-			for (const snapshot of snapshots) {
+		for (const snapshot of snapshots) {
+			if (mode === ReplayMode.Hydrated) {
 				hydrateTextSnapshot(snapshot);
+			}
 
-				if (!initSnapshots.has(snapshot.elementId)) {
-					initSnapshots.set(snapshot.elementId, snapshot);
-				}
+			const currentSnapshot = currentSnapshots.get(snapshot.elementId);
+
+			currentSnapshots.set(snapshot.elementId, {
+				...snapshot,
+
+				stagger: {
+					...currentSnapshot?.stagger,
+					...snapshot.stagger,
+				},
+				options: Object.assign({}, currentSnapshot?.options, snapshot.options),
+			});
+
+			if (!initSnapshots.has(snapshot.elementId)) {
+				initSnapshots.set(snapshot.elementId, snapshot);
 			}
 		}
 
@@ -126,6 +140,7 @@ export function replayPlugin(
 	return {
 		hydratedStaggers,
 		hydratedTexts,
+		currentSnapshots,
 		handler(event, _isSync: boolean, context) {
 			replayer = context.replayer;
 			window = replayer.iframe.contentWindow! as Window & typeof globalThis;

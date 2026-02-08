@@ -116,6 +116,10 @@ export function preserveOptimizeRects(
 		);
 
 		if (!mergeWith) {
+			for (const rects of optimizedRects.values()) {
+				rects.add(inputRect);
+			}
+
 			optimizedRects.set(inputRect, new Set([inputRect]));
 			continue;
 		}
@@ -144,7 +148,7 @@ export function preserveOptimizeRects(
 				const indexes = inputRects.map((inputRect) => {
 					const index = inputRectsIndexes.get(inputRect)!;
 
-					return isFlat ? index[0] : index;
+					return isFlat ? (index[0] as number) : (index as [number, number]);
 				});
 
 				transformed = create(optimized, indexes, ...key);

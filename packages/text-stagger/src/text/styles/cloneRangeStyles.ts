@@ -26,8 +26,28 @@ export function cloneRangeWithStyles(
 	target: HTMLElement,
 	onElement?: (element: HTMLElement) => void,
 ) {
+	range = range.cloneRange();
+
 	// Get the common ancestor container
-	const ancestorContainer = range.commonAncestorContainer;
+	const ancestorContainer = range.commonAncestorContainer as Element | Text;
+	const textContent = ancestorContainer.textContent;
+
+	if (range.startOffset === 0 && range.endOffset === textContent.length) {
+		let parentElement: HTMLElement | null = ancestorContainer.parentElement!;
+
+		while (parentElement) {
+			const parentRange = window.document.createRange();
+			parentRange.setStart(parentElement, 0);
+			parentRange.setEnd(parentElement, 1);
+
+			if (parentRange.toString() === textContent) {
+				parentElement = parentElement.parentElement;
+				range = parentRange;
+			} else {
+				parentElement = null;
+			}
+		}
+	}
 
 	// If the container is a text node, get its parent
 	const contextElement =

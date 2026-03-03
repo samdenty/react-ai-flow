@@ -30,7 +30,7 @@ export function cloneRangeWithStyles(
 
 	// Get the common ancestor container
 	const ancestorContainer = range.commonAncestorContainer as Element | Text;
-	const textContent = ancestorContainer.textContent;
+	const textContent = ancestorContainer.textContent!;
 
 	if (range.startOffset === 0 && range.endOffset === textContent.length) {
 		let parentElement: HTMLElement | null = ancestorContainer.parentElement!;

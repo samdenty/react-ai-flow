@@ -258,12 +258,49 @@ export class StaggerElementBox extends Ranges<
 		batchedStyles.push(`top: ${this.top - this.text.top}px`);
 		batchedStyles.push(`left: ${this.left - this.text.left}px`);
 
-		this.text.ignoreNextMutation();
 		this.text.updateProperty(
 			"style",
 			this.initialStyle + batchedStyles.join(";"),
 			this.customAnimationElement,
 		);
+	}
+
+	#cachedHasParents = new Map<
+		string | ((parent: HTMLElement) => boolean),
+		boolean
+	>();
+
+	isParent(parent: string | string[] | ((parent: HTMLElement) => boolean)) {
+		if (this.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
+			return false;
+		}
+
+		let checkParent: (node: HTMLElement) => boolean;
+
+		if (typeof parent === "function") {
+			checkParent = parent;
+		} else {
+			const parents =
+				typeof parent === "string"
+					? [parent.toLowerCase()]
+					: parent.map((parent) => parent.toLowerCase());
+
+			checkParent = (node) => parents.includes(node.tagName.toLowerCase());
+		}
+
+		let element = this.commonAncestorContainer as HTMLElement | null;
+		while (element) {
+			if (checkParent(element)) {
+				this.#cachedHasParents.set(checkParent, true);
+				return true;
+			}
+
+			element = element.parentElement;
+		}
+
+		this.#cachedHasParents.set(checkParent, false);
+
+		return false;
 	}
 
 	get text() {

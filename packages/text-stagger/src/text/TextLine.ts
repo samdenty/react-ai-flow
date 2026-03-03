@@ -78,7 +78,7 @@ export class TextLine extends BaseTextLine {
 			const start = position?.start ?? line.start;
 			const end = position?.end ?? line.end;
 
-			return start < line.end && line.start <= end;
+			return start <= line.end && line.start <= end;
 		}) as T extends { lines: TextLine[] } ? TextLine[] : never;
 	}
 

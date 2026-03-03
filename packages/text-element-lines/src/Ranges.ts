@@ -19,7 +19,7 @@ export interface Ranges<T extends Box, Parent extends BoxParent = BoxParent>
 	get parent(): Parent;
 	set parent(parent: Parent);
 
-	get commonAncestorContainer(): HTMLElement;
+	get commonAncestorContainer(): HTMLElement | Text;
 
 	childText: string[];
 	childNodes: readonly RangesChildNode[];
@@ -363,10 +363,30 @@ export function createRanges<BoxType>(
 			return Box.getBounds(rects.flat());
 		}
 
-		#commonAncestorContainer?: HTMLElement;
-		get commonAncestorContainer() {
+		#commonAncestorContainer?: HTMLElement | Text;
+		get commonAncestorContainer(): HTMLElement | Text {
 			if (this.#commonAncestorContainer) {
 				return this.#commonAncestorContainer;
+			}
+
+			const firstCommonAncestorContainer =
+				this.ranges[0]!.commonAncestorContainer;
+
+			let length = firstCommonAncestorContainer.textContent!.length;
+			let offsetLength = 0;
+
+			for (const range of this.ranges) {
+				offsetLength += range.toString().length;
+
+				if (range.commonAncestorContainer !== firstCommonAncestorContainer) {
+					length = 0;
+					offsetLength = 0;
+					break;
+				}
+			}
+
+			if (length !== offsetLength) {
+				return firstCommonAncestorContainer as Text | HTMLElement;
 			}
 
 			const getAncestors = (node: Node): HTMLElement[] => {
@@ -383,9 +403,7 @@ export function createRanges<BoxType>(
 				return ancestors;
 			};
 
-			let commonAncestors = getAncestors(
-				this.ranges[0]!.commonAncestorContainer,
-			);
+			let commonAncestors = getAncestors(firstCommonAncestorContainer);
 
 			for (const { commonAncestorContainer } of this.ranges.slice(1)) {
 				const currentAncestors = getAncestors(commonAncestorContainer);

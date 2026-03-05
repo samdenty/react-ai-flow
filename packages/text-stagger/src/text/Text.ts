@@ -522,7 +522,7 @@ export class Text extends BaseTextLines<TextLine, Text | Stagger> {
 		this.updateStyles(
 			customAnimationContainerClassName,
 			"position",
-			"relative",
+			"absolute",
 		);
 
 		this.customAnimation = this.createIgnoredElement("div", true);

@@ -16,6 +16,12 @@ export type SplitterImpl<T extends ElementOptions> = T & {
 };
 
 export interface TextSplitterOptions extends ElementOptions {
+	/**
+	 * @example
+	 * ```ts
+	 * ({ splitText }) => splitText('')
+	 * ```
+	 */
 	splitter?: Exclude<TextSplitter, TextSplitterOptions>;
 }
 
@@ -153,7 +159,11 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
 			});
 
 			if (!Array.isArray(result)) {
-				const mergedSplitter = mergeTextSplitter(currentSplitter, result);
+				const { splitText, ...options } = this;
+				const mergedSplitter = mergeObject(
+					mergeTextSplitter(currentSplitter, result),
+					options,
+				);
 
 				return mergedSplitter.splitText(text, event);
 			}

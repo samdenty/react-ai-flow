@@ -21,6 +21,10 @@ export interface Ranges<T extends Box, Parent extends BoxParent = BoxParent>
 
 	get commonAncestorContainer(): HTMLElement | Text;
 
+	isParent(
+		parent: string | string[] | ((parent: HTMLElement) => boolean),
+	): boolean;
+
 	childText: string[];
 	childNodes: readonly RangesChildNode[];
 	childNodesOffsets: {
@@ -363,14 +367,56 @@ export function createRanges<BoxType>(
 			return Box.getBounds(rects.flat());
 		}
 
+		#cachedHasParents = new Map<
+			string | ((parent: HTMLElement) => boolean),
+			boolean
+		>();
+
+		isParent(parent: string | string[] | ((parent: HTMLElement) => boolean)) {
+			if (this.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
+				return false;
+			}
+
+			let checkParent: (node: HTMLElement) => boolean;
+
+			if (typeof parent === "function") {
+				checkParent = parent;
+			} else {
+				const parents =
+					typeof parent === "string"
+						? [parent.toLowerCase()]
+						: parent.map((parent) => parent.toLowerCase());
+
+				checkParent = (node) => parents.includes(node.tagName.toLowerCase());
+			}
+
+			let element = this.commonAncestorContainer as HTMLElement | null;
+			while (element) {
+				if (checkParent(element)) {
+					this.#cachedHasParents.set(checkParent, true);
+					return true;
+				}
+
+				element = element.parentElement;
+			}
+
+			this.#cachedHasParents.set(checkParent, false);
+
+			return false;
+		}
+
 		#commonAncestorContainer?: HTMLElement | Text;
 		get commonAncestorContainer(): HTMLElement | Text {
 			if (this.#commonAncestorContainer) {
 				return this.#commonAncestorContainer;
 			}
 
-			const firstCommonAncestorContainer =
-				this.ranges[0]!.commonAncestorContainer;
+			const [firstRange] = this.ranges;
+			if (!firstRange) {
+				return this.container;
+			}
+
+			const firstCommonAncestorContainer = firstRange.commonAncestorContainer;
 
 			let length = firstCommonAncestorContainer.textContent!.length;
 			let offsetLength = 0;

@@ -21,9 +21,10 @@ export interface Ranges<T extends Box, Parent extends BoxParent = BoxParent>
 
 	get commonAncestorContainer(): HTMLElement | Text;
 
-	isParent(
+	hasParent(
 		parent: string | string[] | ((parent: HTMLElement) => boolean),
 	): boolean;
+	isPartialRange: boolean;
 
 	childText: string[];
 	childNodes: readonly RangesChildNode[];
@@ -372,11 +373,11 @@ export function createRanges<BoxType>(
 			boolean
 		>();
 
-		isParent(parent: string | string[] | ((parent: HTMLElement) => boolean)) {
-			if (this.commonAncestorContainer.nodeType === Node.TEXT_NODE) {
-				return false;
-			}
+		get isPartialRange() {
+			return this.commonAncestorContainer.nodeType === Node.TEXT_NODE;
+		}
 
+		hasParent(parent: string | string[] | ((parent: HTMLElement) => boolean)) {
 			let checkParent: (node: HTMLElement) => boolean;
 
 			if (typeof parent === "function") {
@@ -390,7 +391,10 @@ export function createRanges<BoxType>(
 				checkParent = (node) => parents.includes(node.tagName.toLowerCase());
 			}
 
-			let element = this.commonAncestorContainer as HTMLElement | null;
+			let element = this.isPartialRange
+				? this.commonAncestorContainer.parentElement
+				: (this.commonAncestorContainer as HTMLElement | null);
+
 			while (element) {
 				if (checkParent(element)) {
 					this.#cachedHasParents.set(checkParent, true);

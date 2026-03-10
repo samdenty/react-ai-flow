@@ -7,15 +7,13 @@ import {
 	TextLine,
 } from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
-import { getCustomAnimationStyles } from "../text/styles/customAnimationStyles.js";
 import {
 	AnimationKind,
-	AnimationTiming,
 	type ElementOptions,
 	type StaggerElement,
 	isGradient,
-	timingFunctions,
 } from "./StaggerElement.js";
+import { AnimationTiming, timingFunctions } from "../animations/timings.js";
 
 export interface StaggerElementBoxOptions
 	extends SplitterImpl<ElementOptions> {}
@@ -165,7 +163,7 @@ export class StaggerElementBox extends Ranges<
 	}
 
 	updateCustomAnimation() {
-		const styles = getCustomAnimationStyles(this);
+		const styles = this.options.customStyles?.(this);
 		const batchedStyles: string[] = [];
 
 		if (this.subtext?.closestCommonParent) {

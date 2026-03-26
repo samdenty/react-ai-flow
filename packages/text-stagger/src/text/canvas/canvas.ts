@@ -26,7 +26,7 @@ export function doPaint(
 	ctx.clearRect(0, 0, text.canvasRect.width, text.canvasRect.height);
 
 	const boxes = text.elements.flatMap((element) => {
-		const { animation } = element;
+		const { fadeIn, gradientReveal } = element;
 
 		return element.uniqueBoxes.map((box) => {
 			const {
@@ -40,7 +40,8 @@ export function doPaint(
 			const isLast = element.isLast && box.isLast;
 
 			return {
-				animation,
+				fadeIn,
+				gradientReveal,
 				parentText,
 				left,
 				top,
@@ -65,15 +66,14 @@ export function doPaint(
 		height,
 		timing,
 		isLast,
-		animation,
+		fadeIn,
 		parentText,
 	} of boxes) {
 		if (parentText) {
 			continue;
 		}
 
-		ctx.globalAlpha =
-			animation === "fade-in" ? timing : Math.min(1, timing / 0.4);
+		ctx.globalAlpha = fadeIn ? timing : Math.min(1, timing / 0.4);
 
 		// Fill everything to the left of the box
 		ctx.fillRect(0, top, left, height);
@@ -82,8 +82,7 @@ export function doPaint(
 		ctx.fillRect(0, 0, text.canvasRect.width, top);
 
 		if (isLast && !text.streaming) {
-			ctx.globalAlpha =
-				animation === "fade-in" ? timing : Math.max(0, (timing - 0.6) / 0.4);
+			ctx.globalAlpha = fadeIn ? timing : Math.max(0, (timing - 0.6) / 0.4);
 
 			// Fill everything to the right of the box
 			ctx.fillRect(
@@ -109,7 +108,8 @@ export function doPaint(
 
 	// Second pass: Draw the regular boxes
 	for (const {
-		animation,
+		fadeIn,
+		gradientReveal,
 		subtext,
 		left,
 		top,
@@ -125,14 +125,14 @@ export function doPaint(
 		ctx.fillStyle = fill;
 		ctx.clearRect(left, top, width, height);
 
-		if (animation === "fade-in" || timing === 1) {
+		if (fadeIn || timing === 1) {
 			ctx.globalAlpha = timing;
 			ctx.fillRect(left, top, width, height);
 		} else if (
-			(animation === "gradient-reveal" ||
-				animation === "gradient-down" ||
-				animation === "gradient-left" ||
-				animation === "gradient-up") &&
+			(gradientReveal === "right" ||
+				gradientReveal === "down" ||
+				gradientReveal === "left" ||
+				gradientReveal === "up") &&
 			width > 0 &&
 			height > 0 &&
 			timing > 0
@@ -141,9 +141,8 @@ export function doPaint(
 
 			const gradientGutterOverflow = gradientWidth / 2;
 			const isHorizontal =
-				animation === "gradient-reveal" || animation === "gradient-left";
-			const isReverse =
-				animation === "gradient-left" || animation === "gradient-up";
+				gradientReveal === "right" || gradientReveal === "left";
+			const isReverse = gradientReveal === "left" || gradientReveal === "up";
 			const size = isHorizontal ? width : height;
 
 			const gradientStart = -gradientGutterOverflow;

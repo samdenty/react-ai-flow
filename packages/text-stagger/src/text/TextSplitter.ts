@@ -1,29 +1,18 @@
 import type { ScanEvent } from "text-element-lines";
-import {
-	AnimationKind,
-	type ElementAnimation,
-	type ElementOptions,
-} from "../stagger/index.js";
+import type { ElementOptions } from "../stagger/index.js";
 import { mergeObject } from "../utils/mergeObject.js";
 import type { Ranges } from "./Ranges.js";
-import { Text } from "./Text.js";
+import { Text, type TextAnimation } from "./Text.js";
 
 export type TextLike = Text | Ranges<any, any> | string;
 
 export type SplitterImpl<T extends ElementOptions> = T & {
 	splitText(text: Text, event: ScanEvent): ParsedTextSplit[];
-	animation: ElementAnimation;
 };
 
-export interface TextSplitterOptions extends ElementOptions {
-	/**
-	 * @example
-	 * ```ts
-	 * ({ splitText }) => splitText('')
-	 * ```
-	 */
-	splitter?: Exclude<TextSplitter, TextSplitterOptions>;
-}
+export type TextSplitterOptions<T extends ElementOptions> = T & {
+	split?: TextSplit | `${TextSplit}` | TextSplitElement[];
+};
 
 export interface TextSplitElementOffset extends ElementOptions {
 	start: number;
@@ -39,29 +28,7 @@ export type TextSplitElement =
 	| TextSplitElementString
 	| string;
 
-export interface ParsedTextSplit
-	extends TextSplitElementOffset,
-		TextSplitElementString {
-	animation: ElementAnimation;
-}
-
-export type TextSplitter<T extends ElementOptions = ElementOptions> =
-	| TextSplit
-	| `${TextSplit}`
-	| (Omit<T, "animation" | "splitText"> & TextSplitterOptions)
-	| CustomTextSplitter<T>
-	| SplitterImpl<ElementOptions>;
-
-export type CustomTextSplitter<T extends ElementOptions> = (context: {
-	text: Text;
-	event: ScanEvent;
-	options: SplitterImpl<ElementOptions>;
-
-	splitText(
-		splitter: RegExp | string,
-		splitOptions?: SplitOptions,
-	): ParsedTextSplit[];
-}) => TextSplitter<T> | TextSplitElement[];
+export type ParsedTextSplit = TextSplitElementOffset & TextSplitElementString;
 
 export enum TextSplit {
 	Character = "character",
@@ -71,39 +38,37 @@ export enum TextSplit {
 	Paragraph = "paragraph",
 }
 
-const DEFAULT_TEXT_SPLIT = TextSplit.Line;
-
 const CHARACTER_REGEX = /(?!\s)(?=.)/g;
 const WORD_REGEX = /[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]|\s+/gm;
 const LINE_REGEX = /\r\n|\r|\n/g;
 const SENTENCE_REGEX = /\r\n/g;
 const PARAGRAPH_REGEX = /\n\s*\n/g;
 
-function splitCharacters(this: SplitterImpl<ElementOptions>, text: TextLike) {
+function splitCharacters(this: ElementOptions, text: TextLike) {
 	return splitText(text, CHARACTER_REGEX, this);
 }
 
 splitCharacters.toString = () => TextSplit.Character;
 
-function splitWords(this: SplitterImpl<ElementOptions>, text: TextLike) {
+function splitWords(this: ElementOptions, text: TextLike) {
 	return splitText(text, WORD_REGEX, this);
 }
 
 splitWords.toString = () => TextSplit.Word;
 
-function splitLines(this: SplitterImpl<ElementOptions>, text: TextLike) {
+function splitLines(this: ElementOptions, text: TextLike) {
 	return splitText(text, LINE_REGEX, this);
 }
 
 splitLines.toString = () => TextSplit.Line;
 
-function splitSentences(this: SplitterImpl<ElementOptions>, text: TextLike) {
+function splitSentences(this: ElementOptions, text: TextLike) {
 	return splitText(text, SENTENCE_REGEX, this);
 }
 
 splitSentences.toString = () => TextSplit.Sentence;
 
-function splitParagraphs(this: SplitterImpl<ElementOptions>, text: TextLike) {
+function splitParagraphs(this: ElementOptions, text: TextLike) {
 	return splitText(text, PARAGRAPH_REGEX, this);
 }
 
@@ -113,11 +78,9 @@ export function getTextSplit<T extends ElementOptions>(
 	textSplit: TextSplit | `${TextSplit}`,
 	currentOptions?: T,
 ): SplitterImpl<T> {
-	const animation = [TextSplit.Character, TextSplit.Word].includes(
+	const fadeIn = [TextSplit.Character, TextSplit.Word].includes(
 		textSplit as TextSplit,
-	)
-		? AnimationKind.FadeIn
-		: AnimationKind.GradientReveal;
+	);
 
 	const splitText = {
 		[TextSplit.Character]: splitCharacters,
@@ -131,44 +94,64 @@ export function getTextSplit<T extends ElementOptions>(
 		throw new Error(`Invalid text split: ${textSplit}`);
 	}
 
-	return {
-		...mergeObject(currentOptions, { animation }),
+	return mergeObject(currentOptions, {
 		splitText,
-	};
+
+		...(currentOptions?.fadeIn == null &&
+			currentOptions?.gradientReveal == null && {
+				fadeIn,
+				gradientReveal: !fadeIn,
+			}),
+	});
 }
 
-export function mergeTextSplitter<T extends TextSplitterOptions>(
+export function mergeTextSplitter<T extends ElementOptions>(
 	currentSplitter: SplitterImpl<T>,
-	mergeSplitter: TextSplitter<T | ElementOptions>,
+	mergeSplitter:
+		| { animation?: TextAnimation }
+		| SplitterImpl<T>
+		| undefined
+		| null,
 ): SplitterImpl<T> {
-	if (typeof mergeSplitter === "function") {
-		const customSplitter = mergeSplitter;
+	if (!mergeSplitter) {
+		return currentSplitter;
+	}
+
+	if ("animation" in mergeSplitter && mergeSplitter.animation) {
+		const animation = mergeSplitter.animation;
 
 		function customTextSplitter(
 			this: SplitterImpl<T>,
 			text: Text,
 			event: ScanEvent,
 		) {
-			const result = customSplitter({
+			const result = animation({
 				text,
 				event,
-				options: this,
 				splitText: (splitter, splitOptions) => {
 					return splitText(text, splitter, mergeObject(this, splitOptions));
 				},
 			});
 
-			if (!Array.isArray(result)) {
-				const { splitText, ...options } = this;
+			if (!result) {
+				return currentSplitter.splitText(text, event);
+			}
+
+			const { splitText: currentSplitText, ...options } = currentSplitter;
+			const { split: resultSplit, ...resultOptions } = result;
+
+			if (!Array.isArray(resultSplit)) {
 				const mergedSplitter = mergeObject(
-					mergeTextSplitter(currentSplitter, result),
-					options,
-				);
+					mergeObject(options, resultOptions),
+					resultSplit
+						? getTextSplit(resultSplit)
+						: { splitText: currentSplitText },
+				) as SplitterImpl<T>;
 
 				return mergedSplitter.splitText(text, event);
 			}
 
-			const textSplitObjects = result
+			const textSplitObjects = resultSplit
 				.map((split) => {
 					const { splitText: _, ...options } = this;
 
@@ -228,45 +211,15 @@ export function mergeTextSplitter<T extends TextSplitterOptions>(
 
 		return {
 			...currentSplitter,
-			animation: AnimationKind.FadeIn,
 			splitText: customTextSplitter,
 		};
 	}
 
-	if (typeof mergeSplitter === "object") {
-		if ("splitText" in mergeSplitter) {
-			return mergeObject(currentSplitter, mergeSplitter);
-		}
-
-		const { splitter: textSplitter, ...splitterOptions } = mergeSplitter;
-
-		if (textSplitter) {
-			currentSplitter = mergeTextSplitter(
-				currentSplitter,
-				textSplitter,
-			) as SplitterImpl<T>;
-		}
-
-		let { splitText, ...options } = currentSplitter;
-		options = mergeObject(options, splitterOptions);
-		return { ...options, splitText } as SplitterImpl<T>;
+	if ("splitText" in mergeSplitter) {
+		return mergeObject(currentSplitter, mergeSplitter);
 	}
 
-	const { splitText: _, ...options } = currentSplitter;
-	return getTextSplit(mergeSplitter, options) as SplitterImpl<T>;
-}
-
-export function resolveTextSplitter<T extends ElementOptions>(
-	textSplitter: TextSplitter<T> | undefined | null,
-	...textSplitters: (TextSplitter<T | ElementOptions> | undefined | null)[]
-) {
-	return [textSplitter, ...textSplitters]
-		.filter((splitter) => !!splitter)
-		.reduce<SplitterImpl<T>>(
-			(currentSplitter, newSplitter) =>
-				mergeTextSplitter(currentSplitter, newSplitter),
-			getTextSplit(DEFAULT_TEXT_SPLIT),
-		);
+	return currentSplitter;
 }
 
 export interface SplitOptions extends ElementOptions {
@@ -288,11 +241,7 @@ export function splitText(
 		);
 	}
 
-	const {
-		separateDelimiters,
-		animation = AnimationKind.FadeIn,
-		...options
-	} = splitOptions as SplitOptions & { animation?: AnimationKind };
+	const { separateDelimiters, ...options } = splitOptions;
 
 	if (typeof textLike !== "string") {
 		const fullSplits = splitText(textLike.innerText, splitter, splitOptions);
@@ -312,7 +261,6 @@ export function splitText(
 				text: text,
 				start: 0,
 				end: text.length,
-				animation,
 				...options,
 			};
 
@@ -415,7 +363,6 @@ export function splitText(
 			} else {
 				splits.push({
 					...options,
-					animation,
 					start: lastIndex,
 					end,
 					text: segment,
@@ -426,7 +373,6 @@ export function splitText(
 		if (separateDelimiters) {
 			splits.push({
 				...options,
-				animation,
 				start: match.index,
 				end: matchEndIndex,
 				text: match[0],
@@ -439,7 +385,6 @@ export function splitText(
 	if (lastIndex < text.length) {
 		splits.push({
 			...options,
-			animation,
 			start: lastIndex,
 			end: text.length,
 			text: text.slice(lastIndex),

@@ -15,28 +15,12 @@ import {
 } from "./StaggerElementBox.js";
 import type { AnimationTiming } from "../animations/index.js";
 
-export enum AnimationKind {
-	FadeIn = "fade-in",
-
-	GradientReveal = "gradient-reveal",
-	GradientLeft = "gradient-left",
-	GradientUp = "gradient-up",
-	GradientDown = "gradient-down",
-
-	// Custom style-powered animations
-	Custom = "custom",
-	BlurIn = "blur-in",
-	BounceIn = "bounce-in",
+export enum GradientDirection {
+	Right = "right",
+	Left = "left",
+	Up = "up",
+	Down = "down",
 }
-
-export type GradientAnimation =
-	| AnimationKind.GradientReveal
-	| AnimationKind.GradientLeft
-	| AnimationKind.GradientUp
-	| AnimationKind.GradientDown;
-
-export type MaskAnimation = GradientAnimation | AnimationKind.FadeIn;
-
 export interface CustomStyles
 	extends Partial<Record<keyof CSSStyleDeclaration, string>> {}
 
@@ -66,26 +50,32 @@ export type ElementGradientWidth =
 	| number
 	| ((box: StaggerElementBox) => string | number | undefined);
 
-export type ElementAnimationTiming =
+export type ElementTiming =
 	| AnimationTiming
 	| `${AnimationTiming}`
 	| ((
 			box: StaggerElementBox,
 	  ) => number | AnimationTiming | `${AnimationTiming}`);
 
-export type ElementCustomStyles = (
+export type ElementStyles = (
 	box: StaggerElementBox,
 ) => CustomStyles | null | undefined;
 
-export type ElementAnimation =
-	| AnimationKind
-	| `${AnimationKind}`
-	| ((element: StaggerElement) => AnimationKind | `${AnimationKind}`);
+export type ElementFadeIn = boolean | ((element: StaggerElement) => boolean);
+
+export type ElementGradient =
+	| boolean
+	| GradientDirection
+	| `${GradientDirection}`
+	| ((
+			element: StaggerElement,
+	  ) => boolean | GradientDirection | `${GradientDirection}`);
 
 export interface ElementOptions {
-	animation?: ElementAnimation;
-	animationTiming?: ElementAnimationTiming;
-	customStyles?: ElementCustomStyles;
+	fadeIn?: ElementFadeIn;
+	gradientReveal?: ElementGradient;
+	timing?: ElementTiming;
+	styles?: ElementStyles;
 	gradientWidth?: ElementGradientWidth;
 
 	/**
@@ -115,7 +105,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 	startTime!: number;
 	duration!: number;
-	animation!: AnimationKind;
+	fadeIn = false;
+	gradientReveal: GradientDirection | null = null;
 	vibration!: number[] | null;
 	#delay: number | null = null;
 	staggerDelay: number | null = null;
@@ -124,7 +115,15 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 	batchId!: number;
 	index!: number;
 
-	override options: ElementOptions & ParsedTextOptions;
+	override options: Omit<
+		ParsedTextOptions,
+		| "splitText"
+		| "maxFps"
+		| "delayTrailing"
+		| "classNamePrefix"
+		| "id"
+		| "visualDebug"
+	>;
 
 	start: number;
 	end: number;
@@ -134,7 +133,14 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 		childNodes: RangesChildNode[],
 		split: ParsedTextSplit,
 	) {
-		const parsedOptions = mergeObject(text.options, split);
+		const {
+			maxFps,
+			delayTrailing,
+			classNamePrefix,
+			visualDebug,
+			...parsedOptions
+		} = mergeObject(text.options, split);
+
 		super(text, parsedOptions, text.container);
 		this.options = parsedOptions;
 
@@ -273,10 +279,20 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			this.index = lastActiveElement ? 1 : 0;
 		}
 
-		if (typeof this.options.animation === "function") {
-			this.animation = this.options.animation(this) as AnimationKind;
-		} else {
-			this.animation = this.options.animation as AnimationKind;
+		const { stagger, delay, styles, gradientReveal, fadeIn } = this.options;
+
+		if (styles != null) {
+			// noop
+		} else if (typeof gradientReveal === "string") {
+			this.gradientReveal = gradientReveal as GradientDirection | null;
+		} else if (gradientReveal === true) {
+			this.gradientReveal = GradientDirection.Right;
+		} else if (typeof gradientReveal === "function") {
+			this.gradientReveal = gradientReveal(this) as GradientDirection | null;
+		} if (typeof fadeIn === "boolean") {
+			this.fadeIn = fadeIn;
+		} else if (typeof fadeIn === "function") {
+			this.fadeIn = fadeIn(this);
 		}
 
 		this.duration = this.calculateDuration();
@@ -290,13 +306,13 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 		const previousElement = latestElementInBatch ?? lastActiveElement ?? null;
 
-		if (typeof this.options.stagger === "number") {
-			this.staggerDelay = this.options.stagger;
-		} else if (typeof this.options.stagger === "string") {
-			const percent = Number.parseFloat(this.options.stagger) ?? 0;
+		if (typeof stagger === "number") {
+			this.staggerDelay = stagger;
+		} else if (typeof stagger === "string") {
+			const percent = Number.parseFloat(stagger) ?? 0;
 			this.staggerDelay = (percent / 100) * (previousElement?.duration ?? 0);
 		} else {
-			const staggerDelay = this.options.stagger(this, previousElement);
+			const staggerDelay = stagger(this, previousElement);
 
 			if (typeof staggerDelay === "number") {
 				this.staggerDelay = staggerDelay;
@@ -317,8 +333,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			);
 		}
 
-		if (typeof this.options.delay === "function") {
-			this.#delay = this.options.delay(this);
+		if (typeof delay === "function") {
+			this.#delay = delay(this);
 		}
 	}
 
@@ -545,7 +561,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			duration: this.duration,
 			delay: this.delay,
 			textContent: this.textContent,
-			animation: this.animation,
+			fadeIn: this.fadeIn,
+			gradientReveal: this.gradientReveal,
 			uniqueBoxes: this.uniqueBoxes as SerializedStaggerElementBox[],
 			isLast: this.isLast,
 		};
@@ -553,12 +570,3 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 }
 
 export type SerializedStaggerElement = ReturnType<StaggerElement["toJSON"]>;
-
-export function isGradient(animation: AnimationKind | `${AnimationKind}`) {
-	return (
-		animation === AnimationKind.GradientLeft ||
-		animation === AnimationKind.GradientReveal ||
-		animation === AnimationKind.GradientUp ||
-		animation === AnimationKind.GradientDown
-	);
-}

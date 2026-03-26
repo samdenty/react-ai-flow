@@ -1,22 +1,8 @@
 import { preserveOptimizeRects } from "text-element-lines";
-import {
-	Box,
-	Ranges,
-	type SplitterImpl,
-	type Text,
-	TextLine,
-} from "../text/index.js";
+import { Box, Ranges, type Text, TextLine } from "../text/index.js";
 import { cloneRangeWithStyles } from "../text/styles/cloneRangeStyles.js";
-import {
-	AnimationKind,
-	type ElementOptions,
-	type StaggerElement,
-	isGradient,
-} from "./StaggerElement.js";
+import type { StaggerElement } from "./StaggerElement.js";
 import { AnimationTiming, timingFunctions } from "../animations/timings.js";
-
-export interface StaggerElementBoxOptions
-	extends SplitterImpl<ElementOptions> {}
 
 let ID = 0;
 
@@ -123,8 +109,8 @@ export class StaggerElementBox extends Ranges<
 
 	timingFunction(progress: number) {
 		const animationTiming =
-			this.options.animationTiming ??
-			(this.element.animation === AnimationKind.FadeIn
+			this.options.timing ??
+			(this.element.fadeIn
 				? AnimationTiming.Linear
 				: AnimationTiming.EaseInOut);
 
@@ -163,7 +149,7 @@ export class StaggerElementBox extends Ranges<
 	}
 
 	updateCustomAnimation() {
-		const styles = this.options.customStyles?.(this);
+		const styles = this.options.styles?.(this);
 		const batchedStyles: string[] = [];
 
 		if (this.subtext?.closestCommonParent) {
@@ -286,7 +272,7 @@ export class StaggerElementBox extends Ranges<
 	}
 
 	get isGradient() {
-		return isGradient(this.element.animation);
+		return this.element.gradientReveal != null;
 	}
 
 	comparePosition(other: this) {

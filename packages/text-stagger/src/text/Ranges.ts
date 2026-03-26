@@ -1,9 +1,5 @@
 import { Box as BaseBox, createRanges } from "text-element-lines";
-import type {
-	ElementOptions,
-	Stagger,
-	StaggerElementBoxOptions,
-} from "../stagger/index.js";
+import type { ElementOptions, Stagger } from "../stagger/index.js";
 import type { Text } from "./Text.js";
 import { updateStyles } from "./styles/properties.js";
 
@@ -77,7 +73,7 @@ export abstract class Ranges<
 
 	constructor(
 		parent: U,
-		public options: StaggerElementBoxOptions,
+		public options: ElementOptions,
 		element: HTMLElement,
 		childNodes?: RangesChildNode[],
 	) {

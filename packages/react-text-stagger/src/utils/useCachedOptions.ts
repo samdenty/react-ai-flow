@@ -7,7 +7,7 @@ import {
 } from "text-stagger";
 import { useStaggerContext } from "../StaggerProvider.js";
 
-export function useResolvedOptions(options: TextOptions) {
+export function useResolvedOptions(options: TextOptions) : TextOptions | null {
 	const stagger = useStaggerContext();
 	const [staggerOptions, setStaggerOptions] =
 		useState<ParsedStaggerOptions | null>(null);
@@ -25,23 +25,20 @@ export function useResolvedOptions(options: TextOptions) {
 	const cachedOptions = useCachedOptions(options);
 
 	const mergedOptions = useMemo(() => {
-		return staggerOptions && mergeTextSplitter(staggerOptions, cachedOptions);
+    if (!staggerOptions) {
+      return null;
+    }
+
+		const { restartOnSelection, revealOnSelection, ...options } = staggerOptions;
+
+		return mergeTextSplitter(options, cachedOptions);
 	}, [staggerOptions, cachedOptions]);
 
 	return mergedOptions;
 }
 
 export function useCachedOptions({
-	animation,
-	delay: currentDelay,
-	duration: currentDuration,
-	stagger: currentStagger,
-	vibration: currentVibration,
-	gradientWidth: currentGradientWidth,
-	customStyles: currentCustomStyles,
-	blurAmount: currentBlurAmount,
-	animationTiming: currentAnimationTiming,
-	splitter: currentSplitter,
+	animation: currentAnimation,
 	delayTrailing,
 	visualDebug,
 	maxFps: currentMaxFps,
@@ -50,28 +47,11 @@ export function useCachedOptions({
 	classNamePrefix,
 }: StaggerOptions): StaggerOptions {
 	const maxFps = useCachedFunctionLike(currentMaxFps);
-	const duration = useCachedFunctionLike(currentDuration);
-	const vibration = useCachedFunctionLike(currentVibration);
-	const delay = useCachedFunctionLike(currentDelay);
-	const stagger = useCachedFunctionLike(currentStagger);
-	const splitter = useCachedFunctionLike(currentSplitter);
-	const gradientWidth = useCachedFunctionLike(currentGradientWidth);
-	const customStyles = useCachedFunctionLike(currentCustomStyles);
-	const blurAmount = useCachedFunctionLike(currentBlurAmount);
-	const animationTiming = useCachedFunctionLike(currentAnimationTiming);
+	const animation = useCachedFunctionLike(currentAnimation);
 
 	return useMemo<StaggerOptions>(
 		() => ({
 			animation,
-			delay,
-			duration,
-			vibration,
-			splitter,
-			stagger,
-			gradientWidth,
-			customStyles,
-			blurAmount,
-			animationTiming,
 			visualDebug,
 			maxFps,
 			delayTrailing,
@@ -81,15 +61,6 @@ export function useCachedOptions({
 		}),
 		[
 			animation,
-			delay,
-			duration,
-			vibration,
-			splitter,
-			stagger,
-			gradientWidth,
-			customStyles,
-			blurAmount,
-			animationTiming,
 			visualDebug,
 			maxFps,
 			delayTrailing,

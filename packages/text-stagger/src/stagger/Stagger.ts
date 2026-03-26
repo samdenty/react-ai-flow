@@ -6,8 +6,9 @@ import {
 	Text,
 	TextLine,
 	type TextOptions,
+	TextSplit,
+	getTextSplit,
 	mergeTextSplitter,
-	resolveTextSplitter,
 } from "../text/index.js";
 import { StaggerElement } from "./StaggerElement.js";
 
@@ -723,18 +724,20 @@ export class Stagger {
 	}
 
 	set options(options: StaggerOptions | undefined) {
-		this.#options = resolveTextSplitter<ParsedStaggerOptions>(
-			{
-				visualDebug: false,
-				maxFps: null,
-				disabled: false,
-				classNamePrefix: Stagger.classNamePrefix,
-				delayTrailing: false,
-				vibration: [0, "70%", 10],
-				restartOnSelection: false,
-				revealOnSelection: true,
-				stagger: "100%",
-			},
+		const initialOptions = getTextSplit(TextSplit.Line, {
+			visualDebug: false,
+			maxFps: null,
+			disabled: false,
+			classNamePrefix: Stagger.classNamePrefix,
+			delayTrailing: false,
+			vibration: [0, "70%", 10],
+			restartOnSelection: false,
+			revealOnSelection: true,
+			stagger: "100%",
+		});
+
+		this.#options = mergeTextSplitter<ParsedStaggerOptions>(
+			initialOptions,
 			options,
 		);
 
@@ -784,10 +787,15 @@ export class Stagger {
 		container: HTMLElement,
 		textOptions: TextOptions | null | undefined,
 	) {
+		const { restartOnSelection, revealOnSelection, ...options } = this.options;
+
 		const text = new Text(
 			this,
 			mergeTextSplitter<ParsedTextOptions>(
-				{ id: TEXT_ID++, ...this.options },
+				{
+					id: TEXT_ID++,
+					...options,
+				},
 				textOptions ?? {},
 			),
 		);

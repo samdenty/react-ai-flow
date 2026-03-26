@@ -3,9 +3,8 @@ import type { ReplayPlugin, Replayer, playerConfig } from "rrweb";
 import {
 	Stagger,
 	type Text,
+	type TextAnimation,
 	TextSplit,
-	type TextSplitter,
-	type TextSplitterOptions,
 	enableDataUriRendering,
 } from "text-stagger";
 import type { RecordedEvent, TextSnapshot } from "text-stagger-record";
@@ -117,21 +116,21 @@ export function replayPlugin(
 
 		const { splitText, ...textOptions } = snapshot.options || {};
 
-		let splitter: Exclude<TextSplitter, TextSplitterOptions> | undefined;
+		let animation: TextAnimation | undefined;
 
 		if (
 			splitText &&
 			Object.values(TextSplit).includes(splitText as TextSplit)
 		) {
-			splitter = splitText as TextSplit;
+			animation = () => ({ split: splitText as TextSplit });
 		} else if (splitText) {
-			splitter = eval(`(${splitText})`);
+			animation = eval(`(${splitText})`);
 		}
 
 		hydrated = stagger.observeText(element, {
 			...textOptions,
 			id: snapshot.id,
-			splitter,
+			animation,
 		});
 
 		hydratedTexts.set(snapshot.id, hydrated);

@@ -10,12 +10,12 @@ import {
 	type RelativeTimePeriod,
 	type SerializedStaggerElement,
 	StaggerElement,
-	type StaggerElementBoxOptions,
 } from "../stagger/index.js";
 import { Box, Ranges, type RangesChildNode } from "./Ranges.js";
 import { TextLine } from "./TextLine.js";
 import type {
 	ParsedTextSplit,
+	SplitOptions,
 	SplitterImpl,
 	TextSplitterOptions,
 } from "./TextSplitter.js";
@@ -28,9 +28,7 @@ import {
 // text-stagger-record overwrites requestAnimationFrame and cancelAnimationFrame
 const { requestAnimationFrame } = globalThis;
 
-export interface ParsedTextOptions
-	extends SplitterImpl<TextSplitterOptions>,
-		StaggerElementBoxOptions {
+export interface ParsedTextOptions extends SplitterImpl<ElementOptions> {
 	visualDebug: boolean;
 	id: number;
 	maxFps: number | null | ((text: Text) => boolean | number | null);
@@ -47,7 +45,19 @@ export interface ParsedTextOptions
 	stagger: NonNullable<ElementOptions["stagger"]>;
 }
 
-export interface TextOptions extends TextSplitterOptions {
+export type TextAnimation = (context: {
+	text: Text;
+	event: ScanEvent;
+
+	splitText(
+		splitter: RegExp | string,
+		splitOptions?: SplitOptions,
+	): ParsedTextSplit[];
+}) => TextSplitterOptions<ElementOptions> | null;
+
+export interface TextOptions {
+	animation?: TextAnimation;
+
 	id?: number;
 
 	/**

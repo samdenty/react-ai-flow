@@ -1,11 +1,16 @@
 import { Bug } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
+	type ElementOptions,
+	type ElementStyles,
+	GradientDirection,
 	StaggerProvider,
 	StaggeredText,
 	StickToBottom,
-	type TextOptions,
-	enableIOSVibrationWithPopup,
+	type TextAnimation,
+	type TextSplit,
+	blurIn,
+	bounceIn,
 	useStickToBottomContext,
 } from "react-ai-flow";
 import {
@@ -84,30 +89,40 @@ function MessagesContent({
 	);
 }
 
-type Options = {
-	[K in
-		| "stagger"
-		| "animation"
-		| "blurAmount"
-		| "splitter"
-		| "duration"
-		| "visualDebug"
-		| "gradientWidth"
-		| "animationTiming"
-		| "delayTrailing"]: Extract<TextOptions[K], string | boolean | number>;
-};
+type AnimationType =
+	| "blur-in"
+	| "bounce-in"
+	| "gradient-reveal"
+	| "gradient-left"
+	| "gradient-up"
+	| "gradient-down"
+	| "custom";
+
+interface Options {
+	stagger: string;
+	animation: AnimationType;
+	splitter: `${TextSplit}`;
+	duration: number;
+	visualDebug: boolean;
+	gradientWidth: string;
+	animationTiming: string;
+	delayTrailing: boolean;
+	customStyles?: ElementStyles;
+}
 
 function Messages({
 	speed,
 	setSpeed,
-}: { speed: number; setSpeed: (speed: number) => void }) {
+}: {
+	speed: number;
+	setSpeed: (speed: number) => void;
+}) {
 	const messages = useFakeMessages(speed);
 	const [paused, setPaused] = useState<React.ReactNode[][] | false>(false);
 
 	const [options, setOptions] = useState<Options>({
 		stagger: "5%",
-		animation: "blur-in",
-		blurAmount: "5px",
+		animation: "gradient-reveal",
 		splitter: "word",
 		duration: 1000,
 		visualDebug: false,
@@ -124,15 +139,62 @@ function Messages({
 		[messages],
 	);
 
-	const isGradientAnimation =
-		options.animation?.startsWith("gradient") ?? false;
+	const isGradientAnimation = options.animation.startsWith("gradient");
+
+	const animation = useCallback<TextAnimation>(() => {
+		const elementOptions: ElementOptions = {
+			stagger: options.stagger as ElementOptions["stagger"],
+			duration: options.duration,
+			gradientWidth: options.gradientWidth,
+			timing: options.animationTiming as ElementOptions["timing"],
+		};
+
+		switch (options.animation) {
+			case "custom":
+				if (options.customStyles) {
+					elementOptions.styles = options.customStyles;
+				}
+				break;
+			case "blur-in":
+				elementOptions.styles = (box) => blurIn(box);
+				break;
+			case "bounce-in":
+				elementOptions.styles = (box) => bounceIn(box);
+				break;
+			case "gradient-reveal":
+				elementOptions.gradientReveal = GradientDirection.Right;
+				break;
+			case "gradient-left":
+				elementOptions.gradientReveal = GradientDirection.Left;
+				break;
+			case "gradient-up":
+				elementOptions.gradientReveal = GradientDirection.Up;
+				break;
+			case "gradient-down":
+				elementOptions.gradientReveal = GradientDirection.Down;
+				break;
+		}
+
+		return {
+			split: options.splitter,
+			...elementOptions,
+		};
+	}, [
+		options.animation,
+		options.customStyles,
+		options.splitter,
+		options.stagger,
+		options.duration,
+		options.gradientWidth,
+		options.animationTiming,
+	]);
 
 	return (
 		<StaggerProvider
-			{...options}
+			animation={animation}
+			visualDebug={options.visualDebug}
+			delayTrailing={options.delayTrailing}
 			streaming
-			delayTrailing
-			gradientWidth={String(options.gradientWidth)}
 		>
 			<div className="grid grid-cols-2 gap-4 w-full">
 				<Card>
@@ -149,8 +211,8 @@ function Messages({
 									onClick={() => {
 										updateOptions({
 											splitter: "character",
-											animation: "blur-in",
-											blurAmount: "12px",
+											animation: "custom",
+											customStyles: (box) => blurIn(box, "12px"),
 											stagger: "5%",
 											duration: 1000,
 										});
@@ -165,7 +227,8 @@ function Messages({
 									onClick={() => {
 										updateOptions({
 											splitter: "word",
-											animation: "bounce-in",
+											animation: "custom",
+											customStyles: (box) => bounceIn(box),
 											stagger: "16%",
 											duration: 500,
 										});
@@ -195,8 +258,8 @@ function Messages({
 									onClick={() => {
 										updateOptions({
 											splitter: "line",
-											animation: "blur-in",
-											blurAmount: "8px",
+											animation: "custom",
+											customStyles: (box) => blurIn(box, "8px"),
 											stagger: "16%",
 											duration: 500,
 										});
@@ -227,8 +290,8 @@ function Messages({
 									onClick={() => {
 										updateOptions({
 											splitter: "character",
-											animation: "blur-in",
-											blurAmount: "18px",
+											animation: "custom",
+											customStyles: (box) => blurIn(box, "18px"),
 											stagger: "10%",
 											duration: 300,
 										});
@@ -314,29 +377,6 @@ function Messages({
 									</Label>
 								</div>
 							</RadioGroup>
-
-							{options.animation === "blur-in" && (
-								<div className="space-y-1 pl-2">
-									<Label className="text-xs">Blur Amount</Label>
-									<div className="flex items-center space-x-2">
-										<Slider
-											value={[Number.parseInt(String(options.blurAmount), 10)]}
-											onValueChange={([value]) => {
-												if (typeof value === "number") {
-													updateOptions({ blurAmount: `${value}px` });
-												}
-											}}
-											min={1}
-											max={30}
-											step={1}
-											className="flex-1"
-										/>
-										<span className="text-xs text-muted-foreground w-8 text-right">
-											{options.blurAmount}
-										</span>
-									</div>
-								</div>
-							)}
 
 							{isGradientAnimation && (
 								<div className="space-y-1 pl-2">

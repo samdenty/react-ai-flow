@@ -466,7 +466,11 @@ export function createRanges<BoxType>(
 				}
 			}
 
-			this.#commonAncestorContainer = commonAncestors[0] ?? this.document.body;
+      this.#commonAncestorContainer = commonAncestors.shift() ?? this.document.body;
+
+      if (commonAncestors.includes(this.container)) {
+        this.#commonAncestorContainer = this.container;
+      }
 
 			return this.#commonAncestorContainer;
 		}

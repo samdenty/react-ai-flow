@@ -105,8 +105,8 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 	startTime!: number;
 	duration!: number;
-	fadeIn = false;
-	gradientReveal: GradientDirection | null = null;
+	fadeIn!: boolean;
+	gradientReveal!: GradientDirection | null;
 	vibration!: number[] | null;
 	#delay: number | null = null;
 	staggerDelay: number | null = null;
@@ -281,6 +281,9 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 
 		const { stagger, delay, styles, gradientReveal, fadeIn } = this.options;
 
+    this.gradientReveal = null;
+    this.fadeIn = false;
+
 		if (styles != null) {
 			// noop
 		} else if (typeof gradientReveal === "string") {
@@ -289,7 +292,7 @@ export class StaggerElement extends Ranges<StaggerElementBox, Text> {
 			this.gradientReveal = GradientDirection.Right;
 		} else if (typeof gradientReveal === "function") {
 			this.gradientReveal = gradientReveal(this) as GradientDirection | null;
-		} if (typeof fadeIn === "boolean") {
+		} else if (typeof fadeIn === "boolean") {
 			this.fadeIn = fadeIn;
 		} else if (typeof fadeIn === "function") {
 			this.fadeIn = fadeIn(this);
